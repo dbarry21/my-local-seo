@@ -1,6 +1,13 @@
 <?php
 if ( ! defined('ABSPATH') ) exit;
 
-myls_register_admin_tab('dashboard', 'Dashboard', function(){
-    echo '<div class="card p-3"><h2>Dashboard</h2><p>If you see this, the tab loader is working.</p></div>';
-}, 1); // low priority so it’s first
+myls_register_admin_tab([
+  'id'    => 'dashboard',
+  'title' => 'Dashboard',
+  'icon'  => 'dashicons-dashboard', // ← add this
+  'order' => 1,
+  'cap'   => 'manage_options',
+  'cb'    => function(){
+    echo '<div class="wrap"><h2>Dashboard</h2></div>';
+  },
+]);

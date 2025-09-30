@@ -1,201 +1,357 @@
 <?php
-// File: admin/tabs/schema/subtab-organization.php
 if ( ! defined('ABSPATH') ) exit;
 
-// Discovery spec
+/**
+ * Organization subtab (Two-column layout)
+ * - Left: full form (Basics, Logo, Address/Geo, Areas, Social)
+ * - Right: Post chooser (Pages + Service Areas)
+ * - 1px black borders + 1em radius on columns and fields
+ * - Default Service Label now a dropdown (matches ssseo-tools set)
+ *
+ * NOTE: Do NOT open a <form> here — main tab wraps this in a single form.
+ */
+
 $spec = [
-    'id'      => 'organization',
-    'label'   => 'Organization',
-    'render'  => function () {
-        // Load values
-        $v = [
-            'name'        => myls_opt('myls_org_name', ''),
-            'url'         => myls_opt('myls_org_url', ''),
-            'logo'        => myls_opt('myls_org_logo', ''),
-            'tel'         => myls_opt('myls_org_tel', ''),
-            'email'       => myls_opt('myls_org_email', ''),
-            'street'      => myls_opt('myls_org_street', ''),
-            'locality'    => myls_opt('myls_org_locality', ''),
-            'region'      => myls_opt('myls_org_region', ''),
-            'postal'      => myls_opt('myls_org_postal', ''),
-            'country'     => myls_opt('myls_org_country', ''),
-            'social'      => myls_opt('myls_org_social', ''),   // newline list
-            'areas'       => myls_opt('myls_org_areas', ''),    // newline list
-            'lat'         => myls_opt('myls_org_lat', ''),
-            'lng'         => myls_opt('myls_org_lng', ''),
-            'description' => myls_opt('myls_org_description', ''),
-        ];
-        ?>
-        <form method="post">
-            <?php wp_nonce_field('myls_schema_save', 'myls_schema_nonce'); ?>
+	'id'    => 'organization',
+	'label' => 'Organization',
+	'order' => 10,
 
-            <div class="row g-3">
-                <div class="col-md-6">
-                    <label class="form-label">Organization Name</label>
-                    <input type="text" name="myls_org_name" class="form-control" value="<?php echo esc_attr($v['name']); ?>">
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label">Organization URL</label>
-                    <input type="url" name="myls_org_url" class="form-control" value="<?php echo esc_url($v['url']); ?>">
-                </div>
+	'render'=> function () {
 
-                <div class="col-md-6">
-                    <label class="form-label">Logo URL</label>
-                    <input type="url" name="myls_org_logo" class="form-control" value="<?php echo esc_url($v['logo']); ?>">
-                    <div class="form-text">Full image URL.</div>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label">Telephone</label>
-                    <input type="text" name="myls_org_tel" class="form-control" value="<?php echo esc_attr($v['tel']); ?>">
-                </div>
+		// Media modal for logo
+		if ( function_exists('wp_enqueue_media') ) {
+			wp_enqueue_media();
+		}
 
-                <div class="col-md-6">
-                    <label class="form-label">Contact Email</label>
-                    <input type="email" name="myls_org_email" class="form-control" value="<?php echo esc_attr($v['email']); ?>">
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label">Description</label>
-                    <textarea name="myls_org_description" class="form-control" rows="3"><?php echo esc_textarea($v['description']); ?></textarea>
-                </div>
+		// Service Type options (from ssseo-tools)
+		$service_types = [
+			'',
+			'LocalBusiness','Plumber','Electrician','HVACBusiness','RoofingContractor',
+			'PestControl','LegalService','CleaningService','AutoRepair','MedicalBusiness',
+			'Locksmith','MovingCompany','RealEstateAgent','ITService',
+		];
 
-                <div class="col-12"><hr></div>
+		// Values (fallback to older ssseo_* options if migrating)
+		$v = [
+			'name'        => get_option('myls_org_name',        get_option('ssseo_organization_name','')),
+			'url'         => get_option('myls_org_url',         get_option('ssseo_organization_url','')),
+			'tel'         => get_option('myls_org_tel',         get_option('ssseo_organization_phone','')),
+			'email'       => get_option('myls_org_email',       get_option('ssseo_organization_email','')),
+			'description' => get_option('myls_org_description', get_option('ssseo_organization_description','')),
+			'street'      => get_option('myls_org_street',      get_option('ssseo_organization_address','')),
+			'locality'    => get_option('myls_org_locality',    get_option('ssseo_organization_locality','')),
+			'region'      => get_option('myls_org_region',      get_option('ssseo_organization_state','')),
+			'postal'      => get_option('myls_org_postal',      get_option('ssseo_organization_postal_code','')),
+			'country'     => get_option('myls_org_country',     get_option('ssseo_organization_country','')),
+			'lat'         => get_option('myls_org_lat',         get_option('ssseo_organization_latitude','')),
+			'lng'         => get_option('myls_org_lng',         get_option('ssseo_organization_longitude','')),
+			'default_service_label' => get_option('myls_org_default_service_label', get_option('ssseo_default_service_label','')),
+			'areas'       => get_option('myls_org_areas',       get_option('ssseo_organization_areas_served','')),
+		];
 
-                <div class="col-md-6">
-                    <label class="form-label">Street Address</label>
-                    <input type="text" name="myls_org_street" class="form-control" value="<?php echo esc_attr($v['street']); ?>">
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label">Locality (City)</label>
-                    <input type="text" name="myls_org_locality" class="form-control" value="<?php echo esc_attr($v['locality']); ?>">
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label">Region/State</label>
-                    <input type="text" name="myls_org_region" class="form-control" value="<?php echo esc_attr($v['region']); ?>">
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label">Postal Code</label>
-                    <input type="text" name="myls_org_postal" class="form-control" value="<?php echo esc_attr($v['postal']); ?>">
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label">Country (2-letter)</label>
-                    <input type="text" name="myls_org_country" class="form-control" value="<?php echo esc_attr($v['country']); ?>" maxlength="2">
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label">Latitude</label>
-                    <input type="text" name="myls_org_lat" class="form-control" value="<?php echo esc_attr($v['lat']); ?>">
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label">Longitude</label>
-                    <input type="text" name="myls_org_lng" class="form-control" value="<?php echo esc_attr($v['lng']); ?>">
-                </div>
+		$logo_id  = (int) get_option('myls_org_logo_id', (int) get_option('ssseo_organization_logo', 0));
+		$logo_url = $logo_id ? wp_get_attachment_image_url($logo_id, 'medium') : '';
 
-                <div class="col-md-6">
-                    <label class="form-label">Social Profiles (one per line)</label>
-                    <textarea name="myls_org_social" class="form-control" rows="4" placeholder="https://facebook.com/yourpage&#10;https://www.linkedin.com/company/yourco"><?php echo esc_textarea($v['social']); ?></textarea>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label">Areas Served (one per line)</label>
-                    <textarea name="myls_org_areas" class="form-control" rows="4" placeholder="Tampa, FL&#10;Orlando, FL"><?php echo esc_textarea($v['areas']); ?></textarea>
-                </div>
-            </div>
+		$socials  = (array) get_option('myls_org_social_profiles', (array) get_option('ssseo_organization_social_profiles', []));
+		if ( empty($socials) ) { $socials = ['']; }
 
-            <div class="mt-3 d-flex gap-2">
-                <button type="submit" class="btn btn-primary">Save Organization</button>
-                <a class="btn btn-outline-secondary" href="<?php echo esc_url( add_query_arg('schema_subtab','organization') ); ?>">Refresh</a>
-            </div>
+		$sel_pages = array_map('absint', (array) get_option('myls_org_pages', (array) get_option('ssseo_organization_schema_pages', [])));
 
-            <?php
-            // Live preview
-            $node = myls_schema_org_build_node();
-            if ( $node ) {
-                $json = wp_json_encode(['@context'=>'https://schema.org'] + $node, JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT);
-                echo '<hr><h5 class="mt-4">Preview (JSON-LD)</h5><pre class="p-3 bg-light border rounded small" style="max-height:420px;overflow:auto;">'.esc_html($json).'</pre>';
-            }
-            ?>
-        </form>
-        <?php
-    },
-    'on_save' => function () {
-        $fields = [
-            'myls_org_name','myls_org_url','myls_org_logo','myls_org_tel','myls_org_email',
-            'myls_org_street','myls_org_locality','myls_org_region','myls_org_postal','myls_org_country',
-            'myls_org_social','myls_org_areas','myls_org_lat','myls_org_lng','myls_org_description'
-        ];
-        foreach ($fields as $key) {
-            $val = isset($_POST[$key]) ? wp_unslash($_POST[$key]) : '';
-            if ( $key === 'myls_org_social' || $key === 'myls_org_areas' ) {
-                $val = myls_sanitize_csv($val);
-            } else {
-                $val = is_string($val) ? trim($val) : $val;
-            }
-            myls_update_opt($key, $val);
-        }
-        flush_rewrite_rules(false);
-    },
+		// Assignable: Pages + Service Areas
+		$assignable = get_posts([
+			'post_type'   => ['page','service_area'],
+			'post_status' => 'publish',
+			'numberposts' => -1,
+			'orderby'     => 'title',
+			'order'       => 'asc',
+		]);
+		?>
+		<style>
+			/* Two-column split + borders/radius */
+			.myls-org-two-col { display:flex; gap:24px; flex-wrap:wrap; }
+			.myls-org-left, .myls-org-right {
+				background:#fff; border:1px solid #000; border-radius:1em; padding:16px;
+			}
+			.myls-org-left  { flex:2 1 520px; }
+			.myls-org-right { flex:1 1 320px; }
+
+			/* Fields: 1px black border + 1em radius */
+			.myls-org-two-col input[type="text"],
+			.myls-org-two-col input[type="email"],
+			.myls-org-two-col input[type="url"],
+			.myls-org-two-col input[type="time"],
+			.myls-org-two-col textarea,
+			.myls-org-two-col select {
+				border:1px solid #000 !important; border-radius:1em !important;
+				padding:.6rem .9rem; width:100%;
+			}
+			.myls-org-two-col .form-label { font-weight:600; margin-bottom:.35rem; display:block; }
+
+			/* Grid helpers */
+			.myls-org-two-col .row { display:flex; flex-wrap:wrap; margin-left:-.5rem; margin-right:-.5rem; }
+			.myls-org-two-col .row > [class^="col-"] { padding-left:.5rem; padding-right:.5rem; margin-bottom:1rem; }
+			.myls-org-two-col .col-12 { flex:0 0 100%; max-width:100%; }
+			.myls-org-two-col .col-md-3 { flex:0 0 25%; max-width:25%; }
+			.myls-org-two-col .col-md-4 { flex:0 0 33.333%; max-width:33.333%; }
+			.myls-org-two-col .col-md-6 { flex:0 0 50%; max-width:50%; }
+			.myls-org-two-col .col-md-8 { flex:0 0 66.666%; max-width:66.666%; }
+
+			/* Section titles + dividers */
+			.myls-org-section-title { font-weight:800; margin:4px 0 10px; }
+			.myls-org-hr { height:1px; background:#000; opacity:.15; border:0; margin:12px 0 18px; }
+
+			/* Buttons (within subtab content; main Save is in parent form) */
+			.myls-org-actions { margin-top:14px; display:flex; gap:.5rem; }
+			.myls-btn { display:inline-block; font-weight:600; border:1px solid #000; padding:.45rem .9rem; border-radius:1em; background:#f8f9fa; color:#111; cursor:pointer; }
+			.myls-btn-primary { background:#0d6efd; color:#fff; border-color:#0d6efd; }
+			.myls-btn-outline { background:transparent; }
+			.myls-btn-danger  { border-color:#dc3545; color:#dc3545; }
+			.myls-btn-danger:hover { background:#dc3545; color:#fff; }
+			.myls-btn:hover { filter:brightness(.97); }
+
+			/* Right column: chooser */
+			.myls-chooser-title { font-weight:800; margin-bottom:.5rem; }
+			.myls-chooser select { min-height:520px; width:100%; }
+			.myls-chooser-tip { font-size:12px; opacity:.8; margin-top:.5rem; }
+			.myls-chooser-toolbar { display:flex; gap:.5rem; margin-bottom:.75rem; }
+			.myls-logo-preview img { max-width:220px; height:auto; border:1px solid #000; border-radius:1em; }
+		</style>
+
+		<div class="myls-org-two-col">
+			<!-- LEFT: FORM FIELDS (no <form> tag here) -->
+			<div class="myls-org-left">
+				<div class="myls-org-section">
+					<div class="myls-org-section-title">Organization Basics</div>
+					<div class="row">
+						<div class="col-md-6">
+							<label class="form-label">Organization Name</label>
+							<input type="text" name="myls_org_name" value="<?php echo esc_attr($v['name']); ?>">
+						</div>
+						<div class="col-md-3">
+							<label class="form-label">Website URL</label>
+							<input type="url" name="myls_org_url" value="<?php echo esc_url($v['url']); ?>">
+						</div>
+						<div class="col-md-3">
+							<label class="form-label">Email</label>
+							<input type="email" name="myls_org_email" value="<?php echo esc_attr($v['email']); ?>">
+						</div>
+						<div class="col-md-3">
+							<label class="form-label">Phone</label>
+							<input type="text" name="myls_org_tel" value="<?php echo esc_attr($v['tel']); ?>">
+						</div>
+						<div class="col-md-3">
+							<label class="form-label">Default Service Label</label>
+							<select name="myls_org_default_service_label">
+								<?php foreach ( $service_types as $opt ): ?>
+									<option value="<?php echo esc_attr($opt); ?>" <?php selected($v['default_service_label'], $opt); ?>>
+										<?php echo $opt === '' ? '— Select —' : esc_html($opt); ?>
+									</option>
+								<?php endforeach; ?>
+							</select>
+							<div class="form-text">Used by Service/LocalBusiness schema when a label is not provided.</div>
+						</div>
+						<div class="col-md-6">
+							<label class="form-label">Description</label>
+							<textarea rows="3" name="myls_org_description"><?php echo esc_textarea($v['description']); ?></textarea>
+						</div>
+					</div>
+				</div>
+
+				<hr class="myls-org-hr">
+
+				<div class="myls-org-section">
+					<div class="myls-org-section-title">Logo</div>
+					<input type="hidden" id="myls_org_logo_id" name="myls_org_logo_id" value="<?php echo esc_attr($logo_id); ?>">
+					<div class="myls-logo-preview">
+						<?php if ( $logo_url ) : ?>
+							<img src="<?php echo esc_url($logo_url); ?>" alt="">
+						<?php endif; ?>
+					</div>
+					<div class="myls-org-actions">
+						<button type="button" class="myls-btn myls-btn-outline" id="myls-org-logo-btn">Select Logo</button>
+						<button type="button" class="myls-btn myls-btn-danger" id="myls-org-logo-remove">Remove</button>
+					</div>
+				</div>
+
+				<hr class="myls-org-hr">
+
+				<div class="myls-org-section">
+					<div class="myls-org-section-title">Address & Geo</div>
+					<div class="row">
+						<div class="col-md-6">
+							<label class="form-label">Street</label>
+							<input type="text" name="myls_org_street" value="<?php echo esc_attr($v['street']); ?>">
+						</div>
+						<div class="col-md-3">
+							<label class="form-label">City</label>
+							<input type="text" name="myls_org_locality" value="<?php echo esc_attr($v['locality']); ?>">
+						</div>
+						<div class="col-md-3">
+							<label class="form-label">State/Region</label>
+							<input type="text" name="myls_org_region" value="<?php echo esc_attr($v['region']); ?>">
+						</div>
+						<div class="col-md-3">
+							<label class="form-label">Postal Code</label>
+							<input type="text" name="myls_org_postal" value="<?php echo esc_attr($v['postal']); ?>">
+						</div>
+						<div class="col-md-3">
+							<label class="form-label">Country</label>
+							<input type="text" name="myls_org_country" value="<?php echo esc_attr($v['country']); ?>">
+						</div>
+						<div class="col-md-3">
+							<label class="form-label">Latitude</label>
+							<input type="text" name="myls_org_lat" value="<?php echo esc_attr($v['lat']); ?>">
+						</div>
+						<div class="col-md-3">
+							<label class="form-label">Longitude</label>
+							<input type="text" name="myls_org_lng" value="<?php echo esc_attr($v['lng']); ?>">
+						</div>
+					</div>
+				</div>
+
+				<hr class="myls-org-hr">
+
+				<div class="myls-org-section">
+					<div class="myls-org-section-title">Areas Served & Social</div>
+					<div class="row">
+						<div class="col-md-6">
+							<label class="form-label">Areas Served (one per line)</label>
+							<textarea rows="5" name="myls_org_areas"><?php echo esc_textarea($v['areas']); ?></textarea>
+						</div>
+						<div class="col-md-6">
+							<label class="form-label">Social Profiles</label>
+							<div id="myls-org-socials">
+								<?php foreach ( $socials as $i => $u ) : ?>
+								<div class="d-flex" style="gap:.5rem; margin-bottom:.5rem;">
+									<input type="url" name="myls_org_social_profiles[]" value="<?php echo esc_url($u); ?>" placeholder="https://example.com/your-profile">
+									<button class="myls-btn myls-btn-outline myls-remove-social" type="button">Remove</button>
+								</div>
+								<?php endforeach; ?>
+							</div>
+							<button class="myls-btn myls-btn-outline" type="button" id="myls-org-add-social">+ Add Profile</button>
+						</div>
+					</div>
+				</div>
+
+				<!-- (No submit button here; the main tab provides Save Settings) -->
+			</div>
+
+			<!-- RIGHT: POST CHOOSER -->
+			<div class="myls-org-right">
+				<div class="myls-chooser">
+					<div class="myls-chooser-title">Include Organization schema on:</div>
+					<div class="myls-chooser-toolbar">
+						<button type="button" class="myls-btn myls-btn-outline" id="myls-chooser-select-all">Select All</button>
+						<button type="button" class="myls-btn myls-btn-outline" id="myls-chooser-clear">Clear</button>
+					</div>
+					<select class="form-select" name="myls_org_pages[]" id="myls-org-pages" multiple>
+						<?php foreach ( $assignable as $p ) :
+							$selected = in_array($p->ID, $sel_pages, true) ? 'selected' : '';
+							$prefix   = (get_post_type($p->ID)==='service_area') ? 'Service Area: ' : '';
+							echo '<option value="'. esc_attr($p->ID) .'" '. $selected .'>'. esc_html($prefix.$p->post_title) .'</option>';
+						endforeach; ?>
+					</select>
+					<div class="myls-chooser-tip">Hold <strong>Ctrl/Cmd</strong> to select multiple. Leave empty for site-wide.</div>
+				</div>
+			</div>
+		</div>
+
+		<script>
+		// Logo media picker
+		(function(){
+		  const btn = document.getElementById('myls-org-logo-btn');
+		  const rmv = document.getElementById('myls-org-logo-remove');
+		  const idField = document.getElementById('myls_org_logo_id');
+		  const prev = document.querySelector('.myls-logo-preview');
+		  let frame;
+
+		  btn?.addEventListener('click', function(e){
+			e.preventDefault();
+			if (frame){ frame.open(); return; }
+			frame = wp.media({ title: 'Select Logo', button: { text: 'Use this logo' }, multiple: false });
+			frame.on('select', function(){
+			  const att = frame.state().get('selection').first().toJSON();
+			  idField.value = att.id;
+			  const url = (att.sizes && att.sizes.medium ? att.sizes.medium.url : att.url);
+			  prev.innerHTML = '<img src="'+ url +'" alt="">';
+			});
+			frame.open();
+		  });
+
+		  rmv?.addEventListener('click', function(){
+			idField.value = '';
+			prev.innerHTML = '';
+		  });
+		})();
+
+		// Social rows
+		(function(){
+		  const wrap = document.getElementById('myls-org-socials');
+		  document.getElementById('myls-org-add-social')?.addEventListener('click', function(){
+			const row = document.createElement('div');
+			row.className = 'd-flex';
+			row.style.gap = '.5rem';
+			row.style.marginBottom = '.5rem';
+			row.innerHTML = '<input type="url" name="myls_org_social_profiles[]" placeholder="https://example.com/your-profile">'
+						  + '<button class="myls-btn myls-btn-outline myls-remove-social" type="button">Remove</button>';
+			wrap.appendChild(row);
+		  });
+		  wrap?.addEventListener('click', function(e){
+			const btn = e.target.closest('.myls-remove-social');
+			if (btn) { btn.parentElement.remove(); }
+		  });
+		})();
+
+		// Chooser toolbar
+		(function(){
+		  const sel = document.getElementById('myls-org-pages');
+		  document.getElementById('myls-chooser-select-all')?.addEventListener('click', function(){
+			if (!sel) return; for (const o of sel.options) o.selected = true;
+		  });
+		  document.getElementById('myls-chooser-clear')?.addEventListener('click', function(){
+			if (!sel) return; for (const o of sel.options) o.selected = false;
+		  });
+		})();
+		</script>
+		<?php
+	},
+
+	'on_save'=> function () {
+		// Basics
+		update_option('myls_org_name',  sanitize_text_field($_POST['myls_org_name'] ?? ''));
+		update_option('myls_org_url',   esc_url_raw($_POST['myls_org_url'] ?? ''));
+		update_option('myls_org_tel',   sanitize_text_field($_POST['myls_org_tel'] ?? ''));
+		update_option('myls_org_email', sanitize_email($_POST['myls_org_email'] ?? ''));
+		update_option('myls_org_description', sanitize_textarea_field($_POST['myls_org_description'] ?? ''));
+		update_option('myls_org_default_service_label', sanitize_text_field($_POST['myls_org_default_service_label'] ?? ''));
+
+		// Logo
+		update_option('myls_org_logo_id', absint($_POST['myls_org_logo_id'] ?? 0));
+
+		// Address & Geo
+		update_option('myls_org_street',   sanitize_text_field($_POST['myls_org_street'] ?? ''));
+		update_option('myls_org_locality', sanitize_text_field($_POST['myls_org_locality'] ?? ''));
+		update_option('myls_org_region',   sanitize_text_field($_POST['myls_org_region'] ?? ''));
+		update_option('myls_org_postal',   sanitize_text_field($_POST['myls_org_postal'] ?? ''));
+		update_option('myls_org_country',  sanitize_text_field($_POST['myls_org_country'] ?? ''));
+		update_option('myls_org_lat',      sanitize_text_field($_POST['myls_org_lat'] ?? ''));
+		update_option('myls_org_lng',      sanitize_text_field($_POST['myls_org_lng'] ?? ''));
+
+		// Areas
+		update_option('myls_org_areas', sanitize_textarea_field($_POST['myls_org_areas'] ?? ''));
+
+		// Socials
+		$raw_socials = (isset($_POST['myls_org_social_profiles']) && is_array($_POST['myls_org_social_profiles']))
+			? array_map('esc_url_raw', $_POST['myls_org_social_profiles']) : [];
+		$raw_socials = array_values(array_filter($raw_socials));
+		update_option('myls_org_social_profiles', $raw_socials);
+
+		// Assignments
+		$pages = (isset($_POST['myls_org_pages']) && is_array($_POST['myls_org_pages']))
+			? array_map('absint', $_POST['myls_org_pages']) : [];
+		update_option('myls_org_pages', $pages);
+	}
 ];
 
-// Provider: build Organization node & attach to graph
-if ( ! function_exists('myls_schema_org_build_node') ) {
-    function myls_schema_org_build_node() {
-        $name  = myls_opt('myls_org_name', '');
-        $url   = myls_opt('myls_org_url', '');
-        if ( $name === '' && $url === '' ) return null;
-
-        $addr = array_filter([
-            '@type'           => 'PostalAddress',
-            'streetAddress'   => myls_opt('myls_org_street', ''),
-            'addressLocality' => myls_opt('myls_org_locality', ''),
-            'addressRegion'   => myls_opt('myls_org_region', ''),
-            'postalCode'      => myls_opt('myls_org_postal', ''),
-            'addressCountry'  => myls_opt('myls_org_country', ''),
-        ]);
-
-        $sameAs = array_values(array_filter(array_map('trim', explode("\n", (string)myls_opt('myls_org_social','')))));
-
-        $node = [
-            '@type'        => 'Organization',
-            '@id'          => $url ? trailingslashit($url) . '#organization' : null,
-            'name'         => $name ?: null,
-            'url'          => $url ?: null,
-            'logo'         => myls_opt('myls_org_logo','') ?: null,
-            'telephone'    => myls_opt('myls_org_tel','') ?: null,
-            'email'        => myls_opt('myls_org_email','') ?: null,
-            'description'  => myls_opt('myls_org_description','') ?: null,
-            'address'      => $addr ?: null,
-            'areaServed'   => array_values(array_filter(array_map('trim', explode("\n", (string)myls_opt('myls_org_areas',''))))) ?: null,
-            'sameAs'       => $sameAs ?: null,
-        ];
-
-        // Geo as GeoCoordinates if both present
-        $lat = myls_opt('myls_org_lat', '');
-        $lng = myls_opt('myls_org_lng', '');
-        if ($lat !== '' && $lng !== '') {
-            $node['geo'] = [
-                '@type'     => 'GeoCoordinates',
-                'latitude'  => (float)$lat,
-                'longitude' => (float)$lng,
-            ];
-        }
-
-        // Strip nulls
-        return array_filter($node, function($v){ return $v !== null && $v !== []; });
-    }
-}
-
-// Contribute to @graph
-add_filter('myls_schema_graph', function($graph){
-    $org = myls_schema_org_build_node();
-    if ( $org ) {
-        // If there is an @context already in preview, keep node only
-        if ( isset($org['@context']) ) unset($org['@context']);
-        $graph[] = $org;
-    }
-    return $graph;
-}, 10);
-
-// Return spec during discovery
-if ( defined('MYLS_SCHEMA_DISCOVERY') && MYLS_SCHEMA_DISCOVERY ) {
-    return $spec;
-}
-
+if ( defined('MYLS_SCHEMA_DISCOVERY') && MYLS_SCHEMA_DISCOVERY ) return $spec;
 return null;

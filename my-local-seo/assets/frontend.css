@@ -1,0 +1,30 @@
+/* Public shell */
+.myls{font-family:var(--myls-font); color:var(--myls-text)}
+
+/* Buttons (theme-agnostic, namespaced) */
+.myls-btn{display:inline-flex;align-items:center;gap:.5rem;border:1px solid var(--myls-border);border-radius:var(--myls-radius-sm);padding:.5rem .9rem;background:var(--myls-bg);cursor:pointer;text-decoration:none}
+.myls-btn-primary{background:var(--myls-primary);border-color:var(--myls-primary);color:var(--myls-primary-contrast)}
+.myls-btn-outline{background:transparent}
+
+/* Cards */
+.myls-card{background:var(--myls-bg);border:1px solid var(--myls-border);border-radius:var(--myls-radius);box-shadow:var(--myls-shadow)}
+.myls-card-head{padding:.75rem var(--myls-space-4);border-bottom:1px solid var(--myls-border)}
+.myls-card-body{padding:var(--myls-space-4)}
+
+/* Responsive grid (no Bootstrap dependency) */
+.myls-grid{display:grid;gap:var(--myls-space-4)}
+.myls-grid.cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.myls-grid.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.myls-grid.cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media (max-width: 991.98px){ .myls-grid.cols-4,.myls-grid.cols-3{grid-template-columns:repeat(2,1fr)} }
+@media (max-width: 575.98px){ .myls-grid[class*="cols-"]{grid-template-columns:1fr} }
+
+/* Media wells for icon/image tiles */
+.myls-media{position:relative;overflow:hidden;border-bottom:1px solid var(--myls-border)}
+.myls-media img{display:block;width:100%;height:auto}
+.myls-media .myls-overlay{position:absolute;inset:0;background:linear-gradient(to top, rgba(0,0,0,.45), transparent 50%);}
+
+/* List styles commonly used in service/service-area output */
+.myls-list{list-style:none;padding:0;margin:0}
+.myls-list li{padding:.35rem 0;border-bottom:1px dotted var(--myls-border)}
+.myls-list li:last-child{border-bottom:0}

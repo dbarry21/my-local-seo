@@ -15,10 +15,16 @@
  */
 if ( ! defined('ABSPATH') ) exit;
 
-myls_register_admin_tab('cpt', 'Custom Post Types', function () {
+myls_register_admin_tab([
+  'id'    => 'cpt',
+  'title' => 'Custom Post Types',
+  'order' => 15,                    // adjust position in the tab bar (lower = earlier)
+  'cap'   => 'manage_options',      // required capability to view this tab
+  'icon'  => 'dashicons-screenoptions',
+  'cb'    => function () {
 
     // -------------------------------------------------
-    // Discover CPT modules
+    // Discover CPT modules (only base spec files like product.php, service-area.php)
     // -------------------------------------------------
     $cpt_specs = [];
     $debug     = [];
@@ -36,14 +42,28 @@ myls_register_admin_tab('cpt', 'Custom Post Types', function () {
     $files = glob( $cpt_dir . '/*.php' );
     if ( ! empty($files) ) {
         natsort($files);
-        // Skip known non-module helpers if present
-        $skip = ['register.php','_bootstrap.php','_loader.php'];
+
+        // Helpers/extras to skip:
+        $skip_exact  = ['register.php','_bootstrap.php','_loader.php'];
+        $skip_suffix = ['-columns.php','-metaboxes.php','-taxonomies.php','-templates.php'];
+
         foreach ( $files as $f ) {
             $base = basename($f);
-            if ( in_array($base, $skip, true) ) {
-                $debug[] = "Skipped (non-module): modules/cpt/{$base}";
+
+            if ( in_array($base, $skip_exact, true) ) {
+                $debug[] = "Skipped (helper): modules/cpt/{$base}";
                 continue;
             }
+
+            $is_extra = false;
+            foreach ( $skip_suffix as $suf ) {
+                if ( str_ends_with($base, $suf) ) { $is_extra = true; break; }
+            }
+            if ( $is_extra ) {
+                $debug[] = "Skipped (extra): modules/cpt/{$base}";
+                continue;
+            }
+
             $spec = include $f;
             if ( is_array($spec) && ! empty($spec['id']) ) {
                 $cpt_specs[$spec['id']] = $spec;
@@ -195,43 +215,90 @@ myls_register_admin_tab('cpt', 'Custom Post Types', function () {
 
     <script>
     (function(){
-        const ajaxurl = "<?php echo esc_js( admin_url('admin-ajax.php') ); ?>";
-        const nonce   = "<?php echo esc_js( wp_create_nonce('myls_cpt_ajax') ); ?>";
+      const ajaxurl = "<?php echo esc_js( admin_url('admin-ajax.php') ); ?>";
+      const nonce   = "<?php echo esc_js( wp_create_nonce('myls_cpt_ajax') ); ?>";
 
-        // Flush rewrites
-        const flushBtn = document.getElementById('myls-flush-rewrites');
-        if (flushBtn) {
-            flushBtn.addEventListener('click', function(){
-                flushBtn.disabled = true;
-                fetch(ajaxurl, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'},
-                    body: new URLSearchParams({ action: 'myls_flush_rewrites', _wpnonce: nonce })
-                }).then(r=>r.json()).then(data=>{
-                    alert((data && data.message) ? data.message : 'Flushed.');
-                }).catch(()=>alert('Request failed')).finally(()=>flushBtn.disabled=false);
-            });
-        }
-
-        // Check CPT registered
-        document.querySelectorAll('button[data-cpt]').forEach(btn=>{
-            btn.addEventListener('click', function(){
-                const id  = btn.getAttribute('data-cpt');
-                const out = document.getElementById('myls-cpt-status-'+id);
-                if (out) out.textContent = 'Checking...';
-                fetch(ajaxurl, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'},
-                    body: new URLSearchParams({ action: 'myls_check_cpt', cpt: id, _wpnonce: nonce })
-                }).then(r=>r.json()).then(data=>{
-                    if (!out) return;
-                    out.textContent = (data && data.registered) ? 'Registered ✅' : 'Not registered ❌';
-                }).catch(()=>{
-                    if (out) out.textContent = 'Error';
-                });
-            });
+      // Flush rewrites (unchanged)
+      const flushBtn = document.getElementById('myls-flush-rewrites');
+      if (flushBtn) {
+        flushBtn.addEventListener('click', function(){
+          flushBtn.disabled = true;
+          fetch(ajaxurl, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'},
+            body: new URLSearchParams({ action: 'myls_flush_rewrites', _wpnonce: nonce })
+          })
+          .then(r=>r.json())
+          .then(resp=>{
+            alert((resp && resp.success && resp.data && resp.data.message) ? resp.data.message : 'Flushed.');
+          })
+          .catch(()=>alert('Request failed'))
+          .finally(()=>flushBtn.disabled=false);
         });
+      }
+
+      // Helper: render collapsible debug under each CPT card
+      function showDebug(el, payload){
+        const wrapId = el.id + '--debugwrap';
+        let wrap = document.getElementById(wrapId);
+        if (!wrap) {
+          wrap = document.createElement('details');
+          wrap.id = wrapId;
+          wrap.className = 'mt-2';
+          const summary = document.createElement('summary');
+          summary.className = 'small text-muted';
+          summary.textContent = 'View debug payload';
+          const pre = document.createElement('pre');
+          pre.className = 'mt-2 p-2 bg-light border rounded small';
+          pre.style.maxHeight = '250px';
+          pre.style.overflow = 'auto';
+          wrap.appendChild(summary);
+          wrap.appendChild(pre);
+          el.parentNode.appendChild(wrap);
+        }
+        const pre = wrap.querySelector('pre');
+        pre.textContent = JSON.stringify(payload, null, 2);
+      }
+
+      // Check CPT registered
+      document.querySelectorAll('button[data-cpt]').forEach(btn=>{
+        btn.addEventListener('click', function(){
+          const id  = btn.getAttribute('data-cpt');
+          const out = document.getElementById('myls-cpt-status-'+id);
+          if (out) out.textContent = 'Checking...';
+
+          fetch(ajaxurl, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'},
+            body: new URLSearchParams({ action: 'myls_check_cpt', cpt: id, _wpnonce: nonce })
+          })
+          .then(r=>r.json())
+          .then(data=>{
+            const ok = data && data.success;
+            const payload = ok ? data.data : null;
+            if (!out) return;
+
+            if (!ok || !payload) {
+              out.textContent = 'Error';
+              return;
+            }
+
+            // Short status line
+            out.textContent = payload.registered
+              ? `Registered ✅ (${payload.resolved_id || id})`
+              : 'Not registered ❌';
+
+            // Collapsible debug payload
+            showDebug(out, payload);
+          })
+          .catch(()=>{
+            if (out) out.textContent = 'Error';
+          });
+        });
+      });
     })();
     </script>
+
     <?php
-});
+  },
+]);
