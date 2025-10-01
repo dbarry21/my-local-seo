@@ -1,4 +1,16 @@
-<?php if (!defined('ABSPATH')) exit;
+<?php
+/**
+ * Subtab: Local Business
+ * Path: admin/tabs/schema/subtab-localbusiness.php
+ *
+ * Key fix:
+ * - Hours wrapper is now .myls-hours-list (block) instead of .myls-row (flex),
+ *   so each .myls-hours-row sits on its own line (no side-by-side grouping).
+ * - Grid-based .myls-hours-row keeps Day | Open | Close on one line, with
+ *   horizontal scroll on very narrow screens.
+ */
+
+if (!defined('ABSPATH')) exit;
 
 $spec = [
   'id'    => 'localbusiness',
@@ -81,7 +93,7 @@ $spec = [
       'lng'      => $org_options_raw['_myls']['lng']      !== '' ? $org_options_raw['_myls']['lng']      : $org_options_raw['_ssseo']['lng'],
     ];
 
-    // ---------- Organization defaults (normalized to codes) ----------
+    // ---------- Organization defaults ----------
     $org_defaults = [
       'location_label' => 'Headquarters (Default)',
       'name'    => $org_effective['name'],
@@ -108,56 +120,52 @@ $spec = [
       'locations_after' => null,
     ];
 
-    // ---------- Load & prefill (fixed: empty-safe merge) ----------
+    // ---------- Load & prefill ----------
     $locations_raw = get_option('myls_lb_locations', []);
     $debug['raw_option'] = $locations_raw;
-
     if (!is_array($locations_raw)) $locations_raw = [];
 
     $merge_with_defaults = function(array $defaults, array $loc) use ($normalize_state, $normalize_country) : array {
-        if (isset($loc['state']))   { $loc['state']   = $normalize_state($loc['state']); }
-        if (isset($loc['country'])) { $loc['country'] = $normalize_country($loc['country'] ?: 'US'); }
-
-        $out = $defaults;
-        foreach ($defaults as $k => $defVal) {
-            if (!array_key_exists($k, $loc)) continue;
-            $val = $loc[$k];
-            $is_empty = ($val === '' || $val === null || (is_array($val) && count(array_filter($val, function($x){
-                if (is_array($x)) { return implode('', array_map('strval', $x)) !== ''; }
-                return (string)$x !== '';
-            })) === 0));
-            if (!$is_empty) $out[$k] = $val;
-        }
-        if (empty($out['hours']) || !is_array($out['hours'])) $out['hours'] = [['day'=>'','open'=>'','close'=>'']];
-        if (!isset($out['pages']) || !is_array($out['pages'])) $out['pages'] = [];
-        return $out;
+      if (isset($loc['state']))   { $loc['state']   = $normalize_state($loc['state']); }
+      if (isset($loc['country'])) { $loc['country'] = $normalize_country($loc['country'] ?: 'US'); }
+      $out = $defaults;
+      foreach ($defaults as $k => $defVal) {
+        if (!array_key_exists($k, $loc)) continue;
+        $val = $loc[$k];
+        $is_empty = ($val === '' || $val === null || (is_array($val) && count(array_filter($val, function($x){
+          if (is_array($x)) { return implode('', array_map('strval', $x)) !== ''; }
+          return (string)$x !== '';
+        })) === 0));
+        if (!$is_empty) $out[$k] = $val;
+      }
+      if (empty($out['hours']) || !is_array($out['hours'])) $out['hours'] = [['day'=>'','open'=>'','close'=>'']];
+      if (!isset($out['pages']) || !is_array($out['pages'])) $out['pages'] = [];
+      return $out;
     };
 
     $locations = [];
-
     if (empty($locations_raw) || (count($locations_raw) === 1 && !is_array($locations_raw[0]))) {
-        $locations = [ $org_defaults ];
-        $debug['seed_path'][] = 'seed_from_org: empty_or_malformed_db';
+      $locations = [ $org_defaults ];
+      $debug['seed_path'][] = 'seed_from_org: empty_or_malformed_db';
     } else {
-        foreach ($locations_raw as $i => $loc) {
-            $loc = is_array($loc) ? $loc : [];
-            $locations[$i] = $merge_with_defaults($org_defaults, $loc);
-        }
-        $critical = ['name','street','city','state','zip','country'];
-        $first_missing = true;
-        foreach ($critical as $k) { if (!empty($locations[0][$k])) { $first_missing = false; break; } }
-        if ($first_missing) {
-            $locations[0] = $org_defaults;
-            $debug['seed_path'][] = 'first_empty_overwrite';
-        } else {
-            $debug['seed_path'][] = 'empty_safe_merge';
-        }
+      foreach ($locations_raw as $i => $loc) {
+        $loc = is_array($loc) ? $loc : [];
+        $locations[$i] = $merge_with_defaults($org_defaults, $loc);
+      }
+      $critical = ['name','street','city','state','zip','country'];
+      $first_missing = true;
+      foreach ($critical as $k) { if (!empty($locations[0][$k])) { $first_missing = false; break; } }
+      if ($first_missing) {
+        $locations[0] = $org_defaults;
+        $debug['seed_path'][] = 'first_empty_overwrite';
+      } else {
+        $debug['seed_path'][] = 'empty_safe_merge';
+      }
     }
 
-    // Build pages map for the Assignments UI
+    // Build pages map for Assignments UI
     $loc_pages_map = [];
     foreach ($locations as $i => $loc) $loc_pages_map[$i] = array_map('absint', (array)($loc['pages'] ?? []));
-
     $debug['locations_after'] = $locations;
 
     $org_all_blank = (trim($org_defaults['name'].$org_defaults['street'].$org_defaults['city'].$org_defaults['state'].$org_defaults['zip']) === '');
@@ -187,7 +195,7 @@ $spec = [
       }
       .form-label { font-weight:600; margin-bottom:.35rem; display:block; }
       .myls-hr { height:1px; background:#000; opacity:.15; border:0; margin:8px 0 10px; }
-      .myls-actions { margin-top:10px; display:flex; gap:.5rem; }
+      .myls-actions { margin-top:10px; display:flex; gap:.5rem; flex-wrap:wrap; }
       .myls-btn { display:inline-block; font-weight:600; border:1px solid #000; padding:.45rem .9rem; border-radius:1em; background:#f8f9fa; color:#111; cursor:pointer; }
       .myls-btn-primary { background:#0d6efd; color:#fff; border-color:#0d6efd; }
       .myls-btn-outline { background:transparent; }
@@ -209,20 +217,34 @@ $spec = [
       .myls-debug details { margin-top:8px; }
       .myls-debug pre { max-height:360px; overflow:auto; padding:8px; border:1px solid #000; border-radius:8px; background:#fafafa; }
       .myls-note { margin:8px 0; padding:8px 10px; border:1px dashed #666; border-radius:8px; background:#fffef5; font-size:13px; }
+
+      /* --- HOURS: keep each row on its own line --- */
+      .myls-hours-wrap { overflow-x: auto; }
+      .myls-hours-list { display:block; } /* not flex — prevents side-by-side rows */
+      .myls-hours-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;  /* Day | Open | Close */
+        gap: .5rem;
+        align-items: center;
+        min-width: 540px; /* horizontal scroll on narrow admin widths */
+        margin-top: .25rem;
+      }
+      .myls-hours-row .myls-col { margin-bottom: 0; padding-left: 0; padding-right: 0; }
+      .myls-hours-row select,
+      .myls-hours-row input[type="time"] { width: 100%; }
     </style>
 
-    <!-- IMPORTANT: No <form> here. This stays inside the main tab's form. -->
+    <!-- Render -->
     <div class="myls-lb-wrap">
       <div class="myls-lb-grid">
-        <!-- LEFT 75% -->
+        <!-- LEFT -->
         <div class="myls-lb-left">
           <div class="myls-block">
             <div class="myls-block-title">Locations <span style="font-weight:600">(Location #1 is default)</span></div>
 
             <?php if ($org_all_blank): ?>
               <div class="myls-note">
-                Organization values look empty. Open <em>Schema → Organization</em> and click <strong>Save Settings</strong> once to persist values to <code>myls_org_*</code>.
-                (This tab will also use <code>ssseo_*</code> if present.)
+                Organization values look empty. Open <em>Schema → Organization</em> and click <strong>Save Settings</strong> once.
               </div>
             <?php endif; ?>
 
@@ -261,6 +283,7 @@ $spec = [
                     <label class="form-label">Business Name</label>
                     <input type="text" name="myls_locations[<?php echo $i;?>][name]" value="<?php echo esc_attr($loc['name']); ?>">
                   </div>
+
                   <div class="myls-col col-6">
                     <label class="form-label">Business Image URL</label>
                     <input type="url" name="myls_locations[<?php echo $i; ?>][image_url]" value="<?php echo esc_attr($loc['image_url'] ?? ''); ?>" placeholder="https://example.com/path/to/image.jpg">
@@ -309,27 +332,32 @@ $spec = [
 
                 <hr class="myls-hr">
 
+                <!-- HOURS -->
                 <label class="form-label">Opening Hours</label>
-                <?php foreach ($loc['hours'] as $j => $h): ?>
-				  <div class="myls-row" id="hours-<?php echo $i . '-' . $j; ?>">
-					<div class="myls-col col-3">
-					  <select name="myls_locations[<?php echo $i;?>][hours][<?php echo $j;?>][day]">
-						<option value="">-- Day --</option>
-						<?php foreach (["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"] as $d): ?>
-						  <option value="<?php echo esc_attr($d); ?>" <?php selected($h['day']??'', $d); ?>>
-							<?php echo esc_html($d); ?>
-						  </option>
-						<?php endforeach; ?>
-					  </select>
-					</div>
-					<div class="myls-col col-3">
-					  <input type="time" name="myls_locations[<?php echo $i;?>][hours][<?php echo $j;?>][open]" value="<?php echo esc_attr($h['open']??''); ?>">
-					</div>
-					<div class="myls-col col-3">
-					  <input type="time" name="myls_locations[<?php echo $i;?>][hours][<?php echo $j;?>][close]" value="<?php echo esc_attr($h['close']??''); ?>">
-					</div>
-				  </div>
-				<?php endforeach; ?>
+                <div class="myls-hours-wrap">
+                  <div class="myls-hours-list" id="hours-<?php echo $i; ?>">
+                    <?php foreach ($loc['hours'] as $j => $h): ?>
+                      <div class="myls-hours-row">
+                        <div class="myls-col">
+                          <select name="myls_locations[<?php echo $i;?>][hours][<?php echo $j;?>][day]">
+                            <option value="">-- Day --</option>
+                            <?php foreach (["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"] as $d): ?>
+                              <option value="<?php echo esc_attr($d); ?>" <?php selected($h['day']??'', $d); ?>>
+                                <?php echo esc_html($d); ?>
+                              </option>
+                            <?php endforeach; ?>
+                          </select>
+                        </div>
+                        <div class="myls-col">
+                          <input type="time" name="myls_locations[<?php echo $i;?>][hours][<?php echo $j;?>][open]" value="<?php echo esc_attr($h['open']??''); ?>">
+                        </div>
+                        <div class="myls-col">
+                          <input type="time" name="myls_locations[<?php echo $i;?>][hours][<?php echo $j;?>][close]" value="<?php echo esc_attr($h['close']??''); ?>">
+                        </div>
+                      </div>
+                    <?php endforeach; ?>
+                  </div>
+                </div>
 
                 <div class="myls-actions">
                   <button type="button" class="myls-btn myls-btn-outline myls-add-hours" data-target="hours-<?php echo $i; ?>" data-index="<?php echo $i; ?>">+ Add Hours Row</button>
@@ -341,23 +369,20 @@ $spec = [
 
             <div class="myls-actions">
               <button type="button" class="myls-btn myls-btn-outline" id="myls-add-location">+ Add Location</button>
-              <!-- This submit will submit the MAIN form (no nested form here) -->
               <button class="myls-btn myls-btn-primary" type="submit">Save Locations</button>
             </div>
 
-            <!-- DEBUG PANEL -->
             <div class="myls-debug">
               <details>
                 <summary><strong>Debug (LocalBusiness)</strong></summary>
                 <pre><?php echo esc_html( wp_json_encode($debug, JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES) ); ?></pre>
               </details>
             </div>
-            <!-- /DEBUG PANEL -->
 
           </div>
         </div>
 
-        <!-- RIGHT 25% -->
+        <!-- RIGHT -->
         <div class="myls-lb-right">
           <div class="myls-block">
             <div class="myls-block-title">Assignments</div>
@@ -384,7 +409,7 @@ $spec = [
       <div class="myls-block" style="margin-top:8px;">
         <div class="myls-block-title">Tips</div>
         <p>Use clear <em>Location Label</em> names (e.g., “Downtown Tampa”).</p>
-        <p><strong>Note:</strong> Location #1 is the default for generation when a page doesn’t match any assigned location.</p>
+        <p><strong>Note:</strong> Location #1 is the default when a page doesn’t match any assigned location.</p>
       </div>
     </div>
 
@@ -396,16 +421,14 @@ $spec = [
 
       function formatUSPhone(value) {
         const digits = value.replace(/\D/g, '').slice(0, 10);
-        const len = digits.length;
-        if (len < 4) return digits;
-        if (len < 7) return `(${digits.slice(0,3)}) ${digits.slice(3)}`;
+        if (digits.length < 4) return digits;
+        if (digits.length < 7) return `(${digits.slice(0,3)}) ${digits.slice(3)}`;
         return `(${digits.slice(0,3)}) ${digits.slice(3,6)}-${digits.slice(6)}`;
       }
       function attachPhoneMask(root=document) {
         root.querySelectorAll('input.myls-phone').forEach(inp => {
           inp.addEventListener('input', () => {
-            const start = inp.selectionStart;
-            const before = inp.value;
+            const start = inp.selectionStart, before = inp.value;
             inp.value = formatUSPhone(inp.value);
             if (document.activeElement === inp) {
               const diff = inp.value.length - before.length;
@@ -472,7 +495,7 @@ $spec = [
         }
       });
 
-      // Add Location (prefill from ORG_DEFAULTS)
+      // Add Location
       document.getElementById('myls-add-location')?.addEventListener('click', function(){
         const list = document.getElementById('myls-location-list');
         const idx  = list.querySelectorAll('details.myls-fold').length;
@@ -508,6 +531,9 @@ $spec = [
   <div class="myls-row">
     <div class="myls-col col-6"><label class="form-label">Location Label</label><input type="text" name="myls_locations[${idx}][location_label]" value="${esc(ORG_DEFAULTS.location_label)}"></div>
     <div class="myls-col col-6"><label class="form-label">Business Name</label><input type="text" name="myls_locations[${idx}][name]" value="${esc(ORG_DEFAULTS.name)}"></div>
+
+    <div class="myls-col col-6"><label class="form-label">Business Image URL</label><input type="url" name="myls_locations[${idx}][image_url]" value=""></div>
+
     <div class="myls-col col-6"><label class="form-label">Phone</label><input class="myls-phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="(555) 555-1234" name="myls_locations[${idx}][phone]" value="${esc(ORG_DEFAULTS.phone)}"></div>
     <div class="myls-col col-6"><label class="form-label">Price Range</label><input type="text" name="myls_locations[${idx}][price]" value="${esc(ORG_DEFAULTS.price)}"></div>
 
@@ -524,15 +550,23 @@ $spec = [
   <hr class="myls-hr">
 
   <label class="form-label">Opening Hours</label>
-  <div class="myls-row" id="hours-${idx}">
-    <div class="myls-col col-3">
-      <select name="myls_locations[${idx}][hours][0][day]">
-        <option value="">-- Day --</option>
-        ${["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].map(d=>`<option value="${d}">${d}</option>`).join('')}
-      </select>
+  <div class="myls-hours-wrap">
+    <div class="myls-hours-list" id="hours-${idx}">
+      <div class="myls-hours-row">
+        <div class="myls-col">
+          <select name="myls_locations[${idx}][hours][0][day]">
+            <option value="">-- Day --</option>
+            ${["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].map(d=>`<option value="${d}">${d}</option>`).join('')}
+          </select>
+        </div>
+        <div class="myls-col">
+          <input type="time" name="myls_locations[${idx}][hours][0][open]">
+        </div>
+        <div class="myls-col">
+          <input type="time" name="myls_locations[${idx}][hours][0][close]">
+        </div>
+      </div>
     </div>
-    <div class="myls-col col-3"><input type="time" name="myls_locations[${idx}][hours][0][open]"></div>
-    <div class="myls-col col-3"><input type="time" name="myls_locations[${idx}][hours][0][close]"></div>
   </div>
 
   <div class="myls-actions">
@@ -545,35 +579,81 @@ $spec = [
         renderAssignLocationDropdown();
       });
 
+      // Add Hours Row
       document.addEventListener('click', (e)=>{
         const btn = e.target.closest('.myls-add-hours');
         if (!btn) return;
-        const tgt = document.getElementById(btn.getAttribute('data-target'));
+
+        const targetId = btn.getAttribute('data-target');
+        const tgt = document.getElementById(targetId);
         const idx = btn.getAttribute('data-index');
-        const j = tgt.querySelectorAll('select').length;
+        if (!tgt) return;
+
+        // Next index = number of day selects in this location's hours list
+        const j = tgt.querySelectorAll('select[name^="myls_locations['+idx+'][hours]"][name$="[day]"]').length;
+
         const row = document.createElement('div');
-        row.className = 'myls-row';
-        row.style.marginTop = '.25rem';
+        row.className = 'myls-hours-row';
         row.innerHTML =
-          '<div class="myls-col col-3"><select name="myls_locations['+idx+'][hours]['+j+'][day]"><option value="">-- Day --</option>'+
-          ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].map(d=>`<option value="${d}">${d}</option>`).join('')+
-          '</select></div>'+
-          '<div class="myls-col col-3"><input type="time" name="myls_locations['+idx+'][hours]['+j+'][open]"></div>'+
-          '<div class="myls-col col-3"><input type="time" name="myls_locations['+idx+'][hours]['+j+'][close]"></div>';
-        while (row.firstChild) tgt.appendChild(row.firstChild);
+          '<div class="myls-col">' +
+            '<select name="myls_locations['+idx+'][hours]['+j+'][day]">' +
+              '<option value="">-- Day --</option>' +
+              ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].map(d=>`<option value="${d}">${d}</option>`).join('') +
+            '</select>' +
+          '</div>' +
+          '<div class="myls-col">' +
+            '<input type="time" name="myls_locations['+idx+'][hours]['+j+'][open]">' +
+          '</div>' +
+          '<div class="myls-col">' +
+            '<input type="time" name="myls_locations['+idx+'][hours]['+j+'][close]">' +
+          '</div>';
+
+        tgt.appendChild(row);
       });
 
-      // IMPORTANT: hook the PARENT form (from the main Schema tab),
-      // not a nested form here.
-      const parentForm = document.querySelector('.myls-lb-wrap')?.closest('form');
-      parentForm?.addEventListener('submit', () => {
-        const idx = parseInt(assignLocSel.value || '0', 10);
-        commitAssignSelectionTo(idx);
-      });
+     // --- Commit assignments on submit (reuse existing variables) ---
+const parentForm = document.querySelector('.myls-lb-wrap')?.closest('form');
 
-      renderAssignLocationDropdown();
-      syncAssignListFor(parseInt(document.getElementById('myls-assign-loc').value || '0', 10));
-      attachPhoneMask(document);
+function commitAssignSelectionTo(index){
+  // reuse the already-declared assignPagesSel & hiddenWrap
+  const chosen = Array.from(assignPagesSel.selectedOptions).map(o => o.value);
+  LOC_PAGES[index] = chosen.map(v => parseInt(v,10)).filter(v => !isNaN(v));
+  hiddenWrap.innerHTML = '';
+  LOC_PAGES[index].forEach(val => {
+    hiddenWrap.insertAdjacentHTML('beforeend',
+      `<input type="hidden" name="myls_locations[${index}][pages][]" value="${val}">`);
+  });
+}
+
+parentForm?.addEventListener('submit', () => {
+  const idx = parseInt(assignLocSel.value || '0', 10);
+  commitAssignSelectionTo(idx);
+});
+
+// initial UI sync (reuse helpers/vars)
+(function initAssign(){
+  const idx = parseInt(assignLocSel.value || '0', 10);
+  const selected = new Set((LOC_PAGES[idx] || []).map(String));
+  for (const opt of assignPagesSel.options) opt.selected = selected.has(opt.value);
+  hiddenWrap.innerHTML = '';
+  (LOC_PAGES[idx] || []).forEach(val => {
+    hiddenWrap.insertAdjacentHTML('beforeend',
+      `<input type="hidden" name="myls_locations[${idx}][pages][]" value="${String(val).replace(/"/g,'&quot;')}">`);
+  });
+})();
+
+assignLocSel.addEventListener('change', () => {
+  const idx = parseInt(assignLocSel.value, 10);
+  const selected = new Set((LOC_PAGES[idx] || []).map(String));
+  for (const opt of assignPagesSel.options) opt.selected = selected.has(opt.value);
+  hiddenWrap.innerHTML = '';
+  (LOC_PAGES[idx] || []).forEach(val => {
+    hiddenWrap.insertAdjacentHTML('beforeend',
+      `<input type="hidden" name="myls_locations[${idx}][pages][]" value="${String(val).replace(/"/g,'&quot;')}">`);
+  });
+});
+
+
     })();
     </script>
     <?php
@@ -586,7 +666,6 @@ $spec = [
       ! current_user_can('manage_options')
     ) { return; }
 
-    // Handle delete single location action
     if (isset($_POST['myls_delete_location'])) {
       $idx = (int) $_POST['myls_delete_location'];
       $ex  = (array) get_option('myls_lb_locations',[]);
@@ -608,7 +687,7 @@ $spec = [
       $one = [
         'location_label' => sanitize_text_field($loc['location_label'] ?? ''),
         'name'       => sanitize_text_field($loc['name'] ?? ''),
-        'image_url'  => esc_url_raw($loc['image_url'] ?? ''), // keep
+        'image_url'  => esc_url_raw($loc['image_url'] ?? ''),
         'phone'      => sanitize_text_field($loc['phone'] ?? ''),
         'price'      => sanitize_text_field($loc['price'] ?? ''),
         'street'     => sanitize_text_field($loc['street'] ?? ''),

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: My Local SEO
  * Description: Modular local SEO toolkit with YouTube → Video drafts, shortcodes, and admin tabs.
- * Version: 1.5.0
+ * Version: 1.5.1
  * Author: You
  * Text Domain: my-local-seo
  */
@@ -79,6 +79,7 @@ require_once MYLS_PATH . 'inc/cpt-registration.php';
 
 /** Admin AJAX */
 require_once MYLS_PATH . 'inc/admin-ajax.php';
+require_once MYLS_PATH . 'inc/admin-bar-menu.php';
 
 /** CPT extras AFTER registration */
 require_once MYLS_PATH . 'inc/load-cpt-modules.php';
@@ -90,6 +91,7 @@ require_once MYLS_PATH . 'inc/schema/providers/organization.php';
 require_once MYLS_PATH . 'inc/schema/providers/localbusiness.php';
 require_once MYLS_PATH . 'inc/schema/providers/build-service-schema.php';
 require_once MYLS_PATH . 'inc/schema/providers/video-archive.php';
+require_once MYLS_PATH . 'inc/schema/providers/video-schema.php';
 require_once MYLS_PATH . 'admin/api-integration-tests.php';
 require_once MYLS_PATH . 'inc/schema/providers/video-collection-head.php';
 require_once MYLS_PATH . 'inc/schema/providers/faq.php';
