@@ -2,13 +2,19 @@
 /**
  * Admin Tabs Loader (safe + ordered)
  * ------------------------------------------------------------
- * - ONLY loads admin/tabs/*.php (tab files call myls_register_admin_tab()).
- * - DOES NOT define/reset the registry; inc/core.php owns it.
- * - Exposes both:
- *     * myls_get_admin_tabs()            -> numeric array (sorted)
- *     * myls_get_admin_tabs_ordered()    -> associative array keyed by id (sorted)
- * - Sorts by 'order' asc, then 'title' asc; filters by capability.
- * - Hardens against filters that drop fields (restores missing keys from raw registry).
+ * - Discovers and loads admin/tabs/*.php (each tab file calls myls_register_admin_tab()).
+ * - Does NOT own the registry; inc/core.php should declare/own $GLOBALS['myls_admin_tabs'] and myls_register_admin_tab().
+ * - Exposes:
+ *     • myls_get_admin_tab( $id )
+ *     • myls_get_admin_tabs()                 -> numeric array (sorted)
+ *     • myls_get_admin_tabs_ordered()         -> assoc keyed by id (sorted)
+ *     • myls_get_current_tab_id()
+ *     • myls_render_admin_tabs_nav( $page )
+ *     • myls_render_current_admin_tab()
+ *     • myls_render_admin_tabs_page( $page )
+ *     • myls_render_subtabs( $tab_id, $subtabs )   <-- NEW: shared subtab renderer
+ *     • myls_include_dir( $dir )
+ *     • myls_load_all_admin_tabs()
  */
 
 if ( ! defined('ABSPATH') ) exit;
@@ -29,19 +35,15 @@ if ( ! defined('MYLS_TABS_LOADER_READY') ) {
 	 */
 	if ( ! function_exists('myls_get_admin_tabs') ) {
 		function myls_get_admin_tabs() : array {
-			// RAW registry (do NOT reset it here)
 			$raw_tabs = $GLOBALS['myls_admin_tabs'] ?? [];
 
 			// Allow external adjustment before sorting.
 			$filtered = apply_filters( 'myls_admin_tabs', $raw_tabs );
 
-			// ---- HARDENING: restore any missing keys from the raw registry
-			// If a filter returns a "slim" config (id, title, cb...) we merge the raw tab
-			// underneath so fields like 'icon', 'cap', 'order' survive.
+			// Harden: restore missing keys from the raw registry.
 			if ( is_array( $filtered ) ) {
 				foreach ( $filtered as $id => $t ) {
 					if ( isset( $raw_tabs[ $id ] ) && is_array( $raw_tabs[ $id ] ) ) {
-						// Filtered values win; raw fills missing keys.
 						$filtered[ $id ] = array_merge( $raw_tabs[ $id ], $t );
 					}
 				}
@@ -71,8 +73,7 @@ if ( ! defined('MYLS_TABS_LOADER_READY') ) {
 	}
 
 	/**
-	 * COMPAT: Return tabs as an ASSOCIATIVE array keyed by id, in sorted order.
-	 * This is what inc/admin.php expects (foreach preserves insertion order).
+	 * Return tabs as an ASSOCIATIVE array keyed by id, in sorted order.
 	 */
 	if ( ! function_exists('myls_get_admin_tabs_ordered') ) {
 		function myls_get_admin_tabs_ordered() : array {
@@ -168,6 +169,77 @@ if ( ! defined('MYLS_TABS_LOADER_READY') ) {
 		}
 	}
 
+	/**
+	 * NEW: Minimal subtab renderer (shared across tabs, e.g., AI/Schema/Bulk)
+	 * Usage:
+	 *   $subtabs = [
+	 *     ['id'=>'meta','label'=>'Meta','order'=>10,'render'=>function(){ ... }],
+	 *     ['id'=>'about','label'=>'About the Area','order'=>20,'render'=>function(){ ... }],
+	 *   ];
+	 *   myls_render_subtabs('ai', $subtabs);
+	 */
+	if ( ! function_exists('myls_render_subtabs') ) {
+		function myls_render_subtabs( string $tab_id, array $subtabs ) : void {
+			if ( empty($subtabs) ) {
+				echo '<div class="notice notice-warning"><p>No tools available in this section.</p></div>';
+				return;
+			}
+
+			// Build an ordered list AND an ID→spec map
+			$ordered = [];
+			$map     = [];
+			foreach ($subtabs as $spec) {
+				if (!is_array($spec) || empty($spec['id'])) continue;
+				$ordered[] = $spec;
+				$map[$spec['id']] = $spec;
+			}
+
+			// Sort by 'order' then label
+			usort($ordered, function($a, $b){
+				$oa = isset($a['order']) ? (int)$a['order'] : 10;
+				$ob = isset($b['order']) ? (int)$b['order'] : 10;
+				if ($oa === $ob) {
+					return strcasecmp( (string)($a['label'] ?? $a['id']), (string)($b['label'] ?? $b['id']) );
+				}
+				return $oa <=> $ob;
+			});
+
+			// Determine active subtab (query: &subtab=...) or default to the first
+			$req = isset($_GET['subtab']) ? sanitize_key($_GET['subtab']) : '';
+			$active = ($req && isset($map[$req])) ? $req : ( $ordered[0]['id'] ?? array_key_first($map) );
+
+			// Base URL for nav tabs
+			$base = add_query_arg(
+				['page' => 'my-local-seo', 'tab' => $tab_id],
+				admin_url('admin.php')
+			);
+
+			// Nav tabs (WP admin style)
+			echo '<h2 class="nav-tab-wrapper" style="margin-bottom:12px;">';
+			foreach ($ordered as $spec) {
+				$id    = $spec['id'];
+				$label = $spec['label'] ?? $id;
+				$url   = add_query_arg('subtab', $id, $base);
+				$cls   = 'nav-tab' . ($id === $active ? ' nav-tab-active' : '');
+				printf(
+					'<a class="%s" href="%s">%s</a>',
+					esc_attr($cls),
+					esc_url($url),
+					esc_html($label)
+				);
+			}
+			echo '</h2>';
+
+			// Render active subtab
+			$spec = $map[$active] ?? null;
+			if ($spec && isset($spec['render']) && is_callable($spec['render'])) {
+				call_user_func($spec['render']);
+			} else {
+				echo '<div class="notice notice-error"><p>Subtab renderer missing.</p></div>';
+			}
+		}
+	}
+
 	/** Safe recursive includer (fallback). */
 	if ( ! function_exists('myls_include_dir') ) {
 		function myls_include_dir( string $dir_path ) : void {
@@ -200,7 +272,8 @@ if ( ! defined('MYLS_TABS_LOADER_READY') ) {
 
 			if ( ! is_admin() ) return;
 
-			$base = defined('MYLS_PATH') ? MYLS_PATH : plugin_dir_path( __FILE__ );
+			// Resolve base plugin path; prefer MYLS_PATH if defined.
+			$base = defined('MYLS_PATH') ? MYLS_PATH : plugin_dir_path( dirname( __FILE__ ) );
 			$dir  = trailingslashit( $base ) . 'admin/tabs';
 
 			if ( is_dir( $dir ) ) {
@@ -209,9 +282,6 @@ if ( ! defined('MYLS_TABS_LOADER_READY') ) {
 		}
 	}
 
-	/**
-	 * Hook the loader early in admin.
-	 * (The main plugin file may also add this hook; double-run is prevented.)
-	 */
+	/** Hook the loader early in admin. */
 	add_action( 'admin_init', 'myls_load_all_admin_tabs', 1 );
 }

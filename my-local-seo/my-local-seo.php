@@ -2,60 +2,49 @@
 /**
  * Plugin Name: My Local SEO
  * Description: Modular local SEO toolkit with YouTube → Video drafts, shortcodes, and admin tabs.
- * Version: 1.5.1
+ * Version: 1.5.5
  * Author: You
  * Text Domain: my-local-seo
  */
+
 if ( ! defined('ABSPATH') ) exit;
 
-/** Constants */
-define('MYLS_VERSION',  '1.1.0');
-define('MYLS_PATH',      plugin_dir_path(__FILE__));
-define('MYLS_URL',       plugin_dir_url(__FILE__));
-define('MYLS_BASENAME',  plugin_basename(__FILE__));
-define('MYLS_SCHEMA_DEBUG', true);
-// --- Schema Debug Toggles ---
-define('MYLS_DEBUG_ORG', true);
-define('MYLS_DEBUG_LB',  true);
+/** ─────────────────────────────────────────────────────────────────────────
+ * Canonical constants & helpers (single source of truth)
+ * ───────────────────────────────────────────────────────────────────────── */
+if ( ! defined('MYLS_VERSION') )     define('MYLS_VERSION', '1.5.1'); // keep in sync with header
+if ( ! defined('MYLS_MAIN_FILE') )   define('MYLS_MAIN_FILE', __FILE__);
+if ( ! defined('MYLS_PATH') )        define('MYLS_PATH', plugin_dir_path(MYLS_MAIN_FILE));
+if ( ! defined('MYLS_URL') )         define('MYLS_URL',  plugins_url('', MYLS_MAIN_FILE));
+if ( ! defined('MYLS_BASENAME') )    define('MYLS_BASENAME', plugin_basename(MYLS_MAIN_FILE));
 
-// Core plugin constants
-if ( ! defined( 'MYLS_PLUGIN_FILE' ) ) {
-	define( 'MYLS_PLUGIN_FILE', __FILE__ );
+/** (Optional) legacy aliases used elsewhere in the codebase */
+if ( ! defined('MYLS_PLUGIN_FILE') )     define('MYLS_PLUGIN_FILE', MYLS_MAIN_FILE);
+if ( ! defined('MYLS_PLUGIN_DIR') )      define('MYLS_PLUGIN_DIR', MYLS_PATH);
+if ( ! defined('MYLS_PLUGIN_URL') )      define('MYLS_PLUGIN_URL', trailingslashit(MYLS_URL) . '');
+if ( ! defined('MYLS_PLUGIN_BASENAME') ) define('MYLS_PLUGIN_BASENAME', MYLS_BASENAME);
+if ( ! defined('MYLS_PLUGIN_VERSION') )  define('MYLS_PLUGIN_VERSION', MYLS_VERSION);
+
+/** Debug toggles (as in your original) */
+if ( ! defined('MYLS_SCHEMA_DEBUG') ) define('MYLS_SCHEMA_DEBUG', true);
+if ( ! defined('MYLS_DEBUG_ORG') )    define('MYLS_DEBUG_ORG', true);
+if ( ! defined('MYLS_DEBUG_LB') )     define('MYLS_DEBUG_LB', true);
+
+/** Helpers */
+if ( ! function_exists('myls_asset_url') ) {
+	function myls_asset_url(string $rel): string { return trailingslashit(MYLS_URL) . ltrim($rel, '/'); }
+}
+if ( ! function_exists('myls_asset_path') ) {
+	function myls_asset_path(string $rel): string { return trailingslashit(MYLS_PATH) . ltrim($rel, '/'); }
+}
+if ( ! function_exists('myls_is_our_admin_page') ) {
+	function myls_is_our_admin_page(): bool { return is_admin() && isset($_GET['page']) && $_GET['page'] === 'my-local-seo'; }
 }
 
-if ( ! defined( 'MYLS_PLUGIN_DIR' ) ) {
-	define( 'MYLS_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
-}
-
-if ( ! defined( 'MYLS_PLUGIN_URL' ) ) {
-	define( 'MYLS_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
-}
-
-if ( ! defined( 'MYLS_PLUGIN_BASENAME' ) ) {
-	define( 'MYLS_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
-}
-
-if ( ! defined( 'MYLS_PLUGIN_VERSION' ) ) {
-	// You can also read from plugin header if you want it dynamic
-	define( 'MYLS_PLUGIN_VERSION', '1.0.0' );
-}
-
-if ( ! defined( 'MYLS_PATH' ) ) {
-	define( 'MYLS_PATH', trailingslashit( MYLS_PLUGIN_DIR ) );
-}
-
-
-/**
- * IMPORTANT: Registry + ordered getters live ONLY in core.php.
- * No other file should (re)define myls_register_admin_tab(),
- * myls_get_admin_tabs(), or reset $GLOBALS['myls_admin_tabs'].
- */
+/** ─────────────────────────────────────────────────────────────────────────
+ * Core + loaders
+ * ───────────────────────────────────────────────────────────────────────── */
 require_once MYLS_PATH . 'inc/core.php';
-
-/**
- * Loader only: includes admin/tabs/*.php (each calls myls_register_admin_tab()).
- * The loader MUST NOT reset the registry or redefine functions.
- */
 require_once MYLS_PATH . 'inc/admin-tabs-loader.php';
 
 /** Optional shim if you still have older renderers */
@@ -77,7 +66,7 @@ require_once MYLS_PATH . 'inc/assets.php';
 /** CPT registration BEFORE module extras */
 require_once MYLS_PATH . 'inc/cpt-registration.php';
 
-/** Admin AJAX */
+/** Admin AJAX + admin bar */
 require_once MYLS_PATH . 'inc/admin-ajax.php';
 require_once MYLS_PATH . 'inc/admin-bar-menu.php';
 
@@ -96,6 +85,10 @@ require_once MYLS_PATH . 'admin/api-integration-tests.php';
 require_once MYLS_PATH . 'inc/schema/providers/video-collection-head.php';
 require_once MYLS_PATH . 'inc/schema/providers/faq.php';
 require_once MYLS_PATH . 'inc/schema/providers/blog-posting.php';
+
+/** AI plumbing (keep if files exist; otherwise comment these two lines) */
+require_once MYLS_PATH . 'inc/ajax/ai.php';
+require_once MYLS_PATH . 'inc/openai.php';
 
 /** Updater */
 require_once MYLS_PATH . 'update-plugin.php';
@@ -130,64 +123,55 @@ add_filter('plugin_action_links_' . MYLS_BASENAME, function( $links ) {
 	return $links;
 });
 
-/** Admin CSS */
-add_action('admin_enqueue_scripts', function() {
-	$base = MYLS_URL . 'assets/css/';
-	wp_enqueue_style('myls-vars',       $base . 'variables.css', [], MYLS_VERSION);
-	wp_enqueue_style('myls-utils',      $base . 'utilities.css', ['myls-vars'], MYLS_VERSION);
-	wp_enqueue_style('myls-admin-css',  $base . 'admin.css',     ['myls-utils'], MYLS_VERSION);
-});
+/** ─────────────────────────────────────────────────────────────────────────
+ * Admin CSS — scoped to our page only (prevents global 404s)
+ * ───────────────────────────────────────────────────────────────────────── */
+add_action('admin_enqueue_scripts', function(){
+	if ( ! myls_is_our_admin_page() ) return;
 
-/** Front-end CSS (registered only) */
-add_action('wp_enqueue_scripts', function() {
-	$base = MYLS_URL . 'assets/css/';
-	wp_register_style('myls-vars',           $base.'variables.css', [], MYLS_VERSION);
-	wp_register_style('myls-utils',          $base.'utilities.css', ['myls-vars'], MYLS_VERSION);
-	wp_register_style('myls-frontend',       $base.'frontend.css',  ['myls-vars','myls-utils'], MYLS_VERSION);
-	wp_register_style('myls-default-styles', $base.'default-styles.css', ['myls-frontend'], MYLS_VERSION);
-});
-if ( ! function_exists('myls_enqueue_frontend_styles_once') ) {
-	function myls_enqueue_frontend_styles_once( $with_defaults = true ) {
-		static $done = false; if ( $done ) return; $done = true;
-		if ( apply_filters('myls_disable_frontend_styles', false) ) return;
-		wp_enqueue_style('myls-vars');
-		wp_enqueue_style('myls-utils');
-		wp_enqueue_style('myls-frontend');
-		if ( $with_defaults ) wp_enqueue_style('myls-default-styles');
-		do_action('myls_after_enqueue_frontend');
+	$vars  = 'assets/css/variables.css';
+	$utils = 'assets/css/utilities.css';
+	$admin = 'assets/css/admin.css';
+
+	$missing = [];
+	foreach ([$vars, $utils, $admin] as $rel) {
+		if ( ! file_exists( myls_asset_path($rel) ) ) $missing[] = $rel;
 	}
-}
 
-add_filter('myls_admin_tabs_nav_classes', function( $classes, $tabs, $current_id ){
-  // Append our class without blowing away the default
+	if ( $missing ) {
+		add_action('admin_notices', function() use ($missing){
+			echo '<div class="notice notice-error"><p><strong>My Local SEO:</strong> Missing admin CSS asset(s):</p><ul>';
+			foreach ($missing as $rel) {
+				printf('<li><code>%s</code></li>', esc_html($rel));
+			}
+			echo '</ul><p>Please build or upload the files to <code>assets/css/</code>.</p></div>';
+		});
+		return; // don’t enqueue broken URLs (prevents 404 spam)
+	}
+
+	wp_enqueue_style('myls-vars',      myls_asset_url($vars),  [], MYLS_VERSION);
+	wp_enqueue_style('myls-utils',     myls_asset_url($utils), ['myls-vars'], MYLS_VERSION);
+	wp_enqueue_style('myls-admin-css', myls_asset_url($admin), ['myls-utils'], MYLS_VERSION);
+});
+
+/** Tabs CSS (also scoped to our page) */
+add_action('admin_enqueue_scripts', function(){
+	if ( ! myls_is_our_admin_page() ) return;
+	wp_enqueue_style('myls-tabs-css', myls_asset_url('assets/css/tabs.css'), [], MYLS_VERSION);
+});
+
+/** Duplicate class hook (kept from your original) */
+add_filter('myls_admin_tabs_nav_classes', function( $classes, $tabs = [], $current_id = '' ){
   return trim($classes . ' myls-tabs');
 }, 10, 3);
 
-// Enqueue styles for our admin screen only
-add_action('admin_enqueue_scripts', function( $hook ){
-  if ( isset($_GET['page']) && $_GET['page'] === 'my-local-seo' ) {
-    wp_enqueue_style(
-      'myls-tabs-css',
-      MYLS_URL . 'assets/css/tabs.css',
-      [],
-      MYLS_VERSION
-    );
-  }
-});
+/** Ensure dashicons + attach inline CSS only on our page. */
+add_action('admin_enqueue_scripts', function(){
+	if ( ! myls_is_our_admin_page() ) return;
 
+	wp_enqueue_style('dashicons');
 
-add_filter('myls_admin_tabs_nav_classes', function( $classes ) {
-  return trim($classes . ' myls-tabs');
-}, 10, 1);
-
-// Ensure dashicons + attach inline CSS only on our page.
-add_action('admin_enqueue_scripts', function( $hook ){
-  if ( isset($_GET['page']) && $_GET['page'] === 'my-local-seo' ) {
-    // Dashicons (in case something dequeued it)
-    wp_enqueue_style('dashicons');
-
-    // Attach inline CSS to your existing admin stylesheet (or change the handle if needed).
-    $css = <<<CSS
+	$css = <<<CSS
 .myls-tabs { background:#fff; padding:8px 0; border-bottom:1px solid #e5e7eb; }
 .myls-tabs .nav-tab { display:inline-flex; align-items:center; gap:6px; padding:10px 14px; font-weight:600; border-radius:10px 10px 0 0; border:1px solid transparent; color:#334155; }
 .myls-tabs .nav-tab .dashicons { font-size:18px; width:18px; height:18px; line-height:18px; }
@@ -195,18 +179,15 @@ add_action('admin_enqueue_scripts', function( $hook ){
 .myls-tabs .nav-tab.nav-tab-active { color:#0f172a; background:#fff; border-color:#e5e7eb #e5e7eb #fff; box-shadow:0 2px 0 0 #fff, 0 -1px 0 0 #e5e7eb, 0 -6px 14px rgba(15,23,42,.04); }
 @media (max-width:782px){ .myls-tabs .nav-tab{ padding:8px 10px; gap:4px; } }
 CSS;
-    // Use your own handle; here I reuse 'myls-admin-css' which you already enqueue.
-    wp_add_inline_style('myls-admin-css', $css);
-  }
+
+	wp_add_inline_style('myls-admin-css', $css);
 });
 
+/** Meta history */
 require_once MYLS_PATH . 'inc/myls-meta-history-logger.php';
 require_once MYLS_PATH . 'inc/myls-meta-history-endpoints.php';
 
-// In my-local-seo.php (or a bootstrap that runs in admin)
-if (is_admin()) {
-  require_once MYLS_PATH . 'admin/api-integration-tests.php';
-  require_once MYLS_PATH . 'modules/meta/meta-history.php';
+if ( is_admin() ) {
+	require_once MYLS_PATH . 'admin/api-integration-tests.php';
+	require_once MYLS_PATH . 'modules/meta/meta-history.php';
 }
-
-
