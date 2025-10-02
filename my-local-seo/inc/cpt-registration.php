@@ -1,153 +1,193 @@
 <?php
-// File: inc/cpt-registration.php
-if ( ! defined( 'ABSPATH' ) ) exit;
-
 /**
- * My Local SEO – CPT Registration (reads per-CPT options saved by tab-cpt.php)
+ * My Local SEO – Conditional CPT Registration
+ * Path: inc/cpt-registration.php
  *
- * Options written by tab-cpt.php:
- *   Enabled:      myls_enable_{id}_cpt               ('1' or '0')
- *   Rewrite slug: myls_enable_{id}_cpt_slug          (string, no slashes)
- *   Archive:      myls_enable_{id}_cpt_hasarchive    ('', '1', 'true', '0', 'false', or custom slug)
+ * Registers: service, service_area, product
+ * Reads options saved by the My Local SEO CPT tab:
+ *   - Enabled:      myls_enable_{id}_cpt            ('1' or '0')
+ *   - Rewrite slug: myls_enable_{id}_cpt_slug       (string, no slashes)
+ *   - Archive:      myls_enable_{id}_cpt_hasarchive ('', '1', 'true', '0', 'false', or custom slug)
  *
- * Archive rule:
- *   - blank => false
- *   - '1'/'true' => true
- *   - '0'/'false' => false
- *   - any other non-empty string => sanitized slug string
- *
- * NOTE: Keep registration centralized here. Do NOT register CPTs in modules.
+ * Behavior mirrors SSSEO Tools' registrar, with safer archive normalization.
  */
 
-/** Helpers: read per-CPT options saved by tab-cpt.php */
-function myls_cpt_enabled( string $id, bool $default = false ): bool {
-	$val = get_option( "myls_enable_{$id}_cpt", $default ? '1' : '0' );
-	return in_array( $val, ['1', 1, true, 'true', 'on', 'yes'], true );
-}
-function myls_cpt_slug( string $id, string $fallback ): string {
-	$raw = get_option( "myls_enable_{$id}_cpt_slug", '' );
-	$raw = is_string( $raw ) ? trim( $raw ) : '';
-	return $raw !== '' ? sanitize_title( $raw ) : $fallback;
-}
-function myls_cpt_has_archive( string $id, $fallback = false ) {
-	$raw = get_option( "myls_enable_{$id}_cpt_hasarchive", '' );
+if ( ! defined('ABSPATH') ) exit;
 
+/** Normalize has_archive from plugin option */
+function myls_normalize_archive_option( $raw ) {
 	// blank => false
-	if ( is_string( $raw ) && trim( $raw ) === '' ) return false;
+	if ( is_string($raw) && trim($raw) === '' ) return false;
 
 	// boolean-ish
-	if ( in_array( $raw, [0, '0', false, 'false', 'off', 'no'], true ) ) return false;
-	if ( in_array( $raw, [1, '1', true, 'true', 'on', 'yes'], true ) ) return true;
+	if ( in_array($raw, [0,'0',false,'false','off','no'], true) ) return false;
+	if ( in_array($raw, [1,'1',true,'true','on','yes'], true) ) return true;
 
 	// custom slug
-	if ( is_string( $raw ) ) {
+	if ( is_string($raw) ) {
 		$slug = sanitize_title( $raw );
 		return $slug !== '' ? $slug : false;
 	}
 
-	return (bool) $fallback;
+	return false;
 }
 
-/** Register enabled CPTs early */
-add_action( 'init', 'myls_register_enabled_cpts', 0 );
-function myls_register_enabled_cpts() {
-
-	// Catalog defaults (placeholders are the same as tab-cpt.php defaults)
-	$catalog = [
-		// Working CPTs you already had
+/** Main registrar (parity with SSSEO Tools; option keys are myls_*) */
+function myls_register_custom_post_types() {
+	$cpts = [
 		'service' => [
-			'default_enabled' => true,
+			'option_key'      => 'myls_enable_service_cpt',
 			'default_slug'    => 'service',
-			'default_archive' => false,
+			'default_archive' => 'services',
+			'menu_position'   => 21,
 			'labels'          => [
-				'name'          => __( 'Services', 'myls' ),
-				'singular_name' => __( 'Service', 'myls' ),
-				'all_items'     => __( 'All Services', 'myls' ),
-				'add_new_item'  => __( 'Add New Service', 'myls' ),
-				'edit_item'     => __( 'Edit Service', 'myls' ),
+				'name'     => 'Services',
+				'singular' => 'Service',
 			],
-			'menu_icon'       => 'dashicons-hammer',
 		],
-
 		'service_area' => [
-			'default_enabled' => true,
+			'option_key'      => 'myls_enable_service_area_cpt',
 			'default_slug'    => 'service-area',
-			'default_archive' => false,
+			'default_archive' => 'service-areas',
+			'menu_position'   => 22,
 			'labels'          => [
-				'name'          => __( 'Service Areas', 'myls' ),
-				'singular_name' => __( 'Service Area', 'myls' ),
-				'all_items'     => __( 'All Service Areas', 'myls' ),
-				'add_new_item'  => __( 'Add New Service Area', 'myls' ),
-				'edit_item'     => __( 'Edit Service Area', 'myls' ),
+				'name'     => 'Service Areas',
+				'singular' => 'Service Area',
 			],
-			'menu_icon'       => 'dashicons-location',
 		],
-
-		// Recreated: Product
 		'product' => [
-			'default_enabled' => false,       // toggle ON in tab
-			'default_slug'    => 'product',   // placeholder in UI can be 'product'
-			'default_archive' => false,       // leave blank in UI to disable
+			'option_key'      => 'myls_enable_product_cpt',
+			'default_slug'    => 'product',
+			'default_archive' => 'products',
+			'menu_position'   => 23,
 			'labels'          => [
-				'name'          => __( 'Products', 'myls' ),
-				'singular_name' => __( 'Product', 'myls' ),
-				'all_items'     => __( 'All Products', 'myls' ),
-				'add_new_item'  => __( 'Add New Product', 'myls' ),
-				'edit_item'     => __( 'Edit Product', 'myls' ),
+				'name'     => 'Products',
+				'singular' => 'Product',
 			],
-			'menu_icon'       => 'dashicons-products',
-		],
-
-		// Recreated: Video
-		'video' => [
-			'default_enabled' => false,       // toggle ON in tab
-			'default_slug'    => 'video',     // placeholder in UI is 'video'
-			'default_archive' => false,       // UI placeholder may show 'videos' but blank disables
-			'labels'          => [
-				'name'          => __( 'Videos', 'myls' ),
-				'singular_name' => __( 'Video', 'myls' ),
-				'all_items'     => __( 'All Videos', 'myls' ),
-				'add_new_item'  => __( 'Add New Video', 'myls' ),
-				'edit_item'     => __( 'Edit Video', 'myls' ),
-			],
-			'menu_icon'       => 'dashicons-video-alt3',
 		],
 	];
 
-	foreach ( $catalog as $type => $cfg ) {
-		if ( ! myls_cpt_enabled( $type, $cfg['default_enabled'] ) ) continue;
+	foreach ( $cpts as $post_type => $config ) {
+		$enabled = get_option( $config['option_key'], '0' );
+		if ( $enabled !== '1' ) continue;
 
-		$slug        = myls_cpt_slug( $type, $cfg['default_slug'] );
-		$has_archive = myls_cpt_has_archive( $type, $cfg['default_archive'] );
+		// Slug + archive from plugin options
+		$slug_opt  = trim( (string) get_option( $config['option_key'] . '_slug', '' ) );
+		$arch_opt  = get_option( $config['option_key'] . '_hasarchive', '' );
 
-		$args = [
-			'labels'        => $cfg['labels'],
-			'public'        => true,
-			'show_ui'       => true,
-			'show_in_menu'  => true,
-			'show_in_rest'  => true,
-			'has_archive'   => $has_archive,
-			'rewrite'       => [ 'slug' => $slug ],
-			'menu_icon'     => $cfg['menu_icon'],
-			'supports'      => [ 'title', 'editor', 'thumbnail', 'excerpt', 'page-attributes', 'revisions' ],
-			'map_meta_cap'  => true,
+		$slug        = $slug_opt !== '' ? sanitize_title($slug_opt) : $config['default_slug'];
+		$has_archive = myls_normalize_archive_option( $arch_opt );
+
+		// If has_archive is boolean true (toggle on), use the default archive slug (SSSEO parity)
+		if ( $has_archive === true ) $has_archive = $config['default_archive'];
+
+		// Labels (same structure as SSSEO Tools)
+		$labels = [
+			'name'                  => _x( $config['labels']['name'], 'Post Type General Name', 'myls' ),
+			'singular_name'         => _x( $config['labels']['singular'], 'Post Type Singular Name', 'myls' ),
+			'menu_name'             => __( $config['labels']['name'], 'myls' ),
+			'name_admin_bar'        => __( $config['labels']['singular'], 'myls' ),
+			'archives'              => __( $config['labels']['singular'] . ' Archives', 'myls' ),
+			'attributes'            => __( $config['labels']['singular'] . ' Attributes', 'myls' ),
+			'parent_item_colon'     => __( 'Parent ' . $config['labels']['singular'] . ':', 'myls' ),
+			'all_items'             => __( 'All ' . $config['labels']['name'], 'myls' ),
+			'add_new_item'          => __( 'Add New ' . $config['labels']['singular'], 'myls' ),
+			'add_new'               => __( 'Add New', 'myls' ),
+			'new_item'              => __( 'New ' . $config['labels']['singular'], 'myls' ),
+			'edit_item'             => __( 'Edit ' . $config['labels']['singular'], 'myls' ),
+			'update_item'           => __( 'Update ' . $config['labels']['singular'], 'myls' ),
+			'view_item'             => __( 'View ' . $config['labels']['singular'], 'myls' ),
+			'view_items'            => __( 'View ' . $config['labels']['name'], 'myls' ),
+			'search_items'          => __( 'Search ' . $config['labels']['singular'], 'myls' ),
+			'not_found'             => __( 'Not found', 'myls' ),
+			'not_found_in_trash'    => __( 'Not found in Trash', 'myls' ),
+			'featured_image'        => __( 'Featured Image', 'myls' ),
+			'set_featured_image'    => __( 'Set featured image', 'myls' ),
+			'remove_featured_image' => __( 'Remove featured image', 'myls' ),
+			'use_featured_image'    => __( 'Use as featured image', 'myls' ),
+			'insert_into_item'      => __( 'Insert into ' . $config['labels']['singular'], 'myls' ),
+			'uploaded_to_this_item' => __( 'Uploaded to this ' . $config['labels']['singular'], 'myls' ),
+			'items_list'            => __( $config['labels']['name'] . ' list', 'myls' ),
+			'items_list_navigation' => __( $config['labels']['name'] . ' list navigation', 'myls' ),
+			'filter_items_list'     => __( 'Filter ' . $config['labels']['name'] . ' list', 'myls' ),
 		];
 
-		register_post_type( $type, $args );
+		// SSSEO parity: hierarchical true + page-attributes ensures Parent chooser shows
+		$args = [
+			'label'               => __( $config['labels']['singular'], 'myls' ),
+			'description'         => __( $config['labels']['singular'] . ' Description', 'myls' ),
+			'labels'              => $labels,
+			'supports'            => [ 'title', 'editor', 'thumbnail', 'excerpt', 'custom-fields', 'page-attributes', 'revisions' ],
+			'public'              => true,
+			'show_ui'             => true,
+			'show_in_menu'        => true,
+			'menu_position'       => $config['menu_position'],
+			'show_in_admin_bar'   => true,
+			'show_in_nav_menus'   => true,
+			'can_export'          => true,
+			'has_archive'         => $has_archive,         // false, true (mapped to default), or custom slug
+			'hierarchical'        => true,                 // SSSEO parity; guarantees Parent dropdown
+			'exclude_from_search' => false,
+			'publicly_queryable'  => true,
+			'show_in_rest'        => true,
+			'rewrite'             => [ 'slug' => $slug, 'with_front' => false ],
+			'capability_type'     => 'page',               // SSSEO parity
+			'map_meta_cap'        => true,
+			'menu_icon'           => $config['menu_icon'] ?? 'dashicons-admin-post',
+		];
+
+		register_post_type( $post_type, $args );
 	}
 }
+add_action( 'init', 'myls_register_custom_post_types', 0 );
 
-/** Flush rewrites when any CPT option changes (tab saves individual options) */
+/** Metabox: About the Area (service_area) — parity with SSSEO Tools (same meta key) */
+add_action('add_meta_boxes', function() {
+	add_meta_box(
+		'myls_about_the_area',
+		'About the Area',
+		function( $post ) {
+			$content = get_post_meta( $post->ID, '_about_the_area', true );
+			wp_nonce_field( 'myls_save_about_the_area', 'myls_about_the_area_nonce' );
+			wp_editor( $content, 'myls_about_the_area_editor', [
+				'textarea_name' => 'about_the_area', // keep same field name as SSSEO parity
+				'media_buttons' => true,
+				'textarea_rows' => 8,
+			] );
+		},
+		'service_area',
+		'normal',
+		'high'
+	);
+});
+
+add_action('save_post', function( $post_id ) {
+	if ( ! isset($_POST['myls_about_the_area_nonce']) ) return;
+	if ( ! wp_verify_nonce( $_POST['myls_about_the_area_nonce'], 'myls_save_about_the_area' ) ) return;
+	if ( defined('DOING_AUTOSAVE') && DOING_AUTOSAVE ) return;
+	if ( ! current_user_can('edit_post', $post_id) ) return;
+
+	if ( isset($_POST['about_the_area']) ) {
+		update_post_meta( $post_id, '_about_the_area', wp_kses_post( $_POST['about_the_area'] ) );
+	}
+});
+
+/** Auto-flush rewrites when CPT options are changed in the CPT tab */
 add_action( 'updated_option', function( $option, $old, $new ) {
 	if ( strpos( $option, 'myls_enable_' ) === 0 ) {
-		// ensure CPTs exist for flush run
-		myls_register_enabled_cpts();
+		// Ensure types are registered for the flush context, then flush.
+		myls_register_custom_post_types();
 		flush_rewrite_rules();
 	}
 }, 10, 3 );
 
-/** Activation helper (called from main plugin file) */
+/** Activation helper (call from main plugin file) */
 function myls_activate_register_cpts_and_flush() {
-	myls_register_enabled_cpts();
+	myls_register_custom_post_types();
+	flush_rewrite_rules();
+}
+
+/** Deactivation helper (optional) */
+function myls_deactivate_flush_rewrites() {
 	flush_rewrite_rules();
 }

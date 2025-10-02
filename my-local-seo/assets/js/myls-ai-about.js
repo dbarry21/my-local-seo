@@ -1,135 +1,133 @@
-/* My Local SEO – About the Area JS
- * Path: assets/js/myls-ai-about.js
- */
 (function($){
   'use strict';
   if (!window.MYLS_AI_ABOUT) return;
+  const CFG = window.MYLS_AI_ABOUT;
 
-  const A   = window.MYLS_AI_ABOUT;
-  const $pt = $('#myls_ai_about_pt');
-  const $posts   = $('#myls_ai_about_posts');
-  const $skip    = $('#myls_ai_about_skip_filled');
+  const $pt     = $('#myls_ai_about_pt');
+  const $posts  = $('#myls_ai_about_posts');
+  const $skip   = $('#myls_ai_about_skip_filled');
+  const $gen    = $('#myls_ai_about_generate');
+  const $stop   = $('#myls_ai_about_stop');
+  const $res    = $('#myls_ai_about_results');
+  const $count  = $('#myls_ai_about_count');
+  const $status = $('#myls_ai_about_status');
 
-  const $go      = $('#myls_ai_about_generate');
-  const $stop    = $('#myls_ai_about_stop');
-  const $status  = $('#myls_ai_about_status');
-  const $results = $('#myls_ai_about_results');
-  const $count   = $('#myls_ai_about_count');
+  let stopping = false;
 
-  let stopFlag = false;
-
-  function setStatus(txt){ $status.text(txt || ''); }
-  function logOnce(txt){ $results.html(txt); }
-  function incCount(){ $count.text(String( (parseInt($count.text()||'0',10))+1 )); }
-  function resetCount(){ $count.text('0'); }
-
-  function optionRow(id, title){
-    return $('<option>').val(String(id)).text(title || '(no title)');
-  }
-  function fillPosts(items){
-    $posts.empty(); (items||[]).forEach(it => $posts.append(optionRow(it.id, it.title)));
+  function log(line){ $res.text(line + '\n' + $res.text()); }
+  function setCount(n){ $count.text(String(n)); }
+  function setBusy(on){
+    $gen.prop('disabled', !!on);
+    $stop.prop('disabled', !on);
+    $pt.prop('disabled', !!on);
+    $posts.prop('disabled', !!on);
+    $skip.prop('disabled', !!on);
+    $status.text(on ? 'Working…' : '');
   }
 
-  function loadPosts(pt){
-  setStatus('Loading posts…');
-  $posts.empty();
-  return $.post(A.ajaxurl, {
-    action: 'myls_ai_posts_by_type',
-    pt: pt,
-    nonce: A.nonce
-  }).done(function(res){
-    // Log full response to console for deep inspection
-    try { console.log('[MYLS AI ABOUT] posts_by_type response:', res); } catch(e){}
-
-    var ok = (res && (res.success === true || res.ok === true));
-    var payload = res && (res.data || res);
-    var list = ok && payload ? (payload.posts || (payload.data && payload.data.posts) || null) : null;
-
-    if (Array.isArray(list)) {
-      if (payload && typeof payload.nonce_ok !== 'undefined' && !payload.nonce_ok) {
-        setStatus('Loaded ' + list.length + ' item(s) — ⚠️ nonce mismatch (still returned for diagnostics)');
-      } else {
-        setStatus('Loaded ' + list.length + ' item(s).');
+  function loadPosts(){
+    $posts.empty();
+    $.post(CFG.ajaxurl, {
+      action: CFG.action_get_posts || 'myls_ai_about_get_posts_v2',
+      nonce:  CFG.nonce,
+      post_type: $pt.val()
+    }).done(function(resp){
+      try { console.log('[about_get_posts_v2]', resp); } catch(e){}
+      if (!resp || !resp.success || !resp.data || !Array.isArray(resp.data.posts)) {
+        log('Failed to load posts (bad response).');
+        return;
       }
-      fillPosts(list);
-      return;
-    }
-
-    // Fallback: localized bootstrap (from tab-ai.php)
-    if (window.MYLS_AI && window.MYLS_AI.posts_by_type && Array.isArray(window.MYLS_AI.posts_by_type[pt])) {
-      fillPosts(window.MYLS_AI.posts_by_type[pt]);
-      setStatus('Loaded (fallback) ' + window.MYLS_AI.posts_by_type[pt].length + ' item(s).');
-      return;
-    }
-
-    // Show raw body so we immediately see what's wrong
-    try { logOnce('Empty/invalid response:\n' + JSON.stringify(res, null, 2)); } catch(e){}
-    setStatus('Could not load posts.');
-  }).fail(function(xhr){
-    // Fallback on failure
-    if (window.MYLS_AI && window.MYLS_AI.posts_by_type && Array.isArray(window.MYLS_AI.posts_by_type[pt])) {
-      fillPosts(window.MYLS_AI.posts_by_type[pt]);
-      setStatus('Loaded (fallback) ' + window.MYLS_AI.posts_by_type[pt].length + ' item(s).');
-      return;
-    }
-    try { logOnce('AJAX error:\n' + (xhr && xhr.responseText ? xhr.responseText : '(no body)')); } catch(e){}
-    setStatus('Error loading posts.');
-  });
-}
-
-
-
-  function selectedIds(){
-    const ids = [];
-    $posts.find('option:selected').each(function(){
-      const v = parseInt($(this).val(),10);
-      if (v) ids.push(v);
+      const posts = resp.data.posts;
+      for (let i=0;i<posts.length;i++){
+        const p = posts[i];
+        $('<option>').val(String(p.id)).text((p.title||'(no title)')+' (ID '+p.id+')').appendTo($posts);
+      }
+      log('Loaded '+posts.length+' posts for '+$pt.val()+'.');
+    }).fail(function(xhr){
+      log('AJAX error: get_posts ('+(xhr && xhr.status)+')');
     });
-    return ids;
   }
 
-  // init
-  loadPosts(A.defaultType || $pt.val());
-  $pt.on('change', function(){ loadPosts($pt.val()); });
+  function readTemplateParams(){
+    const tpl = $('textarea[name="myls_ai_about_prompt_template"]').val() || '';
+    const tok = parseInt($('input[name="myls_ai_about_tokens"]').val() || '600', 10);
+    const tmp = parseFloat($('input[name="myls_ai_about_temperature"]').val() || '0.7');
+    return { template: tpl, tokens: tok, temperature: tmp };
+  }
 
-  $stop.on('click', function(e){ e.preventDefault(); stopFlag = true; setStatus('Stopping after current item…'); });
+  function run(){
+    const ids = ($posts.val() || []).map(v => parseInt(v, 10)).filter(Boolean);
+    if (!ids.length) { log('Select at least one post.'); return; }
 
-  $go.on('click', async function(e){
-    e.preventDefault();
-    stopFlag = false; resetCount();
-    const ids = selectedIds();
-    if (!ids.length) { setStatus('Select at least one post.'); return; }
+    stopping = false;
+    setCount(0);
+    setBusy(true);
 
-    setStatus('Starting…');
-    for (let i=0; i<ids.length; i++){
-      if (stopFlag) { setStatus('Stopped.'); break; }
-      const id = ids[i];
-      logOnce('Processing ID ' + id + '…');
+    const { template, tokens, temperature } = readTemplateParams();
+    const skip = $skip.is(':checked');
+    let done = 0;
 
-      try{
-        const res = await $.post(A.ajaxurl, {
-          action: 'myls_ai_about_generate',
-          nonce:  A.nonce,
-          post_id: id,
-          skip_filled: $skip.is(':checked') ? '1' : '0'
-        });
-
-        if (!res || !res.success){
-          logOnce('ID ' + id + ': ERROR\n' + (res && res.data ? JSON.stringify(res.data, null, 2) : 'No response'));
-        } else {
-          const d = res.data || {};
-          let out = 'ID ' + id + ' — ' + (d.title || '') + '\n';
-          out += d.skipped ? ('Skipped: ' + (d.reason || 'already filled') + '\n') : (d.saved ? 'Saved new content.\n' : 'Generated (not saved?).\n');
-          if (d.city_state) out += 'Area: ' + d.city_state + '\n';
-          if (d.debug) out += '\nDEBUG:\n' + d.debug + '\n';
-          logOnce(out);
-          incCount();
-        }
-      } catch (err){
-        logOnce('ID ' + id + ': ERROR ' + err);
+    (function next(){
+      if (stopping || !ids.length) {
+        setBusy(false);
+        log('Done.');
+        return;
       }
-    }
-    if (!stopFlag) setStatus('Done.');
-  });
+      const id = ids.shift();
+
+      $.post(CFG.ajaxurl, {
+        action:      CFG.action_generate || 'myls_ai_about_generate_v2',
+        nonce:       CFG.nonce,
+        post_id:     id,
+        skip_filled: skip ? 1 : 0,
+        template:    template,
+        tokens:      tokens,
+        temperature: temperature
+      })
+      .done(function(resp){
+        try { console.log('[about_generate_v2]', resp); } catch(e){}
+        if (!resp || typeof resp !== 'object') { log('ID '+id+' — Unexpected server response.'); return; }
+
+        if (resp.success) {
+          const d = resp.data || {};
+          const st = d.status || '(no status)';
+          const mk = d.marker || '(no marker)';
+
+          if (st === 'skipped') {
+            log('ID '+id+' — Skipped (already filled). ['+mk+']');
+          } else if (st === 'saved') {
+            const dbg = d.debug || {};
+            const method = dbg.saved_method || 'unknown_method';
+            const key = dbg.acf_key_used ? (', key='+dbg.acf_key_used) : '';
+            const area = d.city_state || '(n/a)';
+            const prev = d.preview ? (' Preview: '+d.preview) : '';
+            log('ID '+id+' — Saved. Area: '+area+' ['+method+key+']'+prev+' ['+mk+']');
+          } else {
+            log('ID '+id+' — Success but unexpected status='+st+' ['+mk+']');
+          }
+        } else {
+          const d = resp.data || {};
+          const mk = d.marker || '(no marker)';
+          const msg = d.message || 'server_error';
+          const dbg = d.debug ? (' ['+JSON.stringify(d.debug)+']') : '';
+          log('ID '+id+' — ERROR: '+msg+dbg+' ['+mk+']');
+        }
+      })
+      .fail(function(xhr){
+        log('ID '+id+' — AJAX error: '+(xhr && xhr.status));
+      })
+      .always(function(){
+        done++; setCount(done); next();
+      });
+
+    })();
+  }
+
+  $pt.on('change', loadPosts);
+  $gen.on('click', function(e){ e.preventDefault(); run(); });
+  $stop.on('click', function(e){ e.preventDefault(); stopping = true; });
+
+  if ($pt.val() !== CFG.defaultType) $pt.val(CFG.defaultType);
+  loadPosts();
 
 })(jQuery);
