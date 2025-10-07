@@ -3,13 +3,11 @@
  * My Local SEO – Conditional CPT Registration
  * Path: inc/cpt-registration.php
  *
- * Registers: service, service_area, product
+ * Registers: service, service_area, product, video
  * Reads options saved by the My Local SEO CPT tab:
  *   - Enabled:      myls_enable_{id}_cpt            ('1' or '0')
  *   - Rewrite slug: myls_enable_{id}_cpt_slug       (string, no slashes)
  *   - Archive:      myls_enable_{id}_cpt_hasarchive ('', '1', 'true', '0', 'false', or custom slug)
- *
- * Behavior mirrors SSSEO Tools' registrar, with safer archive normalization.
  */
 
 if ( ! defined('ABSPATH') ) exit;
@@ -32,7 +30,7 @@ function myls_normalize_archive_option( $raw ) {
 	return false;
 }
 
-/** Main registrar (parity with SSSEO Tools; option keys are myls_*) */
+/** Main registrar */
 function myls_register_custom_post_types() {
 	$cpts = [
 		'service' => [
@@ -40,30 +38,49 @@ function myls_register_custom_post_types() {
 			'default_slug'    => 'service',
 			'default_archive' => 'services',
 			'menu_position'   => 21,
-			'labels'          => [
-				'name'     => 'Services',
-				'singular' => 'Service',
-			],
+			'labels'          => ['name'=>'Services','singular'=>'Service'],
+			'hierarchical'    => false,
+			'supports'        => [ 'title','editor','thumbnail','excerpt','custom-fields','revisions' ],
+			'capability_type' => 'post',
+			'menu_icon'       => 'dashicons-hammer',
+			'taxonomies'      => [ 'category','post_tag' ],
 		],
 		'service_area' => [
 			'option_key'      => 'myls_enable_service_area_cpt',
 			'default_slug'    => 'service-area',
 			'default_archive' => 'service-areas',
 			'menu_position'   => 22,
-			'labels'          => [
-				'name'     => 'Service Areas',
-				'singular' => 'Service Area',
-			],
+			'labels'          => ['name'=>'Service Areas','singular'=>'Service Area'],
+			'hierarchical'    => true, // ensures Parent chooser shows
+			'supports'        => [ 'title','editor','thumbnail','excerpt','custom-fields','page-attributes','revisions' ],
+			'capability_type' => 'page',
+			'menu_icon'       => 'dashicons-location',
+			'taxonomies'      => [],
 		],
 		'product' => [
 			'option_key'      => 'myls_enable_product_cpt',
 			'default_slug'    => 'product',
 			'default_archive' => 'products',
 			'menu_position'   => 23,
-			'labels'          => [
-				'name'     => 'Products',
-				'singular' => 'Product',
-			],
+			'labels'          => ['name'=>'Products','singular'=>'Product'],
+			'hierarchical'    => false,
+			'supports'        => [ 'title','editor','thumbnail','excerpt','custom-fields','revisions' ],
+			'capability_type' => 'post',
+			'menu_icon'       => 'dashicons-cart',
+			'taxonomies'      => [ 'category','post_tag' ],
+		],
+		'video' => [
+			'option_key'      => 'myls_enable_video_cpt',
+			'default_slug'    => 'video',
+			'default_archive' => 'videos',
+			'menu_position'   => 24,
+			'labels'          => ['name'=>'Videos','singular'=>'Video'],
+			'hierarchical'    => false,
+			// Comments are handy for discussion; custom-fields for YouTube ID, transcript, etc.
+			'supports'        => [ 'title','editor','thumbnail','excerpt','custom-fields','comments','revisions' ],
+			'capability_type' => 'post',
+			'menu_icon'       => 'dashicons-video-alt3',
+			'taxonomies'      => [ 'category','post_tag' ],
 		],
 	];
 
@@ -77,11 +94,8 @@ function myls_register_custom_post_types() {
 
 		$slug        = $slug_opt !== '' ? sanitize_title($slug_opt) : $config['default_slug'];
 		$has_archive = myls_normalize_archive_option( $arch_opt );
+		if ( $has_archive === true ) $has_archive = $config['default_archive']; // toggle → default archive slug
 
-		// If has_archive is boolean true (toggle on), use the default archive slug (SSSEO parity)
-		if ( $has_archive === true ) $has_archive = $config['default_archive'];
-
-		// Labels (same structure as SSSEO Tools)
 		$labels = [
 			'name'                  => _x( $config['labels']['name'], 'Post Type General Name', 'myls' ),
 			'singular_name'         => _x( $config['labels']['singular'], 'Post Type Singular Name', 'myls' ),
@@ -112,12 +126,11 @@ function myls_register_custom_post_types() {
 			'filter_items_list'     => __( 'Filter ' . $config['labels']['name'] . ' list', 'myls' ),
 		];
 
-		// SSSEO parity: hierarchical true + page-attributes ensures Parent chooser shows
 		$args = [
 			'label'               => __( $config['labels']['singular'], 'myls' ),
 			'description'         => __( $config['labels']['singular'] . ' Description', 'myls' ),
 			'labels'              => $labels,
-			'supports'            => [ 'title', 'editor', 'thumbnail', 'excerpt', 'custom-fields', 'page-attributes', 'revisions' ],
+			'supports'            => $config['supports'],
 			'public'              => true,
 			'show_ui'             => true,
 			'show_in_menu'        => true,
@@ -125,15 +138,16 @@ function myls_register_custom_post_types() {
 			'show_in_admin_bar'   => true,
 			'show_in_nav_menus'   => true,
 			'can_export'          => true,
-			'has_archive'         => $has_archive,         // false, true (mapped to default), or custom slug
-			'hierarchical'        => true,                 // SSSEO parity; guarantees Parent dropdown
+			'has_archive'         => $has_archive,                 // false, custom slug, or default archive via toggle
+			'hierarchical'        => (bool) $config['hierarchical'],
 			'exclude_from_search' => false,
 			'publicly_queryable'  => true,
 			'show_in_rest'        => true,
 			'rewrite'             => [ 'slug' => $slug, 'with_front' => false ],
-			'capability_type'     => 'page',               // SSSEO parity
+			'capability_type'     => $config['capability_type'],
 			'map_meta_cap'        => true,
 			'menu_icon'           => $config['menu_icon'] ?? 'dashicons-admin-post',
+			'taxonomies'          => $config['taxonomies'] ?? [],
 		];
 
 		register_post_type( $post_type, $args );
@@ -150,7 +164,7 @@ add_action('add_meta_boxes', function() {
 			$content = get_post_meta( $post->ID, '_about_the_area', true );
 			wp_nonce_field( 'myls_save_about_the_area', 'myls_about_the_area_nonce' );
 			wp_editor( $content, 'myls_about_the_area_editor', [
-				'textarea_name' => 'about_the_area', // keep same field name as SSSEO parity
+				'textarea_name' => 'about_the_area',
 				'media_buttons' => true,
 				'textarea_rows' => 8,
 			] );
@@ -175,8 +189,7 @@ add_action('save_post', function( $post_id ) {
 /** Auto-flush rewrites when CPT options are changed in the CPT tab */
 add_action( 'updated_option', function( $option, $old, $new ) {
 	if ( strpos( $option, 'myls_enable_' ) === 0 ) {
-		// Ensure types are registered for the flush context, then flush.
-		myls_register_custom_post_types();
+		myls_register_custom_post_types(); // ensure types exist in the context of the flush
 		flush_rewrite_rules();
 	}
 }, 10, 3 );
