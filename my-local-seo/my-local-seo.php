@@ -65,6 +65,8 @@ require_once MYLS_PATH . 'inc/assets.php';
 
 /** CPT registration BEFORE module extras */
 require_once MYLS_PATH . 'inc/cpt-registration.php';
+require_once MYLS_PATH . 'inc/faq-schemas.php';
+require_once MYLS_PATH . 'inc/service-area-city-state.php';
 
 /** Admin AJAX + admin bar */
 require_once MYLS_PATH . 'inc/admin-ajax.php';
