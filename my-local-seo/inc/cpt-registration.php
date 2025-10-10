@@ -39,7 +39,7 @@ function myls_register_custom_post_types() {
 			'default_archive' => 'services',
 			'menu_position'   => 21,
 			'labels'          => ['name'=>'Services','singular'=>'Service'],
-			'hierarchical'    => false,
+			'hierarchical'    => true,
 			'supports'        => [ 'title','editor','thumbnail','excerpt','custom-fields','revisions','page-attributes' ],
 			'capability_type' => 'post',
 			'menu_icon'       => 'dashicons-hammer',

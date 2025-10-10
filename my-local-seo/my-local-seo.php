@@ -2,7 +2,7 @@
 /**
  * Plugin Name: My Local SEO
  * Description: Modular local SEO toolkit with YouTube → Video drafts, shortcodes, and admin tabs.
- * Version: 1.6.1
+ * Version: 1.6.2
  * Author: Dave Barry
  * Text Domain: my-local-seo
  */
