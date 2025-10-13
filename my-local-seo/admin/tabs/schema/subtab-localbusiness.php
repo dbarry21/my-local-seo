@@ -3,11 +3,9 @@
  * Subtab: Local Business
  * Path: admin/tabs/schema/subtab-localbusiness.php
  *
- * Key fix:
- * - Hours wrapper is now .myls-hours-list (block) instead of .myls-row (flex),
- *   so each .myls-hours-row sits on its own line (no side-by-side grouping).
- * - Grid-based .myls-hours-row keeps Day | Open | Close on one line, with
- *   horizontal scroll on very narrow screens.
+ * Hours UI:
+ * - .myls-hours-list is block (not flex) so each .myls-hours-row stays on its own line.
+ * - Grid-based row keeps Day | Open | Close aligned; horizontal scroll on narrow screens.
  */
 
 if (!defined('ABSPATH')) exit;
@@ -108,6 +106,7 @@ $spec = [
       'lng'     => $org_effective['lng'],
       'hours'   => [['day'=>'','open'=>'','close'=>'']],
       'pages'   => [],
+      'image_url' => '',  
     ];
 
     // ---------- DEBUG scaffold ----------
@@ -220,13 +219,13 @@ $spec = [
 
       /* --- HOURS: keep each row on its own line --- */
       .myls-hours-wrap { overflow-x: auto; }
-      .myls-hours-list { display:block; } /* not flex — prevents side-by-side rows */
+      .myls-hours-list { display:block; }
       .myls-hours-row {
         display: grid;
         grid-template-columns: 1fr 1fr 1fr;  /* Day | Open | Close */
         gap: .5rem;
         align-items: center;
-        min-width: 540px; /* horizontal scroll on narrow admin widths */
+        min-width: 540px;
         margin-top: .25rem;
       }
       .myls-hours-row .myls-col { margin-bottom: 0; padding-left: 0; padding-right: 0; }
@@ -414,248 +413,194 @@ $spec = [
     </div>
 
     <script>
-    (function(){
-      const ORG_DEFAULTS = <?php echo wp_json_encode($org_defaults, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;
-      const LOC_PAGES  = <?php echo wp_json_encode($loc_pages_map, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;
-      const esc = (s)=> String(s===null||s===undefined?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+(function(){
+  const ORG_DEFAULTS = <?php echo wp_json_encode($org_defaults, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;
+  const LOC_PAGES  = <?php echo wp_json_encode($loc_pages_map, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;
+  const esc = (s)=> String(s===null||s===undefined?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
 
-      function formatUSPhone(value) {
-        const digits = value.replace(/\D/g, '').slice(0, 10);
-        if (digits.length < 4) return digits;
-        if (digits.length < 7) return `(${digits.slice(0,3)}) ${digits.slice(3)}`;
-        return `(${digits.slice(0,3)}) ${digits.slice(3,6)}-${digits.slice(6)}`;
-      }
-      function attachPhoneMask(root=document) {
-        root.querySelectorAll('input.myls-phone').forEach(inp => {
-          inp.addEventListener('input', () => {
-            const start = inp.selectionStart, before = inp.value;
-            inp.value = formatUSPhone(inp.value);
-            if (document.activeElement === inp) {
-              const diff = inp.value.length - before.length;
-              inp.setSelectionRange(start + diff, start + diff);
-            }
-          });
-          inp.value = formatUSPhone(inp.value);
-        });
-      }
-
-      const assignLocSel   = document.getElementById('myls-assign-loc');
-      const assignPagesSel = document.getElementById('myls-assign-pages');
-      const hiddenWrap     = document.getElementById('myls-assignment-hidden');
-
-      function readLocationLabels(){
-        const items = document.querySelectorAll('#myls-location-list details.myls-fold');
-        const labels = [];
-        items.forEach((item, idx) => {
-          const labelInput = item.querySelector('input[name="myls_locations['+idx+'][location_label]"]');
-          let label = labelInput ? labelInput.value.trim() : '';
-          if (!label) label = 'Location #'+(idx+1)+(idx===0?' (Default)':'');
-          labels.push({idx, label});
-        });
-        return labels;
-      }
-      function renderAssignLocationDropdown(){
-        const labels = readLocationLabels();
-        assignLocSel.innerHTML = labels.map(l => `<option value="${l.idx}">${esc(l.label)}</option>`).join('');
-      }
-      function syncAssignListFor(index){
-        const selected = new Set((LOC_PAGES[index] || []).map(String));
-        for (const opt of assignPagesSel.options) opt.selected = selected.has(opt.value);
-        hiddenWrap.innerHTML = '';
-        (LOC_PAGES[index] || []).forEach(val => {
-          hiddenWrap.insertAdjacentHTML('beforeend',
-            `<input type="hidden" name="myls_locations[${index}][pages][]" value="${String(val).replace(/"/g,'&quot;')}">`);
-        });
-      }
-      function commitAssignSelectionTo(index){
-        const chosen = Array.from(assignPagesSel.selectedOptions).map(o => o.value);
-        LOC_PAGES[index] = chosen.map(v => parseInt(v,10)).filter(v => !isNaN(v));
-        hiddenWrap.innerHTML = '';
-        LOC_PAGES[index].forEach(val => {
-          hiddenWrap.insertAdjacentHTML('beforeend',
-            `<input type="hidden" name="myls_locations[${index}][pages][]" value="${val}">`);
-        });
-      }
-
-      renderAssignLocationDropdown();
-      syncAssignListFor(parseInt(assignLocSel.value || '0', 10));
-      attachPhoneMask(document);
-
-      assignLocSel.addEventListener('change', () => {
-        const idx = parseInt(assignLocSel.value, 10);
-        syncAssignListFor(idx);
-      });
-      assignPagesSel.addEventListener('change', () => {
-        const idx = parseInt(assignLocSel.value, 10);
-        commitAssignSelectionTo(idx);
-      });
-      document.getElementById('myls-location-list')?.addEventListener('input', (e) => {
-        if (e.target && /myls_locations\[\d+\]\[location_label\]/.test(e.target.name)) {
-          renderAssignLocationDropdown();
+  function formatUSPhone(value) {
+    const digits = value.replace(/\D/g, '').slice(0, 10);
+    if (digits.length < 4) return digits;
+    if (digits.length < 7) return `(${digits.slice(0,3)}) ${digits.slice(3)}`;
+    return `(${digits.slice(0,3)}) ${digits.slice(3,6)}-${digits.slice(6)}`;
+  }
+  function attachPhoneMask(root=document) {
+    root.querySelectorAll('input.myls-phone').forEach(inp => {
+      inp.addEventListener('input', () => {
+        const start = inp.selectionStart, before = inp.value;
+        inp.value = formatUSPhone(inp.value);
+        if (document.activeElement === inp) {
+          const diff = inp.value.length - before.length;
+          inp.setSelectionRange(start + diff, start + diff);
         }
       });
+      inp.value = formatUSPhone(inp.value);
+    });
+  }
 
-      // Add Location
-      document.getElementById('myls-add-location')?.addEventListener('click', function(){
-        const list = document.getElementById('myls-location-list');
-        const idx  = list.querySelectorAll('details.myls-fold').length;
+  const assignLocSel   = document.getElementById('myls-assign-loc');
+  const assignPagesSel = document.getElementById('myls-assign-pages');
+  const hiddenWrap     = document.getElementById('myls-assignment-hidden');
 
-        const stateOptions = `<?php
-          ob_start();
-          echo '<option value="">— Select —</option>';
-          foreach ($us_states as $code=>$name){
-            echo '<option value="'.esc_attr($code).'">'.esc_html($name).'</option>';
-          }
-          $state_opts = ob_get_clean();
-          echo $state_opts;
-        ?>`.replace(
-          new RegExp('value="' + ORG_DEFAULTS.state + '"'),
-          'value="' + ORG_DEFAULTS.state + '" selected'
+  // --- PERSISTENT ASSIGNMENT UX FIXES ---
+  const LS_KEY = 'myls_lb_assign_loc_index';
+  let currentIndex = 0; // tracks which location we’re viewing
+
+  // Build dropdown ONCE from current locations.
+  function buildAssignLocationDropdownOnce(){
+    const items = document.querySelectorAll('#myls-location-list details.myls-fold');
+    const fr = document.createDocumentFragment();
+    items.forEach((item, idx) => {
+      const opt = document.createElement('option');
+      opt.value = String(idx);
+      opt.textContent = getLocationLabel(idx);
+      fr.appendChild(opt);
+      // ensure LOC_PAGES has an array for new indices
+      if (!Array.isArray(LOC_PAGES[idx])) LOC_PAGES[idx] = [];
+    });
+    assignLocSel.innerHTML = '';
+    assignLocSel.appendChild(fr);
+
+    // restore last selected, default to 0
+    const saved = localStorage.getItem(LS_KEY);
+    const want  = saved !== null ? saved : '0';
+    assignLocSel.value = assignLocSel.querySelector(`option[value="${want}"]`) ? want : '0';
+    currentIndex = parseInt(assignLocSel.value || '0', 10);
+  }
+
+  // Read current label for a given index, falling back to defaults.
+  function getLocationLabel(idx){
+    const input = document.querySelector(`input[name="myls_locations[${idx}][location_label]"]`);
+    const val   = (input && input.value.trim()) || '';
+    return val || `Location #${idx+1}${idx===0?' (Default)':''}`;
+  }
+
+  // Update JUST the one <option>'s text when its label input changes.
+  function wireLiveOptionLabelBinding(){
+    const list = document.getElementById('myls-location-list');
+    list?.addEventListener('input', (e) => {
+      const t = e.target;
+      if (!t || !t.name) return;
+      const m = t.name.match(/^myls_locations\[(\d+)\]\[location_label\]$/);
+      if (!m) return;
+      const idx = m[1];
+      const opt = assignLocSel.querySelector(`option[value="${idx}"]`);
+      if (opt) opt.textContent = getLocationLabel(Number(idx));
+    });
+  }
+
+  // Reflect LOC_PAGES[index] into the multi-select and (preview) hidden inputs
+  function syncAssignListFor(index){
+    const selected = new Set((LOC_PAGES[index] || []).map(String));
+    for (const opt of assignPagesSel.options) opt.selected = selected.has(opt.value);
+
+    // preview-only hidden inputs for the active index
+    hiddenWrap.innerHTML = '';
+    (LOC_PAGES[index] || []).forEach(val => {
+      hiddenWrap.insertAdjacentHTML('beforeend',
+        `<input type="hidden" data-volatile="1" name="myls_locations[${index}][pages][]" value="${String(val).replace(/"/g,'&quot;')}">`
+      );
+    });
+  }
+
+  // Pull current UI choices from multi-select into LOC_PAGES[index]
+  function commitAssignSelectionTo(index){
+    const chosen = Array.from(assignPagesSel.selectedOptions).map(o => o.value);
+    LOC_PAGES[index] = chosen.map(v => parseInt(v,10)).filter(v => !isNaN(v));
+  }
+
+  // Rebuild ALL hidden inputs for ALL locations (final step before submit)
+  function rebuildAllHiddenInputs(){
+    hiddenWrap.innerHTML = '';
+    Object.keys(LOC_PAGES).forEach(idx => {
+      const arr = LOC_PAGES[idx] || [];
+      arr.forEach(val => {
+        hiddenWrap.insertAdjacentHTML('beforeend',
+          `<input type="hidden" name="myls_locations[${idx}][pages][]" value="${val}">`
         );
-
-        const countryOptions = `<?php
-          ob_start();
-          foreach ($countries as $code=>$name){
-            echo '<option value="'.esc_attr($code).'">'.esc_html($name).'</option>';
-          }
-          $country_opts = ob_get_clean();
-          echo $country_opts;
-        ?>`.replace(
-          new RegExp('value="' + (ORG_DEFAULTS.country || 'US') + '"'),
-          'value="' + (ORG_DEFAULTS.country || 'US') + '" selected'
-        );
-
-        const html = `
-<details class="myls-fold" open>
-  <summary>${esc(ORG_DEFAULTS.location_label || ('Location #'+(idx+1)))}</summary>
-  <div class="myls-row">
-    <div class="myls-col col-6"><label class="form-label">Location Label</label><input type="text" name="myls_locations[${idx}][location_label]" value="${esc(ORG_DEFAULTS.location_label)}"></div>
-    <div class="myls-col col-6"><label class="form-label">Business Name</label><input type="text" name="myls_locations[${idx}][name]" value="${esc(ORG_DEFAULTS.name)}"></div>
-
-    <div class="myls-col col-6"><label class="form-label">Business Image URL</label><input type="url" name="myls_locations[${idx}][image_url]" value=""></div>
-
-    <div class="myls-col col-6"><label class="form-label">Phone</label><input class="myls-phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="(555) 555-1234" name="myls_locations[${idx}][phone]" value="${esc(ORG_DEFAULTS.phone)}"></div>
-    <div class="myls-col col-6"><label class="form-label">Price Range</label><input type="text" name="myls_locations[${idx}][price]" value="${esc(ORG_DEFAULTS.price)}"></div>
-
-    <div class="myls-col col-6"><label class="form-label">Street</label><input type="text" name="myls_locations[${idx}][street]" value="${esc(ORG_DEFAULTS.street)}"></div>
-    <div class="myls-col col-3"><label class="form-label">City</label><input type="text" name="myls_locations[${idx}][city]" value="${esc(ORG_DEFAULTS.city)}"></div>
-    <div class="myls-col col-3"><label class="form-label">State</label><select name="myls_locations[${idx}][state]">${stateOptions}</select></div>
-    <div class="myls-col col-3"><label class="form-label">ZIP</label><input type="text" name="myls_locations[${idx}][zip]" value="${esc(ORG_DEFAULTS.zip)}"></div>
-    <div class="myls-col col-3"><label class="form-label">Country</label><select name="myls_locations[${idx}][country]">${countryOptions}</select></div>
-
-    <div class="myls-col col-3"><label class="form-label">Latitude</label><input type="text" name="myls_locations[${idx}][lat]" value="${esc(ORG_DEFAULTS.lat)}"></div>
-    <div class="myls-col col-3"><label class="form-label">Longitude</label><input type="text" name="myls_locations[${idx}][lng]" value="${esc(ORG_DEFAULTS.lng)}"></div>
-  </div>
-
-  <hr class="myls-hr">
-
-  <label class="form-label">Opening Hours</label>
-  <div class="myls-hours-wrap">
-    <div class="myls-hours-list" id="hours-${idx}">
-      <div class="myls-hours-row">
-        <div class="myls-col">
-          <select name="myls_locations[${idx}][hours][0][day]">
-            <option value="">-- Day --</option>
-            ${["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].map(d=>`<option value="${d}">${d}</option>`).join('')}
-          </select>
-        </div>
-        <div class="myls-col">
-          <input type="time" name="myls_locations[${idx}][hours][0][open]">
-        </div>
-        <div class="myls-col">
-          <input type="time" name="myls_locations[${idx}][hours][0][close]">
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="myls-actions">
-    <button type="button" class="myls-btn myls-btn-outline myls-add-hours" data-target="hours-${idx}" data-index="${idx}">+ Add Hours Row</button>
-    <button type="submit" name="myls_delete_location" value="${idx}" class="myls-btn myls-btn-danger">Delete This Location</button>
-  </div>
-</details>`;
-        list.insertAdjacentHTML('beforeend', html);
-        attachPhoneMask(list.lastElementChild);
-        renderAssignLocationDropdown();
       });
+    });
+  }
 
-      // Add Hours Row
-      document.addEventListener('click', (e)=>{
-        const btn = e.target.closest('.myls-add-hours');
-        if (!btn) return;
+  // Initialize
+  buildAssignLocationDropdownOnce();
+  wireLiveOptionLabelBinding();
+  syncAssignListFor(currentIndex);
+  attachPhoneMask(document);
 
-        const targetId = btn.getAttribute('data-target');
-        const tgt = document.getElementById(targetId);
-        const idx = btn.getAttribute('data-index');
-        if (!tgt) return;
-
-        // Next index = number of day selects in this location's hours list
-        const j = tgt.querySelectorAll('select[name^="myls_locations['+idx+'][hours]"][name$="[day]"]').length;
-
-        const row = document.createElement('div');
-        row.className = 'myls-hours-row';
-        row.innerHTML =
-          '<div class="myls-col">' +
-            '<select name="myls_locations['+idx+'][hours]['+j+'][day]">' +
-              '<option value="">-- Day --</option>' +
-              ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].map(d=>`<option value="${d}">${d}</option>`).join('') +
-            '</select>' +
-          '</div>' +
-          '<div class="myls-col">' +
-            '<input type="time" name="myls_locations['+idx+'][hours]['+j+'][open]">' +
-          '</div>' +
-          '<div class="myls-col">' +
-            '<input type="time" name="myls_locations['+idx+'][hours]['+j+'][close]">' +
-          '</div>';
-
-        tgt.appendChild(row);
-      });
-
-     // --- Commit assignments on submit (reuse existing variables) ---
-const parentForm = document.querySelector('.myls-lb-wrap')?.closest('form');
-
-function commitAssignSelectionTo(index){
-  // reuse the already-declared assignPagesSel & hiddenWrap
-  const chosen = Array.from(assignPagesSel.selectedOptions).map(o => o.value);
-  LOC_PAGES[index] = chosen.map(v => parseInt(v,10)).filter(v => !isNaN(v));
-  hiddenWrap.innerHTML = '';
-  LOC_PAGES[index].forEach(val => {
-    hiddenWrap.insertAdjacentHTML('beforeend',
-      `<input type="hidden" name="myls_locations[${index}][pages][]" value="${val}">`);
+  // Remember last chosen location; commit current before switching
+  assignLocSel.addEventListener('change', () => {
+    // 1) commit current selections for the old index
+    commitAssignSelectionTo(currentIndex);
+    // 2) switch index and reflect state
+    currentIndex = parseInt(assignLocSel.value, 10);
+    localStorage.setItem(LS_KEY, String(currentIndex));
+    syncAssignListFor(currentIndex);
   });
-}
 
-parentForm?.addEventListener('submit', () => {
-  const idx = parseInt(assignLocSel.value || '0', 10);
-  commitAssignSelectionTo(idx);
-});
-
-// initial UI sync (reuse helpers/vars)
-(function initAssign(){
-  const idx = parseInt(assignLocSel.value || '0', 10);
-  const selected = new Set((LOC_PAGES[idx] || []).map(String));
-  for (const opt of assignPagesSel.options) opt.selected = selected.has(opt.value);
-  hiddenWrap.innerHTML = '';
-  (LOC_PAGES[idx] || []).forEach(val => {
-    hiddenWrap.insertAdjacentHTML('beforeend',
-      `<input type="hidden" name="myls_locations[${idx}][pages][]" value="${String(val).replace(/"/g,'&quot;')}">`);
+  // Keep LOC_PAGES[currentIndex] updated as user picks/unpicks
+  assignPagesSel.addEventListener('change', () => {
+    commitAssignSelectionTo(currentIndex);
+    // optional: keep preview hidden inputs fresh
+    syncAssignListFor(currentIndex);
   });
+
+  // Ensure ALL locations’ hidden inputs exist on submit
+  const parentForm = document.querySelector('.myls-lb-wrap')?.closest('form');
+  parentForm?.addEventListener('submit', () => {
+    // commit whatever is currently on-screen
+    commitAssignSelectionTo(currentIndex);
+    // now write hidden inputs for every location
+    rebuildAllHiddenInputs();
+  });
+
+  // When adding a NEW location dynamically, append one <option> and init array
+  document.getElementById('myls-add-location')?.addEventListener('click', () => {
+    // wait for DOM insert
+    requestAnimationFrame(() => {
+      const idx = assignLocSel.options.length; // next index
+      const opt = document.createElement('option');
+      opt.value = String(idx);
+      opt.textContent = getLocationLabel(idx);
+      assignLocSel.appendChild(opt);
+      if (!Array.isArray(LOC_PAGES[idx])) LOC_PAGES[idx] = [];
+    });
+  });
+
+  // --- HOURS: Add row ---
+  document.addEventListener('click', (e)=>{
+    const btn = e.target.closest('.myls-add-hours');
+    if (!btn) return;
+
+    const targetId = btn.getAttribute('data-target');
+    const tgt = document.getElementById(targetId);
+    const idx = btn.getAttribute('data-index');
+    if (!tgt) return;
+
+    const j = tgt.querySelectorAll('select[name^="myls_locations['+idx+'][hours]"][name$="[day]"]').length;
+
+    const row = document.createElement('div');
+    row.className = 'myls-hours-row';
+    row.innerHTML =
+      '<div class="myls-col">' +
+        '<select name="myls_locations['+idx+'][hours]['+j+'][day]">' +
+          '<option value="">-- Day --</option>' +
+          ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].map(d=>`<option value="${d}">${d}</option>`).join('') +
+        '</select>' +
+      '</div>' +
+      '<div class="myls-col">' +
+        '<input type="time" name="myls_locations['+idx+'][hours]['+j+'][open]">' +
+      '</div>' +
+      '<div class="myls-col">' +
+        '<input type="time" name="myls_locations['+idx+'][hours]['+j+'][close]">' +
+      '</div>';
+
+    tgt.appendChild(row);
+  });
+
 })();
+</script>
 
-assignLocSel.addEventListener('change', () => {
-  const idx = parseInt(assignLocSel.value, 10);
-  const selected = new Set((LOC_PAGES[idx] || []).map(String));
-  for (const opt of assignPagesSel.options) opt.selected = selected.has(opt.value);
-  hiddenWrap.innerHTML = '';
-  (LOC_PAGES[idx] || []).forEach(val => {
-    hiddenWrap.insertAdjacentHTML('beforeend',
-      `<input type="hidden" name="myls_locations[${idx}][pages][]" value="${String(val).replace(/"/g,'&quot;')}">`);
-  });
-});
-
-
-    })();
-    </script>
     <?php
   },
 
@@ -711,7 +656,13 @@ assignLocSel.addEventListener('change', () => {
       }
       $clean[] = $one;
     }
+
     update_option('myls_lb_locations', $clean);
+
+    // Persist assignments to post meta for quick lookup + durability
+    if ( function_exists('myls_lb_sync_postmeta_from_locations') ) {
+      myls_lb_sync_postmeta_from_locations( $clean );
+    }
   }
 ];
 
