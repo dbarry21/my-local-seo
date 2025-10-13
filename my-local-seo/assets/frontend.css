@@ -11,13 +11,64 @@
 .myls-card-head{padding:.75rem var(--myls-space-4);border-bottom:1px solid var(--myls-border)}
 .myls-card-body{padding:var(--myls-space-4)}
 
-/* Responsive grid (no Bootstrap dependency) */
-.myls-grid{display:grid;gap:var(--myls-space-4)}
-.myls-grid.cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
-.myls-grid.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
-.myls-grid.cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}
-@media (max-width: 991.98px){ .myls-grid.cols-4,.myls-grid.cols-3{grid-template-columns:repeat(2,1fr)} }
-@media (max-width: 575.98px){ .myls-grid[class*="cols-"]{grid-template-columns:1fr} }
+/* MYLS responsive card grid (center last row, CSS-variable columns) */
+.myls-grid {
+  /* knobs you can tweak per-instance or globally */
+  --gap: 1rem;
+  --mobile-columns: 1;
+  --tablet-columns: 2;
+  --desktop-columns: 3;   /* e.g. set to 2 via inline style */
+  --wide-columns: 4;
+
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap);
+  justify-content: center;            /* <-- centers the last row */
+  margin: 0;                          /* neutralize .row gutters */
+  padding: 0;
+}
+
+/* Compute active column count for each breakpoint */
+.myls-grid { --cols: var(--mobile-columns); }
+@media (min-width: 768px)  { .myls-grid { --cols: var(--tablet-columns); } }
+@media (min-width: 992px)  { .myls-grid { --cols: var(--desktop-columns); } }
+@media (min-width: 1400px) { .myls-grid { --cols: var(--wide-columns); } }
+
+/* Each item width = (container - gaps) / columns, last row centered */
+.myls-grid > .col {
+  /* remove Bootstrap's internal column paddings when used inside myls-grid */
+  padding: 0 !important;
+  flex: 0 1 calc((100% - (var(--cols) - 1) * var(--gap)) / var(--cols));
+  max-width: calc((100% - (var(--cols) - 1) * var(--gap)) / var(--cols));
+}
+:root {
+--myls-primary-color:#136B92;
+	}
+.myls-flip-box {
+	border:2px solid var(--myls-primary-color);
+	padding:0.25em 0.25em 1em 0.25em;
+	border-radius:1em;
+}
+.card-body h3 a {
+	color:var(--myls-primary-color) ;
+}
+.flip-excerpt {padding:0.5em 0 1em 0;}
+/* Optional: make cards stretch equal height nicely */
+.myls-grid .card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+a.flip-button {
+	background-color:var(--myls-primary-color);
+}
+.myls-grid .card-body {
+  display: flex;
+  flex-direction: column;
+	align-content:center;
+	align-items:center;
+}
+
 
 /* Media wells for icon/image tiles */
 .myls-media{position:relative;overflow:hidden;border-bottom:1px solid var(--myls-border)}
@@ -28,3 +79,122 @@
 .myls-list{list-style:none;padding:0;margin:0}
 .myls-list li{padding:.35rem 0;border-bottom:1px dotted var(--myls-border)}
 .myls-list li:last-child{border-bottom:0}
+
+
+/* ============= SSSEO Card Grid (responsive, variable columns) ============= */
+/* Tweak per instance using inline vars on .ssseo-grid: 
+   --mobile-columns, --tablet-columns, --desktop-columns, --wide-columns, --gap */
+.ssseo-grid {
+  --gap: 1rem;
+  --mobile-columns: 1;
+  --tablet-columns: 2;
+  --desktop-columns: 3;
+  --wide-columns: 4;
+
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap);
+  justify-content: center; /* centers the last row */
+  margin: 0;
+  padding: 0;
+
+  /* active column bucket (changes by breakpoint) */
+  --cols: var(--mobile-columns);
+}
+@media (min-width: 768px)  { .ssseo-grid { --cols: var(--tablet-columns); } }
+@media (min-width: 992px)  { .ssseo-grid { --cols: var(--desktop-columns); } }
+@media (min-width: 1400px) { .ssseo-grid { --cols: var(--wide-columns); } }
+
+/* Child column sizing */
+.ssseo-grid > .ssseo-flip-box {
+  flex: 0 1 calc((100% - (var(--cols) - 1) * var(--gap)) / var(--cols));
+  max-width: calc((100% - (var(--cols) - 1) * var(--gap)) / var(--cols));
+}
+
+/* ============= Card ============= */
+.ssseo-card {
+  /* 2px solid border with theme primary color; fallback if Bootstrap var missing */
+  --ssseo-primary: var(--bs-primary, #0d6efd);
+  background: var(--bs-body-bg, #fff);
+  border: 2px solid var(--ssseo-primary);
+  border-radius: 0.75rem;
+  overflow: hidden;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--ssseo-card-shadow, 0 4px 14px rgba(0,0,0,.06));
+}
+
+/* Center text in the card body */
+.ssseo-card .card-body {
+  padding: 1rem 1.25rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+
+/* Title */
+.ssseo-card .flip-title {
+  margin: 0;
+  font-size: clamp(1rem, 1.2vw + .8rem, 1.25rem);
+  line-height: 1.25;
+}
+.ssseo-card .flip-title a {
+  color: var(--bs-body-color, #212529);
+  text-decoration: none;
+}
+.ssseo-card .flip-title a:hover,
+.ssseo-card .flip-title a:focus {
+  color: var(--myls-primary-color);
+  text-decoration: underline;
+}
+
+/* Excerpt */
+.ssseo-card .flip-excerpt {
+  color: var(--bs-secondary-color, #6c757d);
+  font-size: .95rem;
+}
+
+/* Media (image/icon) */
+.ssseo-card .card-media {
+  display: block;
+  position: relative;
+  overflow: hidden;
+}
+.ssseo-card .card-media img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.ssseo-card .card-media i {
+  font-size: clamp(2rem, 3.5vw + 1rem, 3rem);
+  color: var(--ssseo-primary);
+  padding: 2rem 0;
+}
+
+/* Button = use Bootstrap .btn .btn-primary when present;
+   otherwise provide a decent native fallback */
+.ssseo-card .flip-button.btn {
+  /* If Bootstrap exists, this inherits the primary style */
+}
+.ssseo-card .flip-button:not(.btn) {
+  /* Just in case .btn class is stripped, give a basic style */
+  display: inline-block;
+  border: 1px solid var(--myls-primary-color);
+  background: var(--myls-primary-color);
+  color: #fff;
+  padding: .5rem 1rem;
+  border-radius: .5rem;
+  text-decoration: none;
+}
+.ssseo-card .flip-button:not(.btn):hover,
+.ssseo-card .flip-button:not(.btn):focus {
+  filter: brightness(0.95);
+  color: #fff;
+}
+
+/* Small utility: ensure buttons don’t stretch full width unless needed */
+.ssseo-card .flip-button {
+  align-self: center;
+}

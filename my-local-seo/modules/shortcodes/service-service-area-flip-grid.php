@@ -1,42 +1,56 @@
 <?php
 /**
- * SSSEO Tools – Card Grid Shortcode (Image/Icon Boxes, no flip; columns via CSS)
+ * My Local SEO – Card Grid Shortcode (Image/Icon Boxes; columns via CSS)
  *
- * Shortcode:
- *   [ssseo_card_grid button_text="Learn More" image_size="medium_large" use_icons="0" icon_class="bi bi-grid-3x3-gap"]
+ * Shortcodes:
+ *   [myls_card_grid button_text="Learn More" image_size="medium_large" use_icons="0" icon_class="bi bi-grid-3x3-gap"]
  *
- * Markup classes you can style:
- *   ssseo-grid, ssseo-flip-box, ssseo-card, card-media, flip-title, flip-excerpt, flip-button
- *
- * Precedence rule:
- *   For each top-level "service", if the current "service_area" has a child whose title
- *   starts with the service title (case-insensitive), show that child; otherwise show the service.
+ * Back-compat aliases:
+ *   [ssseo_card_grid], [ssseo_flip_grid]
  */
 
-namespace SSSEO\CardGrid;
+namespace MYLS\CardGrid;
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-/** Register shortcode (and alias for drop-in replacement) */
+/** Enqueue /wp-content/plugins/my-local-seo/assets/frontend.css exactly */
+function enqueue_frontend_css() {
+	static $enq = false;
+	if ( $enq ) return;
+
+	$rel  = 'my-local-seo/assets/frontend.css';
+	$src  = plugins_url( $rel );                    // https://example.com/wp-content/plugins/my-local-seo/assets/frontend.css
+	$path = WP_PLUGIN_DIR . '/' . $rel;             // /var/www/.../wp-content/plugins/my-local-seo/assets/frontend.css
+	$ver  = file_exists( $path ) ? filemtime( $path ) : null;
+
+	wp_register_style( 'myls-frontend', $src, array(), $ver );
+	wp_enqueue_style( 'myls-frontend' );
+	$enq = true;
+}
+
+/** Register shortcodes (myls + legacy aliases) */
 function bootstrap() {
-	add_shortcode( 'ssseo_card_grid', __NAMESPACE__ . '\\shortcode' );
-	add_shortcode( 'ssseo_flip_grid', __NAMESPACE__ . '\\shortcode' ); // alias
+	add_shortcode( 'myls_card_grid', __NAMESPACE__ . '\\shortcode' );
+	add_shortcode( 'myls_flip_grid', __NAMESPACE__ . '\\shortcode' ); // alias
+	add_shortcode( 'ssseo_card_grid', __NAMESPACE__ . '\\shortcode' ); // back-compat
+	add_shortcode( 'ssseo_flip_grid', __NAMESPACE__ . '\\shortcode' ); // back-compat
 }
 add_action( 'init', __NAMESPACE__ . '\\bootstrap' );
 
 /** Render shortcode */
 function shortcode( $atts ) {
+	enqueue_frontend_css();
+
 	$atts = shortcode_atts( [
 		'button_text' => 'Learn More',
-		'image_size'  => 'medium_large',      // any registered WP size (thumbnail|medium|large|full|custom)
-		'use_icons'   => '0',                 // "1" to render an icon if no image
-		'icon_class'  => 'bi bi-grid-3x3-gap' // Bootstrap Icons class for fallback
-	], $atts, 'ssseo_card_grid' );
+		'image_size'  => 'medium_large',
+		'use_icons'   => '0',
+		'icon_class'  => 'bi bi-grid-3x3-gap'
+	], $atts, 'myls_card_grid' );
 
 	$current_id   = get_current_post_id();
 	$is_sa_parent = $current_id && ( get_post_type( $current_id ) === 'service_area' );
 
-	// Top-level Services
 	$services = get_posts( [
 		'post_type'        => 'service',
 		'post_status'      => 'publish',
@@ -48,7 +62,6 @@ function shortcode( $atts ) {
 		'suppress_filters' => true,
 	] );
 
-	// Child service_area (of current service_area) if applicable
 	$sa_children = [];
 	if ( $is_sa_parent ) {
 		$sa_children = get_children( [
@@ -66,20 +79,20 @@ function shortcode( $atts ) {
 	$use_icons = ( $atts['use_icons'] === '1' || $atts['use_icons'] === 1 );
 
 	ob_start(); ?>
-	<!-- Columns/Colors are controlled in CSS on .ssseo-grid and child classes -->
-	<div class="ssseo-grid">
+	<!-- Control columns with CSS vars on .myls-grid -->
+	<div class="myls-grid" style="--gap:1rem;--mobile-columns:1;--tablet-columns:2;--desktop-columns:3;--wide-columns:4;">
 		<?php foreach ( $items as $post_obj ) :
 			$post_id   = (int) $post_obj->ID;
 			$title     = get_the_title( $post_id );
 			$permalink = get_permalink( $post_id );
-			$excerpt   = get_manual_excerpt_only( $post_id ); // blank if no manual excerpt
+			$excerpt   = get_manual_excerpt_only( $post_id );
 			$thumb     = get_card_image( $post_id, $atts['image_size'] );
 		?>
-		<div class="ssseo-flip-box"><!-- keeping class name per your spec -->
-			<article class="ssseo-card">
+		<div class="myls-flip-box">
+			<article class="myls-card">
 				<?php if ( $thumb ) : ?>
 					<a class="card-media" href="<?php echo esc_url( $permalink ); ?>" aria-label="<?php echo esc_attr( $title ); ?>">
-						<?php echo $thumb; /* core-escaped */ ?>
+						<?php echo $thumb; ?>
 					</a>
 				<?php elseif ( $use_icons ) : ?>
 					<div class="card-media d-flex align-items-center justify-content-center">
@@ -97,7 +110,7 @@ function shortcode( $atts ) {
 						<div class="flip-excerpt"><?php echo wp_kses_post( $excerpt ); ?></div>
 					<?php endif; ?>
 
-					<a class="flip-button btn" href="<?php echo esc_url( $permalink ); ?>">
+					<a class="flip-button btn btn-primary" href="<?php echo esc_url( $permalink ); ?>">
 						<?php echo esc_html( $atts['button_text'] ); ?>
 					</a>
 				</div>
@@ -119,13 +132,9 @@ function get_current_post_id() {
 	return isset( $post->ID ) ? (int) $post->ID : null;
 }
 
-/**
- * For each top-level Service S, if a child Service Area (of current SA parent)
- * has a title that starts with S's title (case-insensitive), use that child; else use S.
- */
+/** Precedence resolver */
 function build_items_with_precedence( $services, $sa_children ) {
 	if ( empty( $services ) ) return [];
-
 	$used_child_ids = [];
 	$result = [];
 
@@ -158,10 +167,10 @@ function title_starts_with( $haystack, $needle ) {
 
 /** Manual excerpt only (no auto content fallback). '' when none. */
 function get_manual_excerpt_only( $post_id ) {
-	$raw = get_post_field( 'post_excerpt', $post_id ); // no auto-gen
+	$raw = get_post_field( 'post_excerpt', $post_id );
 	$raw = is_string( $raw ) ? trim( $raw ) : '';
 	if ( $raw === '' ) return '';
-	$max = (int) apply_filters( 'ssseo/card_grid/excerpt_length', 24 );
+	$max = (int) apply_filters( 'myls/card_grid/excerpt_length', 24 );
 	return wp_trim_words( $raw, max( 1, $max ) );
 }
 
@@ -171,68 +180,3 @@ function get_card_image( $post_id, $size = 'medium_large' ) {
 		? get_the_post_thumbnail( $post_id, $size, [ 'class' => 'img-fluid', 'alt' => get_the_title( $post_id ) ] )
 		: '';
 }
-
-add_action( 'acf/include_fields', function() {
-	if ( ! function_exists( 'acf_add_local_field_group' ) ) {
-		return;
-	}
-
-	acf_add_local_field_group( array(
-	'key' => 'group_68b69ccacb01f',
-	'title' => 'Featured Icon',
-	'fields' => array(
-		array(
-			'key' => 'field_68b69ccba9d34',
-			'label' => 'Featured Icon',
-			'name' => 'featured_icon',
-			'aria-label' => '',
-			'type' => 'image',
-			'instructions' => '',
-			'required' => 0,
-			'conditional_logic' => 0,
-			'wrapper' => array(
-				'width' => '',
-				'class' => '',
-				'id' => '',
-			),
-			'return_format' => 'array',
-			'library' => 'all',
-			'min_width' => '',
-			'min_height' => '',
-			'min_size' => '',
-			'max_width' => '',
-			'max_height' => '',
-			'max_size' => '',
-			'mime_types' => '',
-			'allow_in_bindings' => 0,
-			'preview_size' => 'medium',
-		),
-	),
-	'location' => array(
-		array(
-			array(
-				'param' => 'post_type',
-				'operator' => '==',
-				'value' => 'service',
-			),
-		),
-		array(
-			array(
-				'param' => 'post_type',
-				'operator' => '==',
-				'value' => 'service_area',
-			),
-		),
-	),
-	'menu_order' => 0,
-	'position' => 'normal',
-	'style' => 'default',
-	'label_placement' => 'top',
-	'instruction_placement' => 'label',
-	'hide_on_screen' => '',
-	'active' => true,
-	'description' => '',
-	'show_in_rest' => 0,
-) );
-} );
-
