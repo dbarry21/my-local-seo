@@ -2,7 +2,7 @@
 /**
  * Plugin Name: My Local SEO
  * Description: Modular local SEO toolkit with YouTube → Video drafts, shortcodes, and admin tabs.
- * Version: 1.6.7
+ * Version: 1.7.0
  * Author: Dave Barry
  * Text Domain: my-local-seo
  */
@@ -62,6 +62,7 @@ require_once MYLS_PATH . 'inc/admin.php';
 
 /** Assets */
 require_once MYLS_PATH . 'inc/assets.php';
+require_once MYLS_PATH . 'inc/blog-prefix.php';
 
 /** CPT registration BEFORE module extras */
 require_once MYLS_PATH . 'inc/cpt-registration.php';

@@ -1,30 +1,20 @@
 <?php
 /**
  * Admin Tab: Custom Post Types (Modular CPT Manager)
- * - Discovers CPT modules in modules/cpt/*.php using MYLS_CPT_DISCOVERY
- * - Each module returns a spec when MYLS_CPT_DISCOVERY is true:
- *     [
- *       'id'       => 'video',
- *       'label'    => 'Videos',
- *       'defaults' => [
- *           'default_slug'    => 'video',
- *           'default_archive' => 'videos'
- *       ]
- *     ]
- * - Runtime registration is handled by your modules via inc/load-cpt-modules.php
  */
+
 if ( ! defined('ABSPATH') ) exit;
 
 myls_register_admin_tab([
   'id'    => 'cpt',
   'title' => 'Custom Post Types',
-  'order' => 15,                    // adjust position in the tab bar (lower = earlier)
-  'cap'   => 'manage_options',      // required capability to view this tab
+  'order' => 15,
+  'cap'   => 'manage_options',
   'icon'  => 'dashicons-screenoptions',
   'cb'    => function () {
 
     // -------------------------------------------------
-    // Discover CPT modules (only base spec files like product.php, service-area.php)
+    // Discover CPT modules
     // -------------------------------------------------
     $cpt_specs = [];
     $debug     = [];
@@ -43,26 +33,16 @@ myls_register_admin_tab([
     if ( ! empty($files) ) {
         natsort($files);
 
-        // Helpers/extras to skip:
         $skip_exact  = ['register.php','_bootstrap.php','_loader.php'];
         $skip_suffix = ['-columns.php','-metaboxes.php','-taxonomies.php','-templates.php'];
 
         foreach ( $files as $f ) {
             $base = basename($f);
 
-            if ( in_array($base, $skip_exact, true) ) {
-                $debug[] = "Skipped (helper): modules/cpt/{$base}";
-                continue;
-            }
-
+            if ( in_array($base, $skip_exact, true) ) { $debug[] = "Skipped (helper): modules/cpt/{$base}"; continue; }
             $is_extra = false;
-            foreach ( $skip_suffix as $suf ) {
-                if ( str_ends_with($base, $suf) ) { $is_extra = true; break; }
-            }
-            if ( $is_extra ) {
-                $debug[] = "Skipped (extra): modules/cpt/{$base}";
-                continue;
-            }
+            foreach ( $skip_suffix as $suf ) { if ( str_ends_with($base, $suf) ) { $is_extra = true; break; } }
+            if ( $is_extra ) { $debug[] = "Skipped (extra): modules/cpt/{$base}"; continue; }
 
             $spec = include $f;
             if ( is_array($spec) && ! empty($spec['id']) ) {
@@ -83,13 +63,14 @@ myls_register_admin_tab([
     }
 
     // -------------------------------------------------
-    // Handle POST save
+    // Handle POST save (CPTs + Blog Prefix card)
     // -------------------------------------------------
     if (
         isset($_POST['myls_cpt_nonce']) &&
         wp_verify_nonce( $_POST['myls_cpt_nonce'], 'myls_cpt_save' ) &&
         current_user_can('manage_options')
     ) {
+        // Save CPT options
         foreach ( $cpt_specs as $id => $spec ) {
             $opt_key = "myls_enable_{$id}_cpt";
 
@@ -102,10 +83,19 @@ myls_register_admin_tab([
             update_option("{$opt_key}_hasarchive", $arch);
         }
 
+        // Save Blog Prefix options
+        $bp_enabled = isset($_POST['myls_blogprefix_enabled']) ? '1' : '0';
+        $bp_value   = isset($_POST['myls_blogprefix_value'])
+            ? sanitize_title( wp_unslash($_POST['myls_blogprefix_value']) )
+            : '';
+
+        update_option('myls_blogprefix_enabled', $bp_enabled);
+        update_option('myls_blogprefix_value',   $bp_value);
+
         flush_rewrite_rules();
         do_action('myls_cpt_settings_updated');
 
-        echo '<div class="alert alert-success mt-3">Content type settings saved.</div>';
+        echo '<div class="alert alert-success mt-3">Settings saved.</div>';
     }
 
     // -------------------------------------------------
@@ -120,8 +110,11 @@ myls_register_admin_tab([
             'has_archive' => get_option("{$opt_key}_hasarchive", ''),
         ];
     }
+    $blogprefix = [
+        'enabled' => get_option('myls_blogprefix_enabled', '0'),
+        'value'   => get_option('myls_blogprefix_value',   ''),
+    ];
 
-    // Helpers
     $human = function($s){ $s = str_replace(['-','_'],' ',$s); return mb_convert_case($s, MB_CASE_TITLE, 'UTF-8'); };
 
     ?>
@@ -207,6 +200,59 @@ myls_register_admin_tab([
                     </div>
                 </div>
                 <?php endforeach; ?>
+
+                <!-- =========================
+                     NEW CARD: Custom Blog Prefix
+                     ========================= -->
+                <div class="col-lg-4">
+                    <div class="card mb-4 shadow-sm">
+                        <div class="card-header bg-dark text-white">
+                            <strong>Custom Blog Prefix</strong>
+                        </div>
+                        <div class="card-body">
+                            <p class="small text-muted mb-3">
+                                Applies a custom prefix to standard post permalinks (e.g., <code>/prefix/post-name/</code>).
+                                When enabled, the plugin also redirects old <code>/post-name/</code> to the prefixed URL and sets the canonical accordingly.
+                            </p>
+
+                            <div class="form-check form-switch mb-3">
+                                <input
+                                    class="form-check-input"
+                                    type="checkbox"
+                                    role="switch"
+                                    id="myls_blogprefix_enabled"
+                                    name="myls_blogprefix_enabled"
+                                    value="1"
+                                    <?php checked('1', $blogprefix['enabled']); ?>
+                                >
+                                <label class="form-check-label" for="myls_blogprefix_enabled">
+                                    Enable Custom Blog Prefix
+                                </label>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="myls_blogprefix_value" class="form-label">Prefix (no slashes)</label>
+                                <input
+                                    type="text"
+                                    class="form-control"
+                                    id="myls_blogprefix_value"
+                                    name="myls_blogprefix_value"
+                                    value="<?php echo esc_attr($blogprefix['value']); ?>"
+                                    placeholder="hvac-blog"
+                                >
+                                <div class="form-text">
+                                    Example result: <code>https://yoursite.com/<span id="myls-bp-prev">hvac-blog</span>/your-post/</code>
+                                </div>
+                            </div>
+
+                            <div class="alert alert-info py-2">
+                                <div class="small mb-1"><strong>Note:</strong> After changing this value, flush rewrites.</div>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" id="myls-flush-rewrites-2">Flush Rewrites</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- /Custom Blog Prefix card -->
             </div>
 
             <button type="submit" class="btn btn-primary">Save Settings</button>
@@ -218,7 +264,7 @@ myls_register_admin_tab([
       const ajaxurl = "<?php echo esc_js( admin_url('admin-ajax.php') ); ?>";
       const nonce   = "<?php echo esc_js( wp_create_nonce('myls_cpt_ajax') ); ?>";
 
-      // Flush rewrites (unchanged)
+      // Flush rewrites (top button)
       const flushBtn = document.getElementById('myls-flush-rewrites');
       if (flushBtn) {
         flushBtn.addEventListener('click', function(){
@@ -237,7 +283,38 @@ myls_register_admin_tab([
         });
       }
 
-      // Helper: render collapsible debug under each CPT card
+      // Flush rewrites (card button)
+      const flushBtn2 = document.getElementById('myls-flush-rewrites-2');
+      if (flushBtn2) {
+        flushBtn2.addEventListener('click', function(){
+          flushBtn2.disabled = true;
+          fetch(ajaxurl, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'},
+            body: new URLSearchParams({ action: 'myls_flush_rewrites', _wpnonce: nonce })
+          })
+          .then(r=>r.json())
+          .then(resp=>{
+            alert((resp && resp.success && resp.data && resp.data.message) ? resp.data.message : 'Flushed.');
+          })
+          .catch(()=>alert('Request failed'))
+          .finally(()=>flushBtn2.disabled=false);
+        });
+      }
+
+      // Live preview of example URL
+      const input = document.getElementById('myls_blogprefix_value');
+      const prev  = document.getElementById('myls-bp-prev');
+      if (input && prev) {
+        const upd = () => {
+          const v = (input.value || '').trim().replace(/^\/+|\/+$/g,'');
+          prev.textContent = v || 'prefix';
+        };
+        input.addEventListener('input', upd);
+        upd();
+      }
+
+      // Check CPT registered (existing)
       function showDebug(el, payload){
         const wrapId = el.id + '--debugwrap';
         let wrap = document.getElementById(wrapId);
@@ -260,7 +337,6 @@ myls_register_admin_tab([
         pre.textContent = JSON.stringify(payload, null, 2);
       }
 
-      // Check CPT registered
       document.querySelectorAll('button[data-cpt]').forEach(btn=>{
         btn.addEventListener('click', function(){
           const id  = btn.getAttribute('data-cpt');
@@ -277,23 +353,15 @@ myls_register_admin_tab([
             const ok = data && data.success;
             const payload = ok ? data.data : null;
             if (!out) return;
+            if (!ok || !payload) { out.textContent = 'Error'; return; }
 
-            if (!ok || !payload) {
-              out.textContent = 'Error';
-              return;
-            }
-
-            // Short status line
             out.textContent = payload.registered
               ? `Registered ✅ (${payload.resolved_id || id})`
               : 'Not registered ❌';
 
-            // Collapsible debug payload
             showDebug(out, payload);
           })
-          .catch(()=>{
-            if (out) out.textContent = 'Error';
-          });
+          .catch(()=>{ if (out) out.textContent = 'Error'; });
         });
       });
     })();
