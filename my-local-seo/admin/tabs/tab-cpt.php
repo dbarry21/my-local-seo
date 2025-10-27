@@ -77,10 +77,12 @@ myls_register_admin_tab([
             $enabled = isset($_POST[$opt_key]) ? '1' : '0';
             $slug    = isset($_POST["{$opt_key}_slug"]) ? sanitize_title( wp_unslash($_POST["{$opt_key}_slug"]) ) : '';
             $arch    = isset($_POST["{$opt_key}_hasarchive"]) ? sanitize_text_field( wp_unslash($_POST["{$opt_key}_hasarchive"]) ) : '';
+            $label_sing = isset($_POST["{$opt_key}_label_singular"]) ? sanitize_text_field( wp_unslash($_POST["{$opt_key}_label_singular"]) ) : '';
 
             update_option($opt_key, $enabled);
             update_option("{$opt_key}_slug", $slug);
             update_option("{$opt_key}_hasarchive", $arch);
+            update_option("{$opt_key}_label_singular", $label_sing);
         }
 
         // Save Blog Prefix options
@@ -105,9 +107,10 @@ myls_register_admin_tab([
     foreach ( $cpt_specs as $id => $spec ) {
         $opt_key = "myls_enable_{$id}_cpt";
         $settings[$id] = [
-            'enabled'     => get_option($opt_key, '0'),
-            'slug'        => get_option("{$opt_key}_slug", ''),
-            'has_archive' => get_option("{$opt_key}_hasarchive", ''),
+            'enabled'        => get_option($opt_key, '0'),
+            'slug'           => get_option("{$opt_key}_slug", ''),
+            'has_archive'    => get_option("{$opt_key}_hasarchive", ''),
+            'label_singular' => get_option("{$opt_key}_label_singular", ''),
         ];
     }
     $blogprefix = [
@@ -119,6 +122,14 @@ myls_register_admin_tab([
 
     ?>
     <div class="container-fluid mt-3">
+        <style>
+          /* Light-blue placeholder text to signal "not entered" */
+          .card .form-control::placeholder {
+            color: rgba(13,110,253,0.65); /* Bootstrap primary ~ #0d6efd */
+            opacity: 1;
+          }
+        </style>
+
         <?php if ( ! empty($debug) ) : ?>
             <details class="mb-3">
                 <summary class="small text-muted">Discovery debug</summary>
@@ -141,6 +152,11 @@ myls_register_admin_tab([
                     $defaults = $spec['defaults'] ?? [];
                     $ph_slug  = $defaults['default_slug']    ?? $id;
                     $ph_arch  = $defaults['default_archive'] ?? "{$id}s";
+
+                    // Defaults for labels from module spec (used as placeholders if no custom value)
+                    $default_singular = $spec['labels']['singular'] ?? ($defaults['labels']['singular'] ?? $human(rtrim($id,'s')));
+                    $default_plural   = $spec['labels']['name']     ?? ($defaults['labels']['name'] ?? $human(rtrim($id,'s')).'s');
+
                     $toggle   = "myls_enable_{$id}_cpt";
                 ?>
                 <div class="col-lg-4">
@@ -162,6 +178,19 @@ myls_register_admin_tab([
                                 <label class="form-check-label" for="<?php echo esc_attr($toggle); ?>">
                                     Enable <strong><?php echo esc_html($label); ?></strong>
                                 </label>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="<?php echo esc_attr("{$toggle}_label_singular"); ?>" class="form-label">Singular Label</label>
+                                <input
+                                    type="text"
+                                    class="form-control"
+                                    id="<?php echo esc_attr("{$toggle}_label_singular"); ?>"
+                                    name="<?php echo esc_attr("{$toggle}_label_singular"); ?>"
+                                    value="<?php echo esc_attr($s['label_singular']); ?>"
+                                    placeholder="<?php echo esc_attr($default_singular); ?>"
+                                >
+                                <div class="form-text">Plural label is automatic based on singular.</div>
                             </div>
 
                             <div class="mb-3">
@@ -201,9 +230,7 @@ myls_register_admin_tab([
                 </div>
                 <?php endforeach; ?>
 
-                <!-- =========================
-                     NEW CARD: Custom Blog Prefix
-                     ========================= -->
+                <!-- Custom Blog Prefix card (unchanged from your last version) -->
                 <div class="col-lg-4">
                     <div class="card mb-4 shadow-sm">
                         <div class="card-header bg-dark text-white">
@@ -252,7 +279,6 @@ myls_register_admin_tab([
                         </div>
                     </div>
                 </div>
-                <!-- /Custom Blog Prefix card -->
             </div>
 
             <button type="submit" class="btn btn-primary">Save Settings</button>
@@ -353,7 +379,6 @@ myls_register_admin_tab([
             const ok = data && data.success;
             const payload = ok ? data.data : null;
             if (!out) return;
-            if (!ok || !payload) { out.textContent = 'Error'; return; }
 
             out.textContent = payload.registered
               ? `Registered ✅ (${payload.resolved_id || id})`
