@@ -2,7 +2,7 @@
 /**
  * Plugin Name: My Local SEO
  * Description: Modular local SEO toolkit with YouTube → Video drafts, shortcodes, and admin tabs.
- * Version: 1.7.4
+ * Version: 1.7.5
  * Author: Dave Barry
  * Text Domain: my-local-seo
  */
@@ -188,6 +188,10 @@ add_action('admin_enqueue_scripts', function(){
 CSS;
 
 	wp_add_inline_style('myls-admin-css', $css);
+});
+
+add_action('wp_enqueue_scripts', function() {
+    wp_enqueue_style('myls-accordion', MYLS_URL . 'assets/css/myls-accordion.css', [], MYLS_VERSION);
 });
 
 /** Meta history */

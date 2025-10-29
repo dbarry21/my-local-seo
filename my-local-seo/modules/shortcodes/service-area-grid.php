@@ -22,13 +22,13 @@ if ( ! shortcode_exists('myls_map_embed') && ! shortcode_exists('ssseo_map_embed
 add_shortcode('service_area_grid', function( $atts ) {
 	$a = shortcode_atts([
 		'posts_per_page' => -1,            // -1 = all
-		'parent_id'      => '',            // empty = any parent; set "0" for top-level only; or a numeric parent ID
+		'parent_id'      => '',            // empty = any parent; set "0" for top-level only; or numeric parent ID
 		'orderby'        => 'menu_order title',
 		'order'          => 'ASC',
 		'class'          => '',            // extra classes for outer container
 		'show_title'     => '1',           // show the post title above excerpt
 		'map_ratio'      => '16x9',        // pass through to map shortcode
-		'include_drafts' => '0',           // NEW: "1" (yes) to include draft posts
+		'include_drafts' => '0',           // NEW: "1" to include draft posts
 	], $atts, 'service_area_grid' );
 
 	// Determine post_status
@@ -49,7 +49,7 @@ add_shortcode('service_area_grid', function( $atts ) {
 	// Parent filter
 	if ( $a['parent_id'] !== '' ) {
 		if ( is_numeric( $a['parent_id'] ) ) {
-			$args['post_parent'] = (int) $a['parent_id']; // "0" handled here as well
+			$args['post_parent'] = (int) $a['parent_id'];
 		}
 	}
 
@@ -107,15 +107,11 @@ add_shortcode('service_area_grid', function( $atts ) {
 			);
 			$map_html = do_shortcode( $map_sc );
 
-			// Linked title (drafts get "(Draft)" label for clarity)
-			$title_label = get_the_title($post_id);
-			if ( get_post_status($post_id) === 'draft' ) {
-				$title_label .= ' (Draft)';
-			}
+			// Linked title (no "(Draft)" label)
 			$title_html = sprintf(
 				'<a href="%s">%s</a>',
 				esc_url( get_permalink($post_id) ),
-				esc_html( $title_label )
+				esc_html( get_the_title($post_id) )
 			);
 			?>
 			<div class="row g-4 align-items-center ssseo-row mb-4">
