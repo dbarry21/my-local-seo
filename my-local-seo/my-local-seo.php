@@ -76,7 +76,7 @@ require_once MYLS_PATH . 'inc/admin-bar-menu.php';
 /** CPT extras AFTER registration */
 require_once MYLS_PATH . 'inc/load-cpt-modules.php';
 require_once MYLS_PATH . 'inc/tools/inherit-city-state.php';
-require_once MYLS_PATH . 'inc/admin-helper-gsc.php';
+
 
 /** Schema */
 require_once MYLS_PATH . 'inc/schema/helpers.php';

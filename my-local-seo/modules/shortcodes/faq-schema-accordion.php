@@ -19,7 +19,7 @@ function faq_schema_accordion_shortcode( $atts ) {
 
     // Bail if no rows
     if ( ! have_rows( 'faq_items', $post_id ) ) {
-        return '<p><em>No FAQs found.</em></p>';
+        return '<p></p>';
     }
 
     // Unique container ID
@@ -27,6 +27,7 @@ function faq_schema_accordion_shortcode( $atts ) {
 
     ob_start();
     ?>
+    <h3>Frequently Asked Questions</h3>
     <div class="accordion ssseo-accordion" id="<?php echo esc_attr( $accordion_id ); ?>">
         <?php
         $index = 0;

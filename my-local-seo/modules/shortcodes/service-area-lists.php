@@ -1,110 +1,66 @@
-<?
-function service_area_shortcode_all() {
-    // Get the current post ID
-    if (is_singular('service_area')) {
-        $current_post_id = get_the_ID();
-    } else {
-        $current_post_id = 0;
-    }
+<?php
+/**
+ * Shortcode: [service_area_list show_drafts="true"]
+ * 
+ * Displays list of Service Areas.
+ * - Default: published parent-level service_area posts, alphabetical.
+ * - show_drafts="true" → show *only drafts* instead of published.
+ * - Drafts show plain text (no link, no "(Draft)" suffix).
+ */
 
-   // Query for 'service_area' posts with post_parent of '0' and alphabetize the post listing
-$args = array(
-    'post_type'      => 'service_area',
-    'post_parent'    => 0,
-    'posts_per_page' => -1,
-    'orderby'        => 'title',  // Order by the title
-    'order'          => 'ASC',    // Order in ascending order
-);
+function service_area_list_shortcode( $atts ) {
+    // Shortcode attributes
+    $atts = shortcode_atts([
+        'show_drafts' => 'false',
+    ], $atts, 'service_area_list');
 
-    // Exclude the current post if on a service_area post page
+    $show_drafts = filter_var($atts['show_drafts'], FILTER_VALIDATE_BOOLEAN);
+
+    // Get the current post ID (so we can exclude it)
+    $current_post_id = is_singular('service_area') ? get_the_ID() : 0;
+
+    // Build query arguments
+    $args = [
+        'post_type'      => 'service_area',
+        'post_parent'    => 0,
+        'posts_per_page' => -1,
+        'orderby'        => 'title',
+        'order'          => 'ASC',
+        'post_status'    => $show_drafts ? 'draft' : 'publish',
+    ];
+
     if ($current_post_id) {
-        $args['post__not_in'] = array($current_post_id);
+        $args['post__not_in'] = [$current_post_id];
     }
 
+    // Run query
     $service_areas = new WP_Query($args);
 
-    // Check if there are any posts
+    // Build output
     if ($service_areas->have_posts()) {
-        // Initialize output variable
-        $output = '<div class="container service-areas"><div class="row">';
+        $output = '<H3>Other Service Areas</h3>';
+        $output .= '<div class="container service-areas"><div class="row">';
         $output .= '<div class="col-lg-12">';
         $output .= '<ul class="list-unstyled service-area-list">';
 
-        // Loop through posts and build the list items
         while ($service_areas->have_posts()) {
             $service_areas->the_post();
-            $output .= '
-                <li>
-                    <i class="fa fa-map-marker ssseo-icon"></i>
-                    <a href="' . get_permalink() . '" class="service-area-link">' . get_the_title() . '</a>
-                </li>';
+            $title = get_the_title();
+
+            // No link for drafts
+            if ($show_drafts) {
+                $output .= '<li><i class="fa fa-map-marker ssseo-icon"></i> ' . esc_html($title) . '</li>';
+            } else {
+                $output .= '<li><i class="fa fa-map-marker ssseo-icon"></i> <a href="' . esc_url(get_permalink()) . '" class="service-area-link">' . esc_html($title) . '</a></li>';
+            }
         }
 
         $output .= '</ul></div></div></div>';
 
-        // Reset post data
         wp_reset_postdata();
-
         return $output;
-    } else {
-        return '<p>No service areas found.</p>';
     }
+
+    return '<p>No service areas found.</p>';
 }
-
-// Register the shortcode
-add_shortcode('service_area_list_all', 'service_area_shortcode_all');
-
-function service_area_list_shortcode() {
-    // Get the current post ID
-    if (is_singular('service_area')) {
-        $current_post_id = get_the_ID();
-    } else {
-        $current_post_id = 0;
-    }
-
-   // Query for 'service_area' posts with post_parent of '0' and alphabetize the post listing
-$args = array(
-    'post_type'      => 'service_area',
-    'post_parent'    => 0,
-    'posts_per_page' => -1,
-    'orderby'        => 'title',  // Order by the title
-    'order'          => 'ASC',    // Order in ascending order
-);
-
-    // Exclude the current post if on a service_area post page
-    if ($current_post_id) {
-        $args['post__not_in'] = array($current_post_id);
-    }
-
-    $service_areas = new WP_Query($args);
-
-    // Check if there are any posts
-    if ($service_areas->have_posts()) {
-        // Initialize output variable
-        $output = '<div class="container service-areas"><div class="row">';
-        $output .= '<div class="col-lg-12">';
-        $output .= '<ul class="list-unstyled service-area-list">';
-
-        // Loop through posts and build the list items
-        while ($service_areas->have_posts()) {
-            $service_areas->the_post();
-            $output .= '
-                <li>
-                    <i class="fa fa-map-marker ssseo-icon"></i>
-                    <a href="' . get_permalink() . '" class="service-area-link">' . get_the_title() . '</a>
-                </li>';
-        }
-
-        $output .= '</ul></div></div></div>';
-
-        // Reset post data
-        wp_reset_postdata();
-
-        return $output;
-    } else {
-        return '<p>No service areas found.</p>';
-    }
-}
-
-// Register the shortcode
 add_shortcode('service_area_list', 'service_area_list_shortcode');
