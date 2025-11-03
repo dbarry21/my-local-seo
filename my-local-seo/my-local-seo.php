@@ -2,7 +2,7 @@
 /**
  * Plugin Name: My Local SEO
  * Description: Modular local SEO toolkit with YouTube → Video drafts, shortcodes, and admin tabs.
- * Version: 1.7.6
+ * Version: 2.0
  * Author: Dave Barry
  * Text Domain: my-local-seo
  */
@@ -12,7 +12,7 @@ if ( ! defined('ABSPATH') ) exit;
 /** ─────────────────────────────────────────────────────────────────────────
  * Canonical constants & helpers (single source of truth)
  * ───────────────────────────────────────────────────────────────────────── */
-if ( ! defined('MYLS_VERSION') )     define('MYLS_VERSION', '1.5.1'); // keep in sync with header
+if ( ! defined('MYLS_VERSION') )     define('MYLS_VERSION', '2.0'); // keep in sync with header
 if ( ! defined('MYLS_MAIN_FILE') )   define('MYLS_MAIN_FILE', __FILE__);
 if ( ! defined('MYLS_PATH') )        define('MYLS_PATH', plugin_dir_path(MYLS_MAIN_FILE));
 if ( ! defined('MYLS_URL') )         define('MYLS_URL',  plugins_url('', MYLS_MAIN_FILE));
@@ -46,6 +46,9 @@ if ( ! function_exists('myls_is_our_admin_page') ) {
  * ───────────────────────────────────────────────────────────────────────── */
 require_once MYLS_PATH . 'inc/core.php';
 require_once MYLS_PATH . 'inc/admin-tabs-loader.php';
+require_once trailingslashit(MYLS_PATH).'inc/sitebuilder/bootstrap.php';
+require_once trailingslashit(MYLS_PATH).'inc/sitebuilder/bootstrap-appearance.php';
+
 
 /** Optional shim if you still have older renderers */
 if ( ! function_exists('myls_get_tabs_ordered') && function_exists('myls_get_admin_tabs') ) {
