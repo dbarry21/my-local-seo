@@ -198,3 +198,109 @@ a.flip-button {
 .ssseo-card .flip-button {
   align-self: center;
 }
+
+/* ---------------------------------------------------------
+   FLEXBOX CARD GRID (image top, button bottom)
+   - myls-row / myls-col / myls-box
+   --------------------------------------------------------- */
+.myls-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:var(--myls-gap);
+  align-items:stretch;      /* equalize column heights */
+  margin:0; padding:0; width:100%;
+  box-sizing:border-box;
+}
+
+/* Auto-fit columns based on --myls-min-col */
+.myls-col{
+  flex:1 1 var(--myls-min-col);
+  min-width:var(--myls-min-col);
+  display:flex;             /* lets child box stretch to equal height */
+  box-sizing:border-box;
+}
+
+/* Card/box */
+.myls-box{
+  display:flex;
+  flex-direction:column;
+  flex:1 1 auto;            /* fill the column height */
+  border:1px solid var(--myls-primary);
+  border-radius:var(--myls-radius);
+  padding:1rem;
+  text-align:center;
+  overflow:hidden;          /* keeps rounded corners on media */
+  background:#fff;
+}
+
+/* Top image */
+.myls-box img{
+  width:100%;
+  height:auto;
+  border-radius:var(--myls-radius) var(--myls-radius) 0 0;
+  margin-bottom:1rem;
+  object-fit:cover;
+}
+
+/* Content grows | actions pinned bottom */
+.myls-box .myls-content{ flex:1 1 auto; }
+.myls-box .myls-actions,
+.myls-box .myls-button{
+  margin-top:auto;
+	margin-bottom:5px;
+  align-self:center;
+}
+
+/* Button styling */
+.myls-button{
+  background:var(--myls-primary);
+  color:#fff;
+  border:0;
+  border-radius:var(--myls-radius);
+  padding:.75em 1.25em;
+  font-weight:600;
+  cursor:pointer;
+  transition:background-color .2s ease-in-out;
+  text-decoration:none;
+  display:inline-block;
+	align-self:bottom !important;
+}
+.myls-button:hover{ background:white;
+color:var(--myls-primary);
+border:1px solid var(--myls-primary);
+	text-decoration:none;
+}
+/* ---------------------------------------------------------
+   UTILITIES – Fixed column counts (apply to .myls-row)
+   These compute exact flex-basis per column including the gap.
+   --------------------------------------------------------- */
+.myls-row.cols-2 .myls-col{
+  flex:0 0 calc((100% - var(--myls-gap)) / 2);
+  min-width:0;
+}
+.myls-row.cols-3 .myls-col{
+  flex:0 0 calc((100% - (2 * var(--myls-gap))) / 3);
+  min-width:0;
+}
+.myls-row.cols-4 .myls-col{
+  flex:0 0 calc((100% - (3 * var(--myls-gap))) / 4);
+  min-width:0;
+}
+.myls-row.cols-5 .myls-col{
+  flex:0 0 calc((100% - (4 * var(--myls-gap))) / 5);
+  min-width:0;
+}
+
+/* ---------------------------------------------------------
+   RESPONSIVE TUNING – flex auto-fit behavior
+   --------------------------------------------------------- */
+@media (max-width:1200px){ :root{ --myls-min-col:260px; } }
+@media (max-width:992px){  :root{ --myls-min-col:320px; } }  /* tends toward 2–3 columns */
+@media (max-width:768px){  :root{ --myls-min-col:100%; } }   /* single column on phones */
+
+/* ---------------------------------------------------------
+   OPTIONAL: full-bleed row inside constrained parents
+   --------------------------------------------------------- */
+.myls-row.full{
+  margin-left:0; margin-right:0; width:100%;
+}
