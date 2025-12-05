@@ -2,7 +2,9 @@
 /**
  * Plugin Name: My Local SEO
  * Description: Modular local SEO toolkit with YouTube → Video drafts, shortcodes, and admin tabs.
- * Version: 2.0
+ * Version: 2.5.3
+  * Plugin URI: https://mylocalseo.ai/
+  * Author URI: https://davebarry.io/
  * Author: Dave Barry
  * Text Domain: my-local-seo
  */
