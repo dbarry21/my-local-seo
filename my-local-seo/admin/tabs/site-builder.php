@@ -3,510 +3,214 @@
  * Admin Tab: Site Builder (Unified)
  */
 if (!defined('ABSPATH')) exit;
-if (!function_exists('myls_sb_is_enabled')) {
-    echo '<div class="notice notice-error"><p>Site Builder bootstrap not loaded. Ensure inc/sitebuilder/bootstrap.php is included.</p></div>';
-    return;
-}
+if (!function_exists('myls_sb_is_enabled')) { echo '<div class="notice notice-error"><p>Site Builder bootstrap not loaded. Ensure inc/sitebuilder/bootstrap.php is included.</p></div>'; return; }
 
 $settings = get_option('myls_sb_settings', [
-    'business_name' => '',
-    'city'          => '',
-    'phone'         => '',
-    'email'         => '',
-    'services'      => "Roof Repair\nRoof Replacement\nStorm Tarping",
-    'areas'         => "Tampa\nBrandon\nRiverview",
+  'business_name' => '',
+  'city'          => '',
+  'phone'         => '',
+  'email'         => '',
+  'services'      => "Roof Repair\nRoof Replacement\nStorm Tarping",
+  'areas'         => "Tampa\nBrandon\nRiverview",
 ]);
 
 myls_register_admin_tab([
-    'id'    => 'site_builder',
-    'title' => 'Site Builder',
-    'order' => 30,
-    'cap'   => 'manage_options',
-    'icon'  => 'dashicons-hammer',
-    'cb'    => function () use ($settings) {
-
-        $enabled = myls_sb_is_enabled(); ?>
-        <div class="container-fluid my-3">
-            <div class="row g-3">
-                <div class="col-12 col-xxl-8">
-                    <form method="post" id="myls_sb_settings_form">
-                        <?php wp_nonce_field('myls_sb_settings'); ?>
-                        <div class="card border-1">
-                            <div class="card-header fw-bold">Business Settings</div>
-                            <div class="card-body">
-                                <div class="row g-3">
-                                    <div class="col-md-6">
-                                        <label class="form-label">Business Name</label>
-                                        <input type="text" name="business_name" class="form-control"
-                                            value="<?php echo esc_attr($settings['business_name'] ?? ''); ?>"/>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label">City, State</label>
-                                        <input type="text" name="city" class="form-control"
-                                            value="<?php echo esc_attr($settings['city'] ?? ''); ?>"/>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label">Phone</label>
-                                        <input type="text" name="phone" class="form-control"
-                                            value="<?php echo esc_attr($settings['phone'] ?? ''); ?>"/>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label">Email</label>
-                                        <input type="email" name="email" class="form-control"
-                                            value="<?php echo esc_attr($settings['email'] ?? ''); ?>"/>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label">Services (one per line)</label>
-                                        <textarea name="services" rows="6" class="form-control"><?php
-                                            echo esc_textarea($settings['services'] ?? ''); ?></textarea>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label">Service Areas / Cities (one per line)</label>
-                                        <textarea name="areas" rows="6" class="form-control"><?php
-                                            echo esc_textarea($settings['areas'] ?? ''); ?></textarea>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="card-footer d-flex gap-2">
-                                <button type="button" class="btn btn-secondary" id="myls_sb_save_settings">
-                                    Save Settings
-                                </button>
-                            </div>
-                        </div>
-                    </form>
-
-                    <div class="card border-1 mt-3">
-                        <div class="card-header fw-bold">Look &amp; Feel Importer (External URL)</div>
-                        <div class="card-body">
-                            <div class="row g-3 align-items-end">
-                                <div class="col-md-8">
-                                    <label class="form-label">URL to analyze</label>
-                                    <input type="url" id="myls_sb_skin_url" class="form-control"
-                                           placeholder="https://example.com/">
-                                </div>
-                                <div class="col-md-4">
-                                    <button type="button" class="btn btn-outline-dark w-100" id="myls_sb_import_skin">
-                                        Import Look &amp; Feel
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="row g-3 mt-3">
-                                <div class="col-md-6">
-                                    <div class="p-3 border rounded">
-                                        <div class="small text-muted mb-2">Detected Palette</div>
-                                        <div id="myls_sb_palette" class="d-flex gap-2 flex-wrap"></div>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="p-3 border rounded">
-                                        <div class="small text-muted mb-2">Fonts / Radius</div>
-                                        <div id="myls_sb_fonts" class="small"></div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="small text-muted mt-2">
-                                We derive color variables, fonts and border radius; we do not copy content or proprietary CSS.
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="card mt-3">
-                        <div class="card-header fw-bold">Generation Log</div>
-                        <div class="card-body">
-                            <pre id="myls_sb_log"
-                                 class="bg-light p-3 small mb-0"
-                                 style="min-height:160px; white-space:pre-wrap;"></pre>
-                        </div>
-                    </div>
+  'id'    => 'site_builder',
+  'title' => 'Site Builder',
+  'order' => 30,
+  'cap'   => 'manage_options',
+  'icon'  => 'dashicons-hammer',
+  'cb'    => function () use ($settings) {
+    $enabled = myls_sb_is_enabled(); ?>
+    <div class="container-fluid my-3">
+      <div class="row g-3">
+        <div class="col-12 col-xxl-8">
+          <form method="post" id="myls_sb_settings_form">
+            <?php wp_nonce_field('myls_sb_settings'); ?>
+            <div class="card border-1">
+              <div class="card-header fw-bold">Business Settings</div>
+              <div class="card-body">
+                <div class="row g-3">
+                  <div class="col-md-6"><label class="form-label">Business Name</label><input type="text" name="business_name" class="form-control" value="<?php echo esc_attr($settings['business_name'] ?? ''); ?>"/></div>
+                  <div class="col-md-6"><label class="form-label">City, State</label><input type="text" name="city" class="form-control" value="<?php echo esc_attr($settings['city'] ?? ''); ?>"/></div>
+                  <div class="col-md-6"><label class="form-label">Phone</label><input type="text" name="phone" class="form-control" value="<?php echo esc_attr($settings['phone'] ?? ''); ?>"/></div>
+                  <div class="col-md-6"><label class="form-label">Email</label><input type="email" name="email" class="form-control" value="<?php echo esc_attr($settings['email'] ?? ''); ?>"/></div>
+                  <div class="col-md-6"><label class="form-label">Services (one per line)</label><textarea name="services" rows="6" class="form-control"><?php echo esc_textarea($settings['services'] ?? ''); ?></textarea></div>
+                  <div class="col-md-6"><label class="form-label">Service Areas / Cities (one per line)</label><textarea name="areas" rows="6" class="form-control"><?php echo esc_textarea($settings['areas'] ?? ''); ?></textarea></div>
                 </div>
-
-                <div class="col-12 col-xxl-4">
-                    <!-- Builder Switch -->
-                    <form method="post">
-                        <?php wp_nonce_field('myls_sb_toggle', 'myls_sb_nonce'); ?>
-                        <div class="card border-1 mb-3">
-                            <div class="card-header fw-bold">Builder Switch</div>
-                            <div class="card-body">
-                                <div class="form-check form-switch">
-                                    <input class="form-check-input"
-                                           type="checkbox"
-                                           name="myls_sb_enabled"
-                                           id="myls_sb_enabled"
-                                           <?php checked($enabled); ?>>
-                                    <label class="form-check-label" for="myls_sb_enabled">
-                                        <?php echo $enabled ? 'Enabled' : 'Disabled'; ?>
-                                    </label>
-                                </div>
-                                <p class="small text-muted mb-0">
-                                    Turn the AI Site Builder on/off globally.
-                                </p>
-                            </div>
-                            <div class="card-footer d-flex gap-2">
-                                <button class="btn btn-primary w-100" name="myls_sb_save" value="1">
-                                    Save
-                                </button>
-                            </div>
-                        </div>
-                    </form>
-
-                    <!-- Reset Imported Style -->
-                    <form method="post">
-                        <?php wp_nonce_field('myls_sb_reset_style', 'myls_sb_reset_nonce'); ?>
-                        <div class="card border-1 mb-3">
-                            <div class="card-header fw-bold">Reset Imported Style</div>
-                            <div class="card-body">
-                                <p class="small mb-2">
-                                    Clear the imported color &amp; font skin and stop applying it. Your theme’s original
-                                    styles will take over again.
-                                </p>
-                                <p class="small text-danger mb-0">
-                                    Generated pages are not deleted. You can re-import a look &amp; feel at any time.
-                                </p>
-                            </div>
-                            <div class="card-footer">
-                                <button type="submit"
-                                        class="btn btn-outline-danger w-100"
-                                        name="myls_sb_reset_style"
-                                        value="1"
-                                        onclick="return confirm('Reset imported look &amp; feel and stop applying it?');">
-                                    Reset Imported Style
-                                </button>
-                            </div>
-                        </div>
-                    </form>
-
-                    <div class="card border-1 mb-3">
-                        <div class="card-header fw-bold">Generate Core Draft Site</div>
-                        <div class="card-body">
-                            <ul class="mb-3">
-                                <li>Home</li>
-                                <li>About</li>
-                                <li>Contact</li>
-                                <li>Services (overview)</li>
-                                <li>FAQ</li>
-                            </ul>
-                            <div class="form-check mb-1">
-                                <input class="form-check-input" type="checkbox" id="myls_sb_per_service" checked>
-                                <label for="myls_sb_per_service" class="form-check-label">Per-Service pages</label>
-                            </div>
-                            <div class="form-check mb-1">
-                                <input class="form-check-input" type="checkbox" id="myls_sb_service_areas" checked>
-                                <label for="myls_sb_service_areas" class="form-check-label">Service Area pages</label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="myls_sb_blog_starters">
-                                <label for="myls_sb_blog_starters" class="form-check-label">
-                                    3 Blog draft starters
-                                </label>
-                            </div>
-                        </div>
-                        <div class="card-footer">
-                            <button type="button"
-                                    class="btn btn-success w-100"
-                                    id="myls_sb_generate"
-                                    <?php disabled(!$enabled); ?>>
-                                Generate Draft Site
-                            </button>
-                            <div class="small text-muted mt-2">
-                                Re-running updates content – no duplicates.
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="card border-1 mb-3">
-                        <div class="card-header fw-bold">Create Single Add-On Page</div>
-                        <div class="card-body">
-                            <div class="mb-2">
-                                <label class="form-label">Type</label>
-                                <select id="myls_sb_single_type" class="form-select">
-                                    <option value="service">Service Page</option>
-                                    <option value="area">Service Area Page</option>
-                                    <option value="faq">FAQ Page</option>
-                                    <option value="blog">Blog Starter</option>
-                                </select>
-                            </div>
-                            <div class="mb-2" id="wrap_service_name">
-                                <label class="form-label">Service Name</label>
-                                <input type="text"
-                                       id="myls_sb_service_name"
-                                       class="form-control"
-                                       placeholder="e.g., Roof Repair">
-                            </div>
-                            <div class="mb-2" id="wrap_area_city" style="display:none;">
-                                <label class="form-label">Area / City</label>
-                                <input type="text"
-                                       id="myls_sb_area_city"
-                                       class="form-control"
-                                       placeholder="e.g., Brandon">
-                            </div>
-                            <div class="mb-2" id="wrap_blog_topic" style="display:none;">
-                                <label class="form-label">Blog Topic</label>
-                                <input type="text"
-                                       id="myls_sb_blog_topic"
-                                       class="form-control"
-                                       placeholder="e.g., Storm roof damage checklist">
-                            </div>
-                        </div>
-                        <div class="card-footer">
-                            <button type="button"
-                                    class="btn btn-outline-primary w-100"
-                                    id="myls_sb_generate_single"
-                                    <?php disabled(!$enabled); ?>>
-                                Create Single Page
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="card border-1">
-                        <div class="card-header fw-bold">Batch Add-Ons</div>
-                        <div class="card-body">
-                            <div class="mb-2">
-                                <label class="form-label">Services (one per line)</label>
-                                <textarea id="myls_sb_batch_services"
-                                          rows="4"
-                                          class="form-control"
-                                          placeholder="If blank, uses saved settings"></textarea>
-                            </div>
-                            <div class="mb-2">
-                                <label class="form-label">Areas / Cities (one per line)</label>
-                                <textarea id="myls_sb_batch_areas"
-                                          rows="4"
-                                          class="form-control"
-                                          placeholder="If blank, uses saved settings"></textarea>
-                            </div>
-                            <div class="row g-2">
-                                <div class="col-6">
-                                    <div class="form-check">
-                                        <input class="form-check-input"
-                                               type="checkbox"
-                                               id="myls_sb_batch_make_services"
-                                               checked>
-                                        <label class="form-check-label" for="myls_sb_batch_make_services">
-                                            Make Service Pages
-                                        </label>
-                                    </div>
-                                </div>
-                                <div class="col-6">
-                                    <div class="form-check">
-                                        <input class="form-check-input"
-                                               type="checkbox"
-                                               id="myls_sb_batch_make_areas"
-                                               checked>
-                                        <label class="form-check-label" for="myls_sb_batch_make_areas">
-                                            Make Area Pages
-                                        </label>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="mt-2">
-                                <label class="form-label">Blog topics (one per line, optional)</label>
-                                <textarea id="myls_sb_batch_blog_topics"
-                                          rows="3"
-                                          class="form-control"
-                                          placeholder="Each topic becomes a blog draft"></textarea>
-                            </div>
-                        </div>
-                        <div class="card-footer">
-                            <button type="button"
-                                    class="btn btn-outline-success w-100"
-                                    id="myls_sb_generate_batch"
-                                    <?php disabled(!$enabled); ?>>
-                                Run Batch Add-Ons
-                            </button>
-                        </div>
-                    </div>
-                </div>
+              </div>
+              <div class="card-footer d-flex gap-2"><button type="button" class="btn btn-secondary" id="myls_sb_save_settings">Save Settings</button></div>
             </div>
+          </form>
+
+          <div class="card border-1 mt-3">
+            <div class="card-header fw-bold">Look & Feel Importer (External URL)</div>
+            <div class="card-body">
+              <div class="row g-3 align-items-end">
+                <div class="col-md-8"><label class="form-label">URL to analyze</label><input type="url" id="myls_sb_skin_url" class="form-control" placeholder="https://example.com/"></div>
+                <div class="col-md-4"><button type="button" class="btn btn-outline-dark w-100" id="myls_sb_import_skin">Import Look & Feel</button></div>
+              </div>
+              <div class="row g-3 mt-3">
+                <div class="col-md-6"><div class="p-3 border rounded"><div class="small text-muted mb-2">Detected Palette</div><div id="myls_sb_palette" class="d-flex gap-2 flex-wrap"></div></div></div>
+                <div class="col-md-6"><div class="p-3 border rounded"><div class="small text-muted mb-2">Fonts / Radius</div><div id="myls_sb_fonts" class="small"></div></div></div>
+              </div>
+              <div class="small text-muted mt-2">We derive color variables, fonts and border radius; we do not copy content or proprietary CSS.</div>
+            </div>
+          </div>
+
+          <div class="card mt-3">
+            <div class="card-header fw-bold">Generation Log</div>
+            <div class="card-body"><pre id="myls_sb_log" class="bg-light p-3 small mb-0" style="min-height:160px; white-space:pre-wrap;"></pre></div>
+          </div>
         </div>
 
-        <script>
-            (function () {
-                const saveBtn   = document.getElementById('myls_sb_save_settings');
-                const form      = document.getElementById('myls_sb_settings_form');
-                const genBtn    = document.getElementById('myls_sb_generate');
-                const logEl     = document.getElementById('myls_sb_log');
+        <div class="col-12 col-xxl-4">
+          <form method="post">
+            <?php wp_nonce_field('myls_sb_toggle','myls_sb_nonce'); ?>
+            <div class="card border-1 mb-3">
+              <div class="card-header fw-bold">Builder Switch</div>
+              <div class="card-body">
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" name="myls_sb_enabled" id="myls_sb_enabled" <?php checked($enabled); ?>>
+                  <label class="form-check-label" for="myls_sb_enabled"><?php echo $enabled ? 'Enabled' : 'Disabled'; ?></label>
+                </div>
+                <p class="small text-muted mb-0">Turn the AI Site Builder on/off globally.</p>
+              </div>
+              <div class="card-footer d-flex gap-2"><button class="btn btn-primary" name="myls_sb_save" value="1">Save</button></div>
+            </div>
+          </form>
 
-                const singleType = document.getElementById('myls_sb_single_type');
-                const wrapService= document.getElementById('wrap_service_name');
-                const wrapArea   = document.getElementById('wrap_area_city');
-                const wrapBlog   = document.getElementById('wrap_blog_topic');
-                const singleBtn  = document.getElementById('myls_sb_generate_single');
+          <div class="card border-1 mb-3">
+            <div class="card-header fw-bold">Generate Core Draft Site</div>
+            <div class="card-body">
+              <ul class="mb-3"><li>Home</li><li>About</li><li>Contact</li><li>Services (overview)</li><li>FAQ</li></ul>
+              <div class="form-check mb-1"><input class="form-check-input" type="checkbox" id="myls_sb_per_service" checked><label for="myls_sb_per_service" class="form-check-label">Per-Service pages</label></div>
+              <div class="form-check mb-1"><input class="form-check-input" type="checkbox" id="myls_sb_service_areas" checked><label for="myls_sb_service_areas" class="form-check-label">Service Area pages</label></div>
+              <div class="form-check"><input class="form-check-input" type="checkbox" id="myls_sb_blog_starters"><label for="myls_sb_blog_starters" class="form-check-label">3 Blog draft starters</label></div>
+            </div>
+            <div class="card-footer"><button type="button" class="btn btn-success w-100" id="myls_sb_generate" <?php disabled( ! $enabled ); ?>>Generate Draft Site</button><div class="small text-muted mt-2">Re-running updates content – no duplicates.</div></div>
+          </div>
 
-                const batchBtn   = document.getElementById('myls_sb_generate_batch');
+          <div class="card border-1 mb-3">
+            <div class="card-header fw-bold">Create Single Add-On Page</div>
+            <div class="card-body">
+              <div class="mb-2"><label class="form-label">Type</label><select id="myls_sb_single_type" class="form-select"><option value="service">Service Page</option><option value="area">Service Area Page</option><option value="faq">FAQ Page</option><option value="blog">Blog Starter</option></select></div>
+              <div class="mb-2" id="wrap_service_name"><label class="form-label">Service Name</label><input type="text" id="myls_sb_service_name" class="form-control" placeholder="e.g., Roof Repair"></div>
+              <div class="mb-2" id="wrap_area_city" style="display:none;"><label class="form-label">Area / City</label><input type="text" id="myls_sb_area_city" class="form-control" placeholder="e.g., Brandon"></div>
+              <div class="mb-2" id="wrap_blog_topic" style="display:none;"><label class="form-label">Blog Topic</label><input type="text" id="myls_sb_blog_topic" class="form-control" placeholder="e.g., Storm roof damage checklist"></div>
+            </div>
+            <div class="card-footer"><button type="button" class="btn btn-outline-primary w-100" id="myls_sb_generate_single" <?php disabled( ! $enabled ); ?>>Create Single Page</button></div>
+          </div>
 
-                function toggleSingleUI() {
-                    const t = singleType.value;
-                    wrapService.style.display = (t === 'service') ? '' : 'none';
-                    wrapArea.style.display    = (t === 'area')    ? '' : 'none';
-                    wrapBlog.style.display    = (t === 'blog')    ? '' : 'none';
-                }
-                singleType && singleType.addEventListener('change', toggleSingleUI);
-                toggleSingleUI();
+          <div class="card border-1">
+            <div class="card-header fw-bold">Batch Add-Ons</div>
+            <div class="card-body">
+              <div class="mb-2"><label class="form-label">Services (one per line)</label><textarea id="myls_sb_batch_services" rows="4" class="form-control" placeholder="If blank, uses saved settings"></textarea></div>
+              <div class="mb-2"><label class="form-label">Areas / Cities (one per line)</label><textarea id="myls_sb_batch_areas" rows="4" class="form-control" placeholder="If blank, uses saved settings"></textarea></div>
+              <div class="row g-2">
+                <div class="col-6"><div class="form-check"><input class="form-check-input" type="checkbox" id="myls_sb_batch_make_services" checked><label class="form-check-label" for="myls_sb_batch_make_services">Make Service Pages</label></div></div>
+                <div class="col-6"><div class="form-check"><input class="form-check-input" type="checkbox" id="myls_sb_batch_make_areas" checked><label class="form-check-label" for="myls_sb_batch_make_areas">Make Area Pages</label></div></div>
+              </div>
+              <div class="mt-2"><label class="form-label">Blog topics (one per line, optional)</label><textarea id="myls_sb_batch_blog_topics" rows="3" class="form-control" placeholder="Each topic becomes a blog draft"></textarea></div>
+            </div>
+            <div class="card-footer"><button type="button" class="btn btn-outline-success w-100" id="myls_sb_generate_batch" <?php disabled( ! $enabled ); ?>>Run Batch Add-Ons</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-                saveBtn && saveBtn.addEventListener('click', async function () {
-                    const fd = new FormData(form);
-                    fd.append('action', 'myls_sb_save_settings');
-                    fd.append('_wpnonce', '<?php echo wp_create_nonce('myls_sb_settings'); ?>');
+    <script>
+      (function(){
+        const saveBtn  = document.getElementById('myls_sb_save_settings');
+        const form     = document.getElementById('myls_sb_settings_form');
+        const genBtn   = document.getElementById('myls_sb_generate');
+        const logEl    = document.getElementById('myls_sb_log');
 
-                    const res  = await fetch(ajaxurl, {method: 'POST', body: fd});
-                    const data = await res.json();
-                    alert(data?.success ? 'Settings saved.' : (data?.data?.message || 'Error saving'));
-                });
+        const singleType = document.getElementById('myls_sb_single_type');
+        const wrapService= document.getElementById('wrap_service_name');
+        const wrapArea   = document.getElementById('wrap_area_city');
+        const wrapBlog   = document.getElementById('wrap_blog_topic');
+        const singleBtn  = document.getElementById('myls_sb_generate_single');
 
-                genBtn && genBtn.addEventListener('click', async function () {
-                    logEl.textContent = 'Starting core generation…';
-                    const payload = {
-                        action:        'myls_sb_generate',
-                        per_service:   document.getElementById('myls_sb_per_service').checked ? 1 : 0,
-                        service_areas: document.getElementById('myls_sb_service_areas').checked ? 1 : 0,
-                        blog_starters: document.getElementById('myls_sb_blog_starters').checked ? 1 : 0,
-                        _wpnonce:      '<?php echo wp_create_nonce('myls_sb_generate'); ?>'
-                    };
-                    try {
-                        const res  = await fetch(ajaxurl, {method: 'POST', body: new URLSearchParams(payload)});
-                        const data = await res.json();
-                        logEl.textContent =
-                            (data?.data?.log || data?.data?.message || data?.message || JSON.stringify(data, null, 2));
-                    } catch (e) {
-                        logEl.textContent = 'Error: ' + e.message;
-                    }
-                });
+        const batchBtn   = document.getElementById('myls_sb_generate_batch');
 
-                singleBtn && singleBtn.addEventListener('click', async function () {
-                    const payload = {
-                        action:  'myls_sb_generate_single',
-                        type:    singleType.value,
-                        service: document.getElementById('myls_sb_service_name').value || '',
-                        area:    document.getElementById('myls_sb_area_city').value || '',
-                        topic:   document.getElementById('myls_sb_blog_topic').value || '',
-                        _wpnonce:'<?php echo wp_create_nonce('myls_sb_generate_single'); ?>'
-                    };
-                    logEl.textContent = 'Creating single page…';
-                    const res  = await fetch(ajaxurl, {method: 'POST', body: new URLSearchParams(payload)});
-                    const data = await res.json();
-                    logEl.textContent =
-                        (data?.data?.log || data?.data?.message || data?.message || JSON.stringify(data, null, 2));
-                });
-
-                batchBtn && batchBtn.addEventListener('click', async function () {
-                    const payload = {
-                        action:        'myls_sb_generate_batch',
-                        make_services: document.getElementById('myls_sb_batch_make_services').checked ? 1 : 0,
-                        make_areas:    document.getElementById('myls_sb_batch_make_areas').checked ? 1 : 0,
-                        services:      document.getElementById('myls_sb_batch_services').value || '',
-                        areas:         document.getElementById('myls_sb_batch_areas').value || '',
-                        topics:        document.getElementById('myls_sb_batch_blog_topics').value || '',
-                        _wpnonce:      '<?php echo wp_create_nonce('myls_sb_generate_batch'); ?>'
-                    };
-                    logEl.textContent = 'Running batch add-ons…';
-                    const res  = await fetch(ajaxurl, {method: 'POST', body: new URLSearchParams(payload)});
-                    const data = await res.json();
-                    logEl.textContent =
-                        (data?.data?.log || data?.data?.message || data?.message || JSON.stringify(data, null, 2));
-                });
-
-                const btn  = document.getElementById('myls_sb_import_skin');
-                const urlI = document.getElementById('myls_sb_skin_url');
-                const pal  = document.getElementById('myls_sb_palette');
-                const fnt  = document.getElementById('myls_sb_fonts');
-
-                btn && btn.addEventListener('click', async function () {
-                    const url = urlI.value.trim();
-                    if (!url) {
-                        alert('Enter a URL');
-                        return;
-                    }
-                    const payload = {
-                        action:   'myls_sb_import_skin',
-                        url:      url,
-                        _wpnonce: '<?php echo wp_create_nonce('myls_sb_import_skin'); ?>'
-                    };
-                    btn.disabled   = true;
-                    btn.textContent = 'Analyzing…';
-                    try {
-                        const res  = await fetch(ajaxurl, {method: 'POST', body: new URLSearchParams(payload)});
-                        const data = await res.json();
-                        if (!data?.success) {
-                            throw new Error(data?.data?.message || 'Import failed');
-                        }
-                        const skin = data.data.skin || {};
-                        pal.innerHTML = '';
-                        ['primary', 'secondary', 'accent'].forEach(k => {
-                            const c    = skin[k] || '#ccc';
-                            const chip = document.createElement('div');
-                            chip.style.cssText = 'width:64px;height:32px;border-radius:6px;border:1px solid #ddd';
-                            chip.style.background = c;
-                            chip.title = k + ': ' + c;
-                            pal.appendChild(chip);
-                        });
-                        fnt.innerHTML =
-                            `<div><strong>Headings:</strong> ${skin.font_head || ''}</div>` +
-                            `<div><strong>Body:</strong> ${skin.font_body || ''}</div>` +
-                            `<div><strong>Radius:</strong> ${skin.radius || ''}</div>`;
-                        alert(data.data.message || 'Imported look &amp; feel.');
-                    } catch (e) {
-                        alert(e.message);
-                    } finally {
-                        btn.disabled    = false;
-                        btn.textContent = 'Import Look &amp; Feel';
-                    }
-                });
-            })();
-        </script>
-        <?php
-
-        // Handle Builder Switch save (enable/disable)
-        if (
-            isset($_POST['myls_sb_save'])
-            && isset($_POST['myls_sb_nonce'])
-            && wp_verify_nonce($_POST['myls_sb_nonce'], 'myls_sb_toggle')
-        ) {
-            $was_enabled = function_exists('myls_sb_is_enabled') ? myls_sb_is_enabled() : false;
-            $now_enabled = !empty($_POST['myls_sb_enabled']);
-
-            if (function_exists('myls_sb_set_enabled')) {
-                // Preferred: central toggle (also updates appearance flag)
-                myls_sb_set_enabled($now_enabled);
-            } else {
-                // Fallback if helper wasn’t loaded for some reason
-                if (defined('MYLS_SB_OPTION')) {
-                    update_option(MYLS_SB_OPTION, $now_enabled ? 1 : 0);
-                } else {
-                    update_option('myls_sitebuilder_enabled', $now_enabled ? 1 : 0);
-                }
-            }
-
-            if ($was_enabled !== $now_enabled) {
-                printf(
-                    '<div class="notice notice-success is-dismissible"><p>AI Site Builder %s.</p></div>',
-                    $now_enabled ? 'enabled' : 'disabled'
-                );
-            } else {
-                echo '<div class="notice notice-info is-dismissible"><p>No change – builder was already ' .
-                     ($now_enabled ? 'enabled' : 'disabled') .
-                     '.</p></div>';
-            }
+        function toggleSingleUI(){
+          const t = singleType.value;
+          wrapService.style.display = (t === 'service') ? '' : 'none';
+          wrapArea.style.display    = (t === 'area')    ? '' : 'none';
+          wrapBlog.style.display    = (t === 'blog')    ? '' : 'none';
         }
+        singleType && singleType.addEventListener('change', toggleSingleUI); toggleSingleUI();
 
-        // Handle Reset Style button
-        if (
-            isset($_POST['myls_sb_reset_style'])
-            && isset($_POST['myls_sb_reset_nonce'])
-            && wp_verify_nonce($_POST['myls_sb_reset_nonce'], 'myls_sb_reset_style')
-        ) {
-            if (function_exists('myls_sb_reset_style')) {
-                myls_sb_reset_style();
-            } else {
-                // Fallback: just clear the key options directly
-                if (!defined('MYLS_SB_APPLY_OPTION')) {
-                    define('MYLS_SB_APPLY_OPTION', 'myls_sb_apply_skin');
-                }
-                update_option(MYLS_SB_APPLY_OPTION, 0);
-                delete_option('myls_sb_skin');
-                delete_option('myls_sb_skin_example_page_id');
-            }
+        saveBtn && saveBtn.addEventListener('click', async function(){
+          const fd = new FormData(form); fd.append('action','myls_sb_save_settings');
+          fd.append('_wpnonce', '<?php echo wp_create_nonce('myls_sb_settings'); ?>');
+          const res = await fetch(ajaxurl, { method:'POST', body: fd });
+          const data = await res.json();
+          alert(data?.success ? 'Settings saved.' : (data?.data?.message || 'Error saving'));
+        });
 
-            echo '<div class="notice notice-success is-dismissible"><p>Imported look &amp; feel has been reset. Theme defaults are now in effect.</p></div>';
-        }
-    }
+        genBtn && genBtn.addEventListener('click', async function(){
+          logEl.textContent = 'Starting core generation…';
+          const payload = { action: 'myls_sb_generate',
+            per_service: document.getElementById('myls_sb_per_service').checked ? 1 : 0,
+            service_areas: document.getElementById('myls_sb_service_areas').checked ? 1 : 0,
+            blog_starters: document.getElementById('myls_sb_blog_starters').checked ? 1 : 0,
+            _wpnonce: '<?php echo wp_create_nonce('myls_sb_generate'); ?>' };
+          try {
+            const res = await fetch(ajaxurl, {method:'POST', body: new URLSearchParams(payload)});
+            const data = await res.json();
+            logEl.textContent = (data?.data?.log || data?.data?.message || data?.message || JSON.stringify(data, null, 2));
+          } catch(e){ logEl.textContent = 'Error: ' + e.message; }
+        });
+
+        singleBtn && singleBtn.addEventListener('click', async function(){
+          const payload = { action: 'myls_sb_generate_single', type: singleType.value,
+            service: document.getElementById('myls_sb_service_name').value || '',
+            area:    document.getElementById('myls_sb_area_city').value || '',
+            topic:   document.getElementById('myls_sb_blog_topic').value || '',
+            _wpnonce: '<?php echo wp_create_nonce('myls_sb_generate_single'); ?>' };
+          logEl.textContent = 'Creating single page…';
+          const res = await fetch(ajaxurl, {method:'POST', body: new URLSearchParams(payload)});
+          const data = await res.json();
+          logEl.textContent = (data?.data?.log || data?.data?.message || data?.message || JSON.stringify(data, null, 2));
+        });
+
+        batchBtn && batchBtn.addEventListener('click', async function(){
+          const payload = { action: 'myls_sb_generate_batch',
+            make_services: document.getElementById('myls_sb_batch_make_services').checked ? 1 : 0,
+            make_areas:    document.getElementById('myls_sb_batch_make_areas').checked ? 1 : 0,
+            services:      document.getElementById('myls_sb_batch_services').value || '',
+            areas:         document.getElementById('myls_sb_batch_areas').value || '',
+            topics:        document.getElementById('myls_sb_batch_blog_topics').value || '',
+            _wpnonce:      '<?php echo wp_create_nonce('myls_sb_generate_batch'); ?>' };
+          logEl.textContent = 'Running batch add-ons…';
+          const res = await fetch(ajaxurl, {method:'POST', body: new URLSearchParams(payload)});
+          const data = await res.json();
+          logEl.textContent = (data?.data?.log || data?.data?.message || data?.message || JSON.stringify(data, null, 2));
+        });
+
+        const btn  = document.getElementById('myls_sb_import_skin');
+        const urlI = document.getElementById('myls_sb_skin_url');
+        const pal  = document.getElementById('myls_sb_palette');
+        const fnt  = document.getElementById('myls_sb_fonts');
+        btn && btn.addEventListener('click', async function(){
+          const url = urlI.value.trim(); if (!url) { alert('Enter a URL'); return; }
+          const payload = { action: 'myls_sb_import_skin', url: url, _wpnonce: '<?php echo wp_create_nonce('myls_sb_import_skin'); ?>' };
+          btn.disabled = true; btn.textContent = 'Analyzing…';
+          try {
+            const res = await fetch(ajaxurl, {method:'POST', body:new URLSearchParams(payload)});
+            const data = await res.json();
+            if (!data?.success) throw new Error(data?.data?.message || 'Import failed');
+            const skin = data.data.skin || {}; pal.innerHTML = '';
+            ['primary','secondary','accent'].forEach(k => { const c = skin[k] || '#ccc';
+              const chip = document.createElement('div'); chip.style.cssText = 'width:64px;height:32px;border-radius:6px;border:1px solid #ddd'; chip.style.background = c; chip.title = k + ': ' + c; pal.appendChild(chip); });
+            fnt.innerHTML = `<div><strong>Headings:</strong> ${skin.font_head || ''}</div><div><strong>Body:</strong> ${skin.font_body || ''}</div><div><strong>Radius:</strong> ${skin.radius || ''}</div>`;
+            alert(data.data.message || 'Imported look & feel.');
+          } catch(e) { alert(e.message); } finally { btn.disabled = false; btn.textContent = 'Import Look & Feel'; }
+        });
+      })();
+    </script>
+    <?php if ( isset($_POST['myls_sb_save']) && check_admin_referer('myls_sb_toggle','myls_sb_nonce') ) { myls_sb_set_enabled( ! empty($_POST['myls_sb_enabled']) ); echo '<div class="alert alert-info mt-3">Builder '.(myls_sb_is_enabled()?'Enabled':'Disabled').'.</div>'; } ?>
+  <?php }
 ]);

@@ -12,6 +12,7 @@ if ( ! defined('ABSPATH') ) exit;
 // Read settings
 $__myls_blogprefix_enabled = get_option('myls_blogprefix_enabled', '0') === '1';
 $__myls_blogprefix_value   = trim( (string) get_option('myls_blogprefix_value', '') );
+$__myls_blogprefix_redirects = get_option('myls_blogprefix_redirects', '1') === '1';
 
 // Guard: if disabled or empty, do nothing
 if ( ! $__myls_blogprefix_enabled || $__myls_blogprefix_value === '' ) {
@@ -58,15 +59,17 @@ add_action( 'after_switch_theme', function() use ( $custom_post_prefix ) {
 	flush_rewrite_rules();
 });
 
-// === 4. Redirect old /post-slug/ URLs to prefixed version ===
-add_action( 'template_redirect', function() use ( $custom_post_prefix ) {
-	if ( is_singular( 'post' ) ) {
-		if ( false === strpos( $_SERVER['REQUEST_URI'], '/' . $custom_post_prefix . '/' ) ) {
-			wp_redirect( get_permalink(), 301 );
-			exit;
-		}
-	}
-});
+// === 4. Redirect old /post-slug/ URLs to prefixed version (optional) ===
+if ( $__myls_blogprefix_redirects ) {
+    add_action( 'template_redirect', function() use ( $custom_post_prefix ) {
+        if ( is_singular( 'post' ) ) {
+            if ( false === strpos( $_SERVER['REQUEST_URI'], '/' . $custom_post_prefix . '/' ) ) {
+                wp_redirect( get_permalink(), 301 );
+                exit;
+            }
+        }
+    });
+}
 
 // === 5. Override rel=canonical for non-Yoast setups ===
 remove_action( 'wp_head', 'rel_canonical' );

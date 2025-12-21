@@ -19,7 +19,7 @@ if (!function_exists('myls_opt')) {
 add_filter('myls_schema_graph', function(array $graph) {
 
   // Only on single 'service' posts
-  if (!is_singular('service')) return $graph;
+  if (!is_singular('service')  && !is_singular('service_area')) return $graph;
 
   $post_id = get_queried_object_id();
   if (!$post_id) return $graph;

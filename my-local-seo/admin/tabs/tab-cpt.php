@@ -94,6 +94,11 @@ myls_register_admin_tab([
         update_option('myls_blogprefix_enabled', $bp_enabled);
         update_option('myls_blogprefix_value',   $bp_value);
 
+        // NEW: Redirect old /post-name/ -> /prefix/post-name/ (301)
+        // Default is ON when the prefix feature is enabled.
+        $bp_redirects = isset($_POST['myls_blogprefix_redirects']) ? '1' : '0';
+        update_option('myls_blogprefix_redirects', $bp_redirects);
+
         flush_rewrite_rules();
         do_action('myls_cpt_settings_updated');
 
@@ -113,9 +118,12 @@ myls_register_admin_tab([
             'label_singular' => get_option("{$opt_key}_label_singular", ''),
         ];
     }
+
     $blogprefix = [
-        'enabled' => get_option('myls_blogprefix_enabled', '0'),
-        'value'   => get_option('myls_blogprefix_value',   ''),
+        'enabled'   => get_option('myls_blogprefix_enabled', '0'),
+        'value'     => get_option('myls_blogprefix_value',   ''),
+        // NEW: toggle redirects from old /post-name/ URLs (default ON)
+        'redirects' => get_option('myls_blogprefix_redirects', '1'),
     ];
 
     $human = function($s){ $s = str_replace(['-','_'],' ',$s); return mb_convert_case($s, MB_CASE_TITLE, 'UTF-8'); };
@@ -230,7 +238,7 @@ myls_register_admin_tab([
                 </div>
                 <?php endforeach; ?>
 
-                <!-- Custom Blog Prefix card (unchanged from your last version) -->
+                <!-- Custom Blog Prefix card -->
                 <div class="col-lg-4">
                     <div class="card mb-4 shadow-sm">
                         <div class="card-header bg-dark text-white">
@@ -239,7 +247,7 @@ myls_register_admin_tab([
                         <div class="card-body">
                             <p class="small text-muted mb-3">
                                 Applies a custom prefix to standard post permalinks (e.g., <code>/prefix/post-name/</code>).
-                                When enabled, the plugin also redirects old <code>/post-name/</code> to the prefixed URL and sets the canonical accordingly.
+                                Optionally redirects old <code>/post-name/</code> to the prefixed URL and sets the canonical accordingly.
                             </p>
 
                             <div class="form-check form-switch mb-3">
@@ -255,6 +263,22 @@ myls_register_admin_tab([
                                 <label class="form-check-label" for="myls_blogprefix_enabled">
                                     Enable Custom Blog Prefix
                                 </label>
+                            </div>
+
+                            <div class="form-check form-switch mb-3">
+                                <input
+                                    class="form-check-input"
+                                    type="checkbox"
+                                    role="switch"
+                                    id="myls_blogprefix_redirects"
+                                    name="myls_blogprefix_redirects"
+                                    value="1"
+                                    <?php checked('1', $blogprefix['redirects']); ?>
+                                >
+                                <label class="form-check-label" for="myls_blogprefix_redirects">
+                                    Redirect old <code>/post-name/</code> URLs to the prefixed URL (301)
+                                </label>
+                                <div class="form-text">Turn this off if you want to keep legacy URLs accessible (not recommended).</div>
                             </div>
 
                             <div class="mb-3">

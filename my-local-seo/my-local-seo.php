@@ -2,9 +2,7 @@
 /**
  * Plugin Name: My Local SEO
  * Description: Modular local SEO toolkit with YouTube → Video drafts, shortcodes, and admin tabs.
- * Version: 2.5.5
-  * Plugin URI: https://mylocalseo.ai/
-  * Author URI: https://davebarry.io/
+ * Version: 3.0
  * Author: Dave Barry
  * Text Domain: my-local-seo
  */
@@ -102,6 +100,7 @@ require_once MYLS_PATH . 'inc/schema/localbusiness-sync.php';
 require_once MYLS_PATH . 'inc/ajax/ai.php';
 require_once MYLS_PATH . 'inc/ajax/ai-about.php';
 require_once MYLS_PATH . 'inc/openai.php';
+require_once MYLS_PATH . 'inc/ajax/ai-geo.php';
 
 /** Updater */
 require_once MYLS_PATH . 'update-plugin.php';
