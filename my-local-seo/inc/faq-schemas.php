@@ -53,30 +53,27 @@ add_action( 'acf/include_fields', function() {
 					'parent_repeater' => 'field_67ecf855edf0b',
 				),
 				array(
-                  'key' => 'field_67ecf8abedf0d',
-                  'label' => 'Answer',
-                  'name' => 'answer',
-                  'aria-label' => '',
-                  'type' => 'wysiwyg',
-                  'instructions' => '',
-                  'required' => 0,
-                  'conditional_logic' => 0,
-                  'wrapper' => array(
-                      'width' => '',
-                      'class' => '',
-                      'id' => '',
-                  ),
-
-                  // --- WYSIWYG settings ---
-                  'default_value' => '',
-                  'tabs' => 'all',              // 'all' | 'visual' | 'text'
-                  'toolbar' => 'basic',         // 'basic' | 'full' | custom toolbar name
-                  'media_upload' => 0,          // 1 to allow media uploads
-                  'delay' => 0,                 // 1 to initialize editor on focus (faster admin)
-                  'allow_in_bindings' => 0,
-
-                  'parent_repeater' => 'field_67ecf855edf0b',
-              ),
+					'key' => 'field_67ecf8abedf0d',
+					'label' => 'Answer',
+					'name' => 'answer',
+					'aria-label' => '',
+					'type' => 'textarea',
+					'instructions' => '',
+					'required' => 0,
+					'conditional_logic' => 0,
+					'wrapper' => array(
+						'width' => '',
+						'class' => '',
+						'id' => '',
+					),
+					'default_value' => '',
+					'maxlength' => '',
+					'allow_in_bindings' => 0,
+					'rows' => '',
+					'placeholder' => '',
+					'new_lines' => '',
+					'parent_repeater' => 'field_67ecf855edf0b',
+				),
 			),
 		),
 	),

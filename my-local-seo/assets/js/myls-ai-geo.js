@@ -1,356 +1,560 @@
-(function($){
-  'use strict';
+/* ========================================================================
+ * MYLS – AI GEO Subtab JS (v4)
+ * File: assets/js/myls-ai-geo.js
+ *
+ * Fixes:
+ * - Download buttons (DOCX/HTML) now enable properly after Analyze
+ * - setBusy() no longer disables downloads when finishing
+ * - Generates downloadable .html from GEO preview content (client-side)
+ * - Always sends template + tokens + temperature (prevents missing_template)
+ * ======================================================================== */
+
+(function () {
+  "use strict";
 
   if (!window.MYLS_AI_GEO) return;
+
   const CFG = window.MYLS_AI_GEO;
 
-  $(function(){
+  // -----------------------------
+  // DOM helpers
+  // -----------------------------
+  const $ = (sel) => document.querySelector(sel);
 
-    let stopping = false;
+  const elPT = $("#myls_ai_geo_pt");
+  const elPosts = $("#myls_ai_geo_posts");
 
-    function log(line){
-      const $res = $('#myls_ai_geo_results');
-      if (!$res.length) return;
-      $res.text(String(line) + "\n" + $res.text());
+  const btnSelectAll = $("#myls_ai_geo_select_all");
+  const btnClear = $("#myls_ai_geo_clear");
+  const btnAnalyze = $("#myls_ai_geo_analyze");
+  const btnConvert = $("#myls_ai_geo_convert");
+  const btnDuplicate = $("#myls_ai_geo_duplicate");
+  const btnStop = $("#myls_ai_geo_stop");
+
+  // Optional DOCX UI
+  const btnDocx = $("#myls_ai_geo_docx");
+  const elDocxLink = $("#myls_ai_geo_docx_link");
+
+  // Optional HTML UI
+  const btnHtml = $("#myls_ai_geo_html");
+  const elHtmlLink = $("#myls_ai_geo_html_link");
+
+  const elSpinner = $("#myls_ai_geo_spinner");
+  const elStatus = $("#myls_ai_geo_status");
+  const elCount = $("#myls_ai_geo_count");
+
+  const elPreview = $("#myls_ai_geo_preview");
+  const elDiff = $("#myls_ai_geo_diff");
+  const elOutput = $("#myls_ai_geo_output");
+  const elResults = $("#myls_ai_geo_results");
+  const elLoadedHint = $("#myls_ai_geo_loaded_hint");
+
+  let STOP = false;
+  let processed = 0;
+
+  // Keep latest payload so download buttons can use it
+  let LAST = {
+    postId: 0,
+    title: "",
+    url: "",
+    geoHtml: "",
+    docUrl: "",
+    htmlBlobUrl: ""
+  };
+
+  // -----------------------------
+  // Pane selection improvements
+  // -----------------------------
+  function enablePaneSelection(el) {
+    if (!el) return;
+    el.style.userSelect = "text";
+    el.addEventListener("mousedown", (e) => e.stopPropagation(), true);
+    el.addEventListener("mouseup", (e) => e.stopPropagation(), true);
+    el.addEventListener("click", (e) => e.stopPropagation(), true);
+  }
+
+  enablePaneSelection(elPreview);
+  enablePaneSelection(elDiff);
+  enablePaneSelection(elOutput);
+  enablePaneSelection(elResults);
+
+  // -----------------------------
+  // UI state
+  // -----------------------------
+  function setBusy(isBusy, msg) {
+    if (elSpinner) elSpinner.style.display = isBusy ? "inline-flex" : "none";
+    if (elStatus && typeof msg === "string") elStatus.textContent = msg;
+
+    if (btnStop) btnStop.disabled = !isBusy;
+
+    if (btnAnalyze) btnAnalyze.disabled = isBusy;
+    if (btnConvert) btnConvert.disabled = isBusy;
+    if (btnDuplicate) btnDuplicate.disabled = isBusy;
+
+    // IMPORTANT:
+    // Do NOT disable download buttons when finishing.
+    // Only disable them while we are actively processing.
+    if (isBusy) {
+      if (btnDocx) btnDocx.disabled = true;
+      if (btnHtml) btnHtml.disabled = true;
+    }
+  }
+
+  function log(msg) {
+    if (!elResults) return;
+    const now = new Date();
+    const t = now.toLocaleTimeString();
+    elResults.textContent = `[${t}] ${msg}\n` + elResults.textContent;
+  }
+
+  function getSelectedIDs() {
+    if (!elPosts) return [];
+    return Array.from(elPosts.selectedOptions || [])
+      .map((o) => parseInt(o.value, 10))
+      .filter(Boolean);
+  }
+
+  function getMode() {
+    const radios = document.querySelectorAll('input[name="myls_ai_geo_mode"]');
+    for (const r of radios) if (r.checked) return r.value;
+    return "partial";
+  }
+
+  function withAnchors() {
+    const cb = $("#myls_ai_geo_with_anchors");
+    return !!(cb && cb.checked);
+  }
+
+  // -----------------------------
+  // Prompt + params
+  // -----------------------------
+  function getTemplate() {
+    const ta = document.querySelector('textarea[name="myls_ai_geo_prompt_template"]');
+    return ta ? String(ta.value || "").trim() : "";
+  }
+
+  function getTokens() {
+    const inp = document.querySelector('input[name="myls_ai_geo_tokens"]');
+    const n = inp ? parseInt(inp.value, 10) : NaN;
+    return Number.isFinite(n) && n > 0 ? String(n) : "";
+  }
+
+  function getTemperature() {
+    const inp = document.querySelector('input[name="myls_ai_geo_temperature"]');
+    const n = inp ? parseFloat(inp.value) : NaN;
+    return Number.isFinite(n) ? String(n) : "";
+  }
+
+  function requireTemplateOrAlert() {
+    const tpl = getTemplate();
+    if (!tpl) {
+      alert('Your GEO prompt template is empty.\n\nPaste the default prompt into the template box and click "Save Template & Params", then run Analyze again.');
+      return "";
+    }
+    return tpl;
+  }
+
+  // -----------------------------
+  // AJAX helper
+  // -----------------------------
+  async function postAJAX(action, data) {
+    const body = new URLSearchParams();
+    body.set("action", action);
+    body.set("_ajax_nonce", CFG.nonce);
+
+    Object.keys(data || {}).forEach((k) => {
+      if (data[k] === undefined || data[k] === null) return;
+      body.set(k, data[k]);
+    });
+
+    const resp = await fetch(CFG.ajaxurl, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8" },
+      body: body.toString()
+    });
+
+    let json = null;
+    try {
+      json = await resp.json();
+    } catch (e) {
+      throw new Error("Bad JSON response from server.");
     }
 
-    function setCount(n){
-      const $count = $('#myls_ai_geo_count');
-      if ($count.length) $count.text(String(n));
+    if (!json || json.success !== true) {
+      const msg = (json && json.data && json.data.message) ? json.data.message : "AJAX error";
+      throw new Error(msg);
     }
 
-    function setBusy(on){
-      $('#myls_ai_geo_analyze').prop('disabled', !!on);
-      $('#myls_ai_geo_convert').prop('disabled', !!on);
-      $('#myls_ai_geo_duplicate').prop('disabled', !!on);
-      $('#myls_ai_geo_stop').prop('disabled', !on);
+    return json.data;
+  }
 
-      $('#myls_ai_geo_pt').prop('disabled', !!on);
-      $('#myls_ai_geo_posts').prop('disabled', !!on);
-      $('#myls_ai_geo_select_all').prop('disabled', !!on);
-      $('#myls_ai_geo_clear').prop('disabled', !!on);
+  // -----------------------------
+  // Load posts by type
+  // -----------------------------
+  async function loadPostsByType(pt) {
+    if (!elLoadedHint || !elPosts) return;
 
-      const $status = $('#myls_ai_geo_status');
-      if ($status.length) $status.text(on ? 'Working…' : '');
+    elLoadedHint.textContent = "Loading…";
+    elPosts.innerHTML = "";
 
-      // spinner
-      const $sp = $('#myls_ai_geo_spinner');
-      if ($sp.length) $sp.css('display', on ? 'inline-flex' : 'none');
-    }
+    try {
+      const data = await postAJAX(CFG.action_get_posts, { post_type: pt });
+      const items = data.posts || [];
 
-    function loadPosts(){
-      const $pt    = $('#myls_ai_geo_pt');
-      const $posts = $('#myls_ai_geo_posts');
-
-      if (!$pt.length) { log('ERROR: #myls_ai_geo_pt not found in DOM.'); return; }
-      if (!$posts.length) { log('ERROR: #myls_ai_geo_posts not found in DOM.'); return; }
-
-      $posts.empty();
-
-      $.post(CFG.ajaxurl, {
-        action: CFG.action_get_posts || 'myls_ai_geo_get_posts_v1',
-        nonce:  CFG.nonce,
-        post_type: $pt.val()
-      }).done(function(resp){
-        console.log('[geo_get_posts_v1] resp:', resp);
-
-        if (!resp || !resp.success) {
-          log('Failed to load posts (resp.success not true).');
-          return;
-        }
-
-        const posts = (resp.data && Array.isArray(resp.data.posts)) ? resp.data.posts : null;
-        if (!posts) {
-          log('Failed to load posts: resp.data.posts missing or not array.');
-          console.log('[geo_get_posts_v1] resp.data:', resp && resp.data);
-          return;
-        }
-
-        // Build options as a single HTML string (fast + less chance of other scripts interfering mid-loop)
-        let html = '';
-        for (let i=0; i<posts.length; i++){
-          const p = posts[i] || {};
-          const id = parseInt(p.id || 0, 10);
-          const title = (p.title || '(no title)').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-          if (!id) continue;
-          html += '<option value="' + String(id) + '">' + title + ' (ID ' + String(id) + ')</option>';
-        }
-
-        $posts.html(html);
-
-        // Force selection box repaint on some admin themes
-        $posts.trigger('change');
-
-        const countNow = $posts.find('option').length;
-        console.log('[geo_get_posts_v1] options count NOW:', countNow);
-        log('Loaded ' + countNow + ' posts for ' + $pt.val() + '.');
-
-        // Detect if some other code is clearing it AFTER we fill it
-        setTimeout(function(){
-          const countLater = $posts.find('option').length;
-          console.log('[geo_get_posts_v1] options count 500ms LATER:', countLater);
-          if (countLater !== countNow) {
-            log('WARNING: Posts list changed after load (now ' + countLater + '). Another script may be clearing it.');
-          }
-        }, 500);
-
-      }).fail(function(xhr){
-        log('AJAX error: get_posts (' + (xhr && xhr.status) + ')');
+      items.forEach((p) => {
+        const opt = document.createElement("option");
+        opt.value = String(p.id);
+        opt.textContent = `${p.title} (#${p.id})`;
+        elPosts.appendChild(opt);
       });
+
+      elLoadedHint.textContent = `Loaded ${items.length} post(s).`;
+      log(`Loaded ${items.length} post(s) for post type "${pt}".`);
+    } catch (e) {
+      elLoadedHint.textContent = "Error loading posts.";
+      log(`Error loading posts: ${e.message}`);
+    }
+  }
+
+  // -----------------------------
+  // Diff helper (fallback)
+  // -----------------------------
+  function buildQuickDiff(originalText, geoHtml) {
+    const origLen = (originalText || "").length;
+    const geoLen = (geoHtml || "").length;
+
+    const ids = [];
+    (geoHtml || "").replace(/<(h2|h3)\s+[^>]*id="([^"]+)"[^>]*>/gi, (m, tag, id) => {
+      ids.push(`${tag.toUpperCase()}: #${id}`);
+      return m;
+    });
+
+    return `
+      <p><strong>Original text length:</strong> ${origLen.toLocaleString()} chars</p>
+      <p><strong>GEO output length:</strong> ${geoLen.toLocaleString()} chars</p>
+      <p><strong>Anchors found:</strong></p>
+      <ul>${ids.slice(0, 30).map(x => `<li>${x}</li>`).join("") || "<li>(none)</li>"}</ul>
+    `;
+  }
+
+  // -----------------------------
+  // Download helpers
+  // -----------------------------
+  function resetDownloads() {
+    // DOCX
+    if (btnDocx) btnDocx.disabled = true;
+    if (elDocxLink) {
+      elDocxLink.style.display = "none";
+      elDocxLink.href = "#";
+      elDocxLink.textContent = "";
     }
 
-    function selectAll(){
-      $('#myls_ai_geo_posts option').prop('selected', true);
-      $('#myls_ai_geo_posts').trigger('change');
+    // HTML
+    if (btnHtml) btnHtml.disabled = true;
+    if (elHtmlLink) {
+      elHtmlLink.style.display = "none";
+      elHtmlLink.href = "#";
+      elHtmlLink.textContent = "";
     }
 
-    function clearSelection(){
-      $('#myls_ai_geo_posts option').prop('selected', false);
-      $('#myls_ai_geo_posts').trigger('change');
+    // revoke old blob
+    if (LAST.htmlBlobUrl) {
+      try { URL.revokeObjectURL(LAST.htmlBlobUrl); } catch (e) {}
     }
 
-    function analyzeOne(){
-      const ids = ($('#myls_ai_geo_posts').val() || []).map(v => parseInt(v, 10)).filter(Boolean);
+    LAST.docUrl = "";
+    LAST.geoHtml = "";
+    LAST.htmlBlobUrl = "";
+  }
 
-      if (!ids.length) { log('Select one post to analyze.'); return; }
-      if (ids.length > 1) { log('Select only ONE post for preview right now.'); return; }
+  function setDocxUrl(docUrl) {
+    LAST.docUrl = docUrl || "";
 
-      const id = ids[0];
+    if (!btnDocx || !elDocxLink) return;
 
-      stopping = false;
-      setBusy(true);
-      setCount(0);
+    if (docUrl) {
+      elDocxLink.href = docUrl;
+      elDocxLink.textContent = "Download .docx";
+      elDocxLink.style.display = "inline-block";
+      btnDocx.disabled = false;
 
-      $('#myls_ai_geo_preview').empty();
-      $('#myls_ai_geo_output').text('');
-      $('#myls_ai_geo_diff').empty();
+      btnDocx.onclick = function () {
+        elDocxLink.click();
+      };
+    } else {
+      btnDocx.disabled = true;
+      elDocxLink.style.display = "none";
+      elDocxLink.href = "#";
+      elDocxLink.textContent = "";
+      btnDocx.onclick = null;
+    }
+  }
 
-      const template = ($('textarea[name="myls_ai_geo_prompt_template"]').val() || '');
-      const tokens = parseInt(($('input[name="myls_ai_geo_tokens"]').val() || '1200'), 10);
-      const temperature = parseFloat(($('input[name="myls_ai_geo_temperature"]').val() || '0.4'));
+  function buildHtmlDownload(title, permalink, html) {
+    const safeTitle = (title || "geo-output").replace(/[^\w\-]+/g, "-").replace(/\-+/g, "-").replace(/^\-|\-$/g, "");
+    const filename = `${safeTitle || "geo-output"}.html`;
 
-      log('Analyze: sending request for ID ' + id + '…');
+    const doc = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>${escapeHtml(title || "GEO Output")}</title>
+</head>
+<body>
+<!-- Page Title: ${escapeHtml(title || "")} -->
+<!-- Permalink: ${escapeHtml(permalink || "")} -->
+${html || ""}
+</body>
+</html>`;
 
-      $.post(CFG.ajaxurl, {
-        action: CFG.action_analyze || 'myls_ai_geo_analyze_v1',
-        nonce: CFG.nonce,
-        post_id: id,
-        template: template,
-        tokens: tokens,
-        temperature: temperature,
-        mode: $('input[name="myls_ai_geo_mode"]:checked').val() || 'partial',
-        with_anchors: $('#myls_ai_geo_with_anchors').is(':checked') ? 1 : 0
-      })
-      .done(function(resp){
-        console.log('[geo_analyze_v1] resp:', resp);
+    const blob = new Blob([doc], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
 
-        if (!resp || typeof resp !== 'object') {
-          log('ID ' + id + ' — Unexpected server response.');
-          return;
-        }
+    // store & clean old
+    if (LAST.htmlBlobUrl) {
+      try { URL.revokeObjectURL(LAST.htmlBlobUrl); } catch (e) {}
+    }
+    LAST.htmlBlobUrl = url;
 
-        if (resp.success) {
-          const d = resp.data || {};
-          const html = (d.html || '').trim();
-          const raw  = (d.raw || '').trim();
-          const diff = (d.diff_html || '').trim();
-          const title = d.title || '(no title)';
+    if (btnHtml && elHtmlLink) {
+      elHtmlLink.href = url;
+      elHtmlLink.download = filename;
+      elHtmlLink.textContent = "Download .html";
+      elHtmlLink.style.display = "inline-block";
+      btnHtml.disabled = false;
 
-          log('ID ' + id + ' — Analyzed "' + title + '" (preview ready).');
+      btnHtml.onclick = function () {
+        elHtmlLink.click();
+      };
+    }
+  }
 
-          if (html) {
-            $('#myls_ai_geo_preview').html(html);
-            $('#myls_ai_geo_output').text(html);
-            if (diff) $('#myls_ai_geo_diff').html(diff);
-          } else if (raw) {
-            $('#myls_ai_geo_preview').html('<em>Cleaned HTML was empty (likely stripped tags). Showing RAW output below.</em>');
-            $('#myls_ai_geo_output').text(raw);
-            log('Note: cleaned HTML was empty; showing RAW output for debugging.');
-          } else {
-            $('#myls_ai_geo_preview').html('<em>No content returned.</em>');
-            $('#myls_ai_geo_output').text('');
-            log('ERROR: No html or raw returned.');
-          }
-        } else {
-          const d = resp.data || {};
-          const msg = d.message || 'server_error';
-          log('ID ' + id + ' — ERROR: ' + msg);
-        }
-      })
-      .fail(function(xhr){
-        log('ID ' + id + ' — AJAX error: ' + (xhr && xhr.status));
-      })
-      .always(function(){
-        setCount(1);
-        setBusy(false);
-      });
+  function escapeHtml(s) {
+    return String(s || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  // -----------------------------
+  // Analyze
+  // -----------------------------
+  async function analyzeSelected() {
+    const ids = getSelectedIDs();
+    if (!ids.length) {
+      alert("Select at least one post.");
+      return;
     }
 
-    function convertQueue(){
-      const ids = ($('#myls_ai_geo_posts').val() || []).map(v => parseInt(v, 10)).filter(Boolean);
-      if (!ids.length) { log('Select at least one post to convert.'); return; }
+    const template = requireTemplateOrAlert();
+    if (!template) return;
 
-      stopping = false;
-      setCount(0);
-      setBusy(true);
+    STOP = false;
+    processed = 0;
+    if (elCount) elCount.textContent = "0";
 
-      const template = ($('textarea[name="myls_ai_geo_prompt_template"]').val() || '');
-      const tokens = parseInt(($('input[name="myls_ai_geo_tokens"]').val() || '1200'), 10);
-      const temperature = parseFloat(($('input[name="myls_ai_geo_temperature"]').val() || '0.4'));
-      const mode = $('input[name="myls_ai_geo_mode"]:checked').val() || 'partial';
-      const withAnchors = $('#myls_ai_geo_with_anchors').is(':checked') ? 1 : 0;
+    // clear panes + downloads
+    if (elPreview) elPreview.innerHTML = "";
+    if (elDiff) elDiff.innerHTML = "";
+    if (elOutput) elOutput.textContent = "";
+    resetDownloads();
 
-      let done = 0;
+    setBusy(true, "Analyzing…");
+    log(`Analyze queued: ${ids.length} post(s).`);
 
-      (function next(){
-        if (stopping || !ids.length) {
-          setBusy(false);
-          log('Done.');
-          return;
-        }
+    for (const postId of ids) {
+      if (STOP) break;
 
-        const id = ids.shift();
-        log('Convert: sending request for ID ' + id + '…');
+      try {
+        log(`Analyzing post #${postId}…`);
 
-        $.post(CFG.ajaxurl, {
-          action: CFG.action_convert || 'myls_ai_geo_convert_v1',
-          nonce: CFG.nonce,
-          post_id: id,
+        const data = await postAJAX(CFG.action_analyze, {
+          post_id: postId,
+          mode: getMode(),
+          with_anchors: withAnchors() ? "1" : "0",
           template: template,
-          tokens: tokens,
-          temperature: temperature,
-          mode: mode,
-          with_anchors: withAnchors
-        })
-        .done(function(resp){
-          console.log('[geo_convert_v1] resp:', resp);
-
-          if (!resp || typeof resp !== 'object') {
-            log('ID ' + id + ' — Unexpected server response.');
-            return;
-          }
-
-          if (resp.success) {
-            const d = resp.data || {};
-            const newId = d.new_post_id || 0;
-            const srcTitle = d.source_title || '(no title)';
-            const newTitle = d.new_post_title || '(no title)';
-            const previewUrl = d.preview_url || '';
-            const editUrl = d.edit_url || '';
-
-            log('ID ' + id + ' — GEO Draft created: ' + newId + ' (“' + newTitle + '”) from “' + srcTitle + '”.');
-
-            // Show the most recent conversion in the preview panels
-            if (d.html) {
-              $('#myls_ai_geo_preview').html(d.html);
-              $('#myls_ai_geo_output').text(d.html);
-            }
-            if (d.diff_html) {
-              $('#myls_ai_geo_diff').html(d.diff_html);
-            }
-
-            if (previewUrl || editUrl) {
-              const links = [];
-              if (previewUrl) links.push('<a href="' + String(previewUrl).replace(/"/g,'&quot;') + '" target="_blank" rel="noopener">Preview Draft</a>');
-              if (editUrl) links.push('<a href="' + String(editUrl).replace(/"/g,'&quot;') + '" target="_blank" rel="noopener">Edit Draft</a>');
-              $('#myls_ai_geo_status').html(links.join(' • '));
-            }
-          } else {
-            const d = resp.data || {};
-            const msg = d.message || 'server_error';
-            log('ID ' + id + ' — ERROR: ' + msg);
-          }
-        })
-        .fail(function(xhr){
-          log('ID ' + id + ' — AJAX error: ' + (xhr && xhr.status));
-        })
-        .always(function(){
-          done++;
-          setCount(done);
-          next();
+          tokens: getTokens(),
+          temperature: getTemperature()
         });
-      })();
-    }
 
-    function duplicateQueue(){
-      const ids = ($('#myls_ai_geo_posts').val() || []).map(v => parseInt(v, 10)).filter(Boolean);
-      if (!ids.length) { log('Select at least one post to duplicate.'); return; }
+        const title = data.title || "";
+        const url = data.url || "";
+        const rawCombined = data.raw_combined || data.combined || data.raw || "";
+        const geoHtml = data.geo_html || data.geoHtml || data.html || "";
 
-      stopping = false;
-      setCount(0);
-      setBusy(true);
+        // stash latest
+        LAST.postId = postId;
+        LAST.title = title;
+        LAST.url = url;
+        LAST.geoHtml = geoHtml;
 
-      let done = 0;
+        if (elOutput) elOutput.textContent = rawCombined;
 
-      (function next(){
-        if (stopping || !ids.length) {
-          setBusy(false);
-          log('Done.');
-          return;
+        if (elPreview) {
+          elPreview.innerHTML = geoHtml ? geoHtml : "<p><em>No GEO output returned.</em></p>";
         }
 
-        const id = ids.shift();
-
-        $.post(CFG.ajaxurl, {
-          action:  CFG.action_duplicate || 'myls_ai_geo_duplicate_v1',
-          nonce:   CFG.nonce,
-          post_id: id
-        })
-        .done(function(resp){
-          console.log('[geo_duplicate_v1] resp:', resp);
-
-          if (!resp || typeof resp !== 'object') {
-            log('ID ' + id + ' — Unexpected server response.');
-            return;
-          }
-
-          if (resp.success) {
-            const d  = resp.data || {};
-            const src_title = d.source_title || '(no title)';
-            const new_id = d.new_post_id || 0;
-            const new_title = d.new_post_title || '(no title)';
-            log('ID ' + id + ' — Duplicated "' + src_title + '" → Draft ID ' + new_id + ' (“' + new_title + '”).');
+        if (elDiff) {
+          if (data.diff_html) {
+            elDiff.innerHTML = data.diff_html;
           } else {
-            const d  = resp.data || {};
-            const msg = d.message || 'server_error';
-            log('ID ' + id + ' — ERROR: ' + msg);
+            elDiff.innerHTML = buildQuickDiff(data.page_text || "", geoHtml);
           }
-        })
-        .fail(function(xhr){
-          log('ID ' + id + ' — AJAX error: ' + (xhr && xhr.status));
-        })
-        .always(function(){
-          done++;
-          setCount(done);
-          next();
-        });
+        }
 
-      })();
+        // Enable HTML download if we have any HTML
+        if (geoHtml) {
+          buildHtmlDownload(title, url, geoHtml);
+        }
+
+        // Enable DOCX if returned
+        if (data.doc_url) {
+          setDocxUrl(data.doc_url);
+          if (elStatus) {
+            elStatus.innerHTML = `<a href="${data.doc_url}" target="_blank" rel="noopener">Download .docx</a>`;
+          }
+          log(`DOCX ready: ${data.doc_url}`);
+        } else {
+          setDocxUrl("");
+        }
+
+        processed++;
+        if (elCount) elCount.textContent = String(processed);
+      } catch (e) {
+        log(`Analyze error for #${postId}: ${e.message}`);
+      }
     }
 
-    // Delegated events (robust in modular admin tabs)
-    $(document)
-      .on('change', '#myls_ai_geo_pt', function(){ loadPosts(); })
-      .on('click',  '#myls_ai_geo_select_all', function(e){ e.preventDefault(); selectAll(); })
-      .on('click',  '#myls_ai_geo_clear', function(e){ e.preventDefault(); clearSelection(); })
-      .on('click',  '#myls_ai_geo_analyze', function(e){ e.preventDefault(); analyzeOne(); })
-      .on('click',  '#myls_ai_geo_convert', function(e){ e.preventDefault(); convertQueue(); })
-      .on('click',  '#myls_ai_geo_duplicate', function(e){ e.preventDefault(); duplicateQueue(); })
-      .on('click',  '#myls_ai_geo_stop', function(e){
-        e.preventDefault();
-        stopping = true;
-        setBusy(false);
-        log('Stopped.');
-      });
+    setBusy(false, STOP ? "Stopped." : "Done.");
+  }
 
-    // Init
-    $('#myls_ai_geo_loaded_hint').text('JS loaded');
-    console.log('[MYLS GEO] file loaded');
+  // -----------------------------
+  // Convert to GEO Draft
+  // -----------------------------
+  async function convertToDraft() {
+    const ids = getSelectedIDs();
+    if (!ids.length) {
+      alert("Select at least one post.");
+      return;
+    }
 
-    const $pt = $('#myls_ai_geo_pt');
-    if ($pt.length && CFG.defaultType && $pt.val() !== CFG.defaultType) $pt.val(CFG.defaultType);
+    const template = requireTemplateOrAlert();
+    if (!template) return;
 
-    loadPosts();
+    STOP = false;
+    processed = 0;
+    if (elCount) elCount.textContent = "0";
+
+    setBusy(true, "Converting…");
+    log(`Convert queued: ${ids.length} post(s).`);
+
+    for (const postId of ids) {
+      if (STOP) break;
+
+      try {
+        log(`Converting post #${postId}…`);
+
+        const data = await postAJAX(CFG.action_convert, {
+          post_id: postId,
+          mode: getMode(),
+          with_anchors: withAnchors() ? "1" : "0",
+          template: template,
+          tokens: getTokens(),
+          temperature: getTemperature()
+        });
+
+        const newId = data.new_post_id || data.draft_id || data.new_id || "";
+        const editUrl = data.edit_url || data.edit_link || "";
+        const previewUrl = data.preview_url || "";
+
+        log(`Created draft #${newId || "(id not returned)"} from #${postId}.`);
+
+        if (elStatus) {
+          if (editUrl) {
+            elStatus.innerHTML =
+              `<a href="${editUrl}" target="_blank" rel="noopener">Open Draft #${newId || ""}</a>` +
+              (previewUrl ? ` &nbsp;|&nbsp; <a href="${previewUrl}" target="_blank" rel="noopener">Preview</a>` : "");
+          } else {
+            elStatus.textContent = newId ? `Draft #${newId} created.` : "Draft created.";
+          }
+        }
+
+        processed++;
+        if (elCount) elCount.textContent = String(processed);
+      } catch (e) {
+        log(`Convert error for #${postId}: ${e.message}`);
+      }
+    }
+
+    setBusy(false, STOP ? "Stopped." : "Done.");
+  }
+
+  // -----------------------------
+  // Duplicate to draft
+  // -----------------------------
+  async function duplicateNoRewrite() {
+    const ids = getSelectedIDs();
+    if (!ids.length) {
+      alert("Select at least one post.");
+      return;
+    }
+
+    STOP = false;
+    processed = 0;
+    if (elCount) elCount.textContent = "0";
+
+    setBusy(true, "Duplicating…");
+    log(`Duplicate queued: ${ids.length} post(s).`);
+
+    for (const postId of ids) {
+      if (STOP) break;
+
+      try {
+        const data = await postAJAX(CFG.action_duplicate, { post_id: postId });
+        const newId = data.new_post_id || data.draft_id || data.new_id || "";
+        log(`Duplicated #${postId} → draft #${newId || "(id not returned)"}.`);
+
+        processed++;
+        if (elCount) elCount.textContent = String(processed);
+      } catch (e) {
+        log(`Duplicate error for #${postId}: ${e.message}`);
+      }
+    }
+
+    setBusy(false, STOP ? "Stopped." : "Done.");
+  }
+
+  // -----------------------------
+  // Events
+  // -----------------------------
+  if (elPT) {
+    elPT.addEventListener("change", () => loadPostsByType(elPT.value));
+  }
+
+  if (btnSelectAll && elPosts) btnSelectAll.addEventListener("click", () => {
+    Array.from(elPosts.options).forEach(o => (o.selected = true));
   });
 
-})(jQuery);
+  if (btnClear && elPosts) btnClear.addEventListener("click", () => {
+    Array.from(elPosts.options).forEach(o => (o.selected = false));
+  });
+
+  if (btnAnalyze) btnAnalyze.addEventListener("click", analyzeSelected);
+  if (btnConvert) btnConvert.addEventListener("click", convertToDraft);
+  if (btnDuplicate) btnDuplicate.addEventListener("click", duplicateNoRewrite);
+
+  if (btnStop) btnStop.addEventListener("click", () => {
+    STOP = true;
+    log("Stop requested.");
+    setBusy(true, "Stopping…");
+    setTimeout(() => setBusy(false, "Stopped."), 250);
+  });
+
+  // Boot
+  resetDownloads();
+  loadPostsByType(CFG.defaultType);
+
+})();
