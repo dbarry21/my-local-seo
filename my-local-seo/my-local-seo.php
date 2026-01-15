@@ -1,12 +1,13 @@
 <?php
 /**
- * Plugin Name: My Local SEO
- * Description: Modular local SEO toolkit with YouTube → Video drafts, shortcodes, and admin tabs.
- * Version: 4.0
-  * Plugin URI: https://mylocalseo.ai/
-  * Author URI: https://davebarry.io/
- * Author: Dave Barry
- * Text Domain: my-local-seo
+ * Plugin Name:       My Local SEO
+ * Plugin URI:        https://mylocalseo.ai/
+ * Description:       Modular local SEO toolkit with schema, AI tools, bulk operations, and shortcode utilities.
+ * Version:           4.1.0
+ * Author:            Dave Barry
+ * Author URI:        https://davebarry.io/
+ * Text Domain:       my-local-seo
+ * Domain Path:       /languages
  */
 
 if ( ! defined('ABSPATH') ) exit;
@@ -14,7 +15,7 @@ if ( ! defined('ABSPATH') ) exit;
 /** ─────────────────────────────────────────────────────────────────────────
  * Canonical constants & helpers (single source of truth)
  * ───────────────────────────────────────────────────────────────────────── */
-if ( ! defined('MYLS_VERSION') )     define('MYLS_VERSION', '2.0'); // keep in sync with header
+if ( ! defined('MYLS_VERSION') )     define('MYLS_VERSION', '4.0.0'); // keep in sync with header
 if ( ! defined('MYLS_MAIN_FILE') )   define('MYLS_MAIN_FILE', __FILE__);
 if ( ! defined('MYLS_PATH') )        define('MYLS_PATH', plugin_dir_path(MYLS_MAIN_FILE));
 if ( ! defined('MYLS_URL') )         define('MYLS_URL',  plugins_url('', MYLS_MAIN_FILE));
@@ -64,6 +65,7 @@ if ( function_exists('myls_load_all_admin_tabs') ) {
 
 /** Admin renderer (uses myls_get_admin_tabs() internally) */
 require_once MYLS_PATH . 'inc/admin.php';
+require_once MYLS_PATH . 'admin/admin-docs-menu.php';
 
 /** Assets */
 require_once MYLS_PATH . 'inc/assets.php';
