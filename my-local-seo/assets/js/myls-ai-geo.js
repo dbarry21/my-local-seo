@@ -1,12 +1,15 @@
 /* ========================================================================
- * MYLS – AI GEO Subtab JS (v4)
+ * MYLS – AI GEO Subtab JS (restored)
  * File: assets/js/myls-ai-geo.js
  *
- * Fixes:
- * - Download buttons (DOCX/HTML) now enable properly after Analyze
- * - setBusy() no longer disables downloads when finishing
- * - Generates downloadable .html from GEO preview content (client-side)
- * - Always sends template + tokens + temperature (prevents missing_template)
+ * - Loads posts by type
+ * - Analyze Selected (Preview + DOCX/HTML downloads)
+ * - Convert to GEO Draft
+ * - Duplicate to Draft
+ *
+ * Notes:
+ * - The GEO tab UI prints a window.MYLS_AI_GEO config and loads this file.
+ * - Download buttons are enabled only after a successful Analyze (or Convert).
  * ======================================================================== */
 
 (function () {
@@ -31,69 +34,51 @@
   const btnDuplicate = $("#myls_ai_geo_duplicate");
   const btnStop = $("#myls_ai_geo_stop");
 
-  // Optional DOCX UI
-  const btnDocx = $("#myls_ai_geo_docx");
-  const elDocxLink = $("#myls_ai_geo_docx_link");
+  const cbIncludeFaqHowto = $("#myls_ai_geo_include_faq_howto");
+  const cbWithAnchors = $("#myls_ai_geo_with_anchors");
 
-  // Optional HTML UI
+  const btnDocx = $("#myls_ai_geo_docx");
   const btnHtml = $("#myls_ai_geo_html");
-  const elHtmlLink = $("#myls_ai_geo_html_link");
 
   const elSpinner = $("#myls_ai_geo_spinner");
   const elStatus = $("#myls_ai_geo_status");
   const elCount = $("#myls_ai_geo_count");
+  const elLoadedHint = $("#myls_ai_geo_loaded_hint");
 
   const elPreview = $("#myls_ai_geo_preview");
-  const elDiff = $("#myls_ai_geo_diff");
   const elOutput = $("#myls_ai_geo_output");
   const elResults = $("#myls_ai_geo_results");
-  const elLoadedHint = $("#myls_ai_geo_loaded_hint");
+
+  const elTemplate = $("#myls_ai_geo_prompt_template");
+  const elTokens = $("#myls_ai_geo_tokens");
+  const elTemp = $("#myls_ai_geo_temperature");
 
   let STOP = false;
   let processed = 0;
 
-  // Keep latest payload so download buttons can use it
+  // Last successful analyze/convert payload (used for downloads)
   let LAST = {
     postId: 0,
     title: "",
     url: "",
     geoHtml: "",
-    docUrl: "",
-    htmlBlobUrl: ""
+    docxUrl: "",
+    htmlFilename: "",
   };
-
-  // -----------------------------
-  // Pane selection improvements
-  // -----------------------------
-  function enablePaneSelection(el) {
-    if (!el) return;
-    el.style.userSelect = "text";
-    el.addEventListener("mousedown", (e) => e.stopPropagation(), true);
-    el.addEventListener("mouseup", (e) => e.stopPropagation(), true);
-    el.addEventListener("click", (e) => e.stopPropagation(), true);
-  }
-
-  enablePaneSelection(elPreview);
-  enablePaneSelection(elDiff);
-  enablePaneSelection(elOutput);
-  enablePaneSelection(elResults);
 
   // -----------------------------
   // UI state
   // -----------------------------
   function setBusy(isBusy, msg) {
     if (elSpinner) elSpinner.style.display = isBusy ? "inline-flex" : "none";
-    if (elStatus && typeof msg === "string") elStatus.textContent = msg;
+    if (elStatus) elStatus.textContent = msg || "";
 
     if (btnStop) btnStop.disabled = !isBusy;
-
     if (btnAnalyze) btnAnalyze.disabled = isBusy;
     if (btnConvert) btnConvert.disabled = isBusy;
     if (btnDuplicate) btnDuplicate.disabled = isBusy;
 
-    // IMPORTANT:
-    // Do NOT disable download buttons when finishing.
-    // Only disable them while we are actively processing.
+    // downloads should never be enabled while busy
     if (isBusy) {
       if (btnDocx) btnDocx.disabled = true;
       if (btnHtml) btnHtml.disabled = true;
@@ -102,8 +87,7 @@
 
   function log(msg) {
     if (!elResults) return;
-    const now = new Date();
-    const t = now.toLocaleTimeString();
+    const t = new Date().toLocaleTimeString();
     elResults.textContent = `[${t}] ${msg}\n` + elResults.textContent;
   }
 
@@ -120,38 +104,45 @@
     return "partial";
   }
 
+  function includeFaqHowto() {
+    return !!(cbIncludeFaqHowto && cbIncludeFaqHowto.checked);
+  }
+
   function withAnchors() {
-    const cb = $("#myls_ai_geo_with_anchors");
-    return !!(cb && cb.checked);
+    return !!(cbWithAnchors && cbWithAnchors.checked);
   }
 
-  // -----------------------------
-  // Prompt + params
-  // -----------------------------
-  function getTemplate() {
-    const ta = document.querySelector('textarea[name="myls_ai_geo_prompt_template"]');
-    return ta ? String(ta.value || "").trim() : "";
+  function getTemplateValue() {
+    return elTemplate ? String(elTemplate.value || "").trim() : "";
   }
 
-  function getTokens() {
-    const inp = document.querySelector('input[name="myls_ai_geo_tokens"]');
-    const n = inp ? parseInt(inp.value, 10) : NaN;
-    return Number.isFinite(n) && n > 0 ? String(n) : "";
+  function getTokensValue() {
+    const n = elTokens ? parseInt(elTokens.value, 10) : NaN;
+    return Number.isFinite(n) && n > 0 ? n : 1200;
   }
 
-  function getTemperature() {
-    const inp = document.querySelector('input[name="myls_ai_geo_temperature"]');
-    const n = inp ? parseFloat(inp.value) : NaN;
-    return Number.isFinite(n) ? String(n) : "";
+  function getTempValue() {
+    const f = elTemp ? parseFloat(elTemp.value) : NaN;
+    return Number.isFinite(f) ? f : 0.4;
   }
 
-  function requireTemplateOrAlert() {
-    const tpl = getTemplate();
-    if (!tpl) {
-      alert('Your GEO prompt template is empty.\n\nPaste the default prompt into the template box and click "Save Template & Params", then run Analyze again.');
-      return "";
-    }
-    return tpl;
+  function resetDownloads() {
+    LAST = { postId: 0, title: "", url: "", geoHtml: "", docxUrl: "", htmlFilename: "" };
+    if (btnDocx) btnDocx.disabled = true;
+    if (btnHtml) btnHtml.disabled = true;
+  }
+
+  function enableDownloads() {
+    if (btnDocx) btnDocx.disabled = !LAST.docxUrl;
+    if (btnHtml) btnHtml.disabled = !LAST.geoHtml;
+  }
+
+  function safeFilename(s) {
+    return String(s || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 80) || "geo";
   }
 
   // -----------------------------
@@ -171,18 +162,18 @@
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8" },
-      body: body.toString()
+      body: body.toString(),
     });
 
-    let json = null;
+    let json;
     try {
       json = await resp.json();
     } catch (e) {
-      throw new Error("Bad JSON response from server.");
+      throw new Error("Invalid JSON response");
     }
 
     if (!json || json.success !== true) {
-      const msg = (json && json.data && json.data.message) ? json.data.message : "AJAX error";
+      const msg = json && json.data && json.data.message ? json.data.message : "AJAX error";
       throw new Error(msg);
     }
 
@@ -194,9 +185,9 @@
   // -----------------------------
   async function loadPostsByType(pt) {
     if (!elLoadedHint || !elPosts) return;
-
     elLoadedHint.textContent = "Loading…";
     elPosts.innerHTML = "";
+    resetDownloads();
 
     try {
       const data = await postAJAX(CFG.action_get_posts, { post_type: pt });
@@ -218,129 +209,7 @@
   }
 
   // -----------------------------
-  // Diff helper (fallback)
-  // -----------------------------
-  function buildQuickDiff(originalText, geoHtml) {
-    const origLen = (originalText || "").length;
-    const geoLen = (geoHtml || "").length;
-
-    const ids = [];
-    (geoHtml || "").replace(/<(h2|h3)\s+[^>]*id="([^"]+)"[^>]*>/gi, (m, tag, id) => {
-      ids.push(`${tag.toUpperCase()}: #${id}`);
-      return m;
-    });
-
-    return `
-      <p><strong>Original text length:</strong> ${origLen.toLocaleString()} chars</p>
-      <p><strong>GEO output length:</strong> ${geoLen.toLocaleString()} chars</p>
-      <p><strong>Anchors found:</strong></p>
-      <ul>${ids.slice(0, 30).map(x => `<li>${x}</li>`).join("") || "<li>(none)</li>"}</ul>
-    `;
-  }
-
-  // -----------------------------
-  // Download helpers
-  // -----------------------------
-  function resetDownloads() {
-    // DOCX
-    if (btnDocx) btnDocx.disabled = true;
-    if (elDocxLink) {
-      elDocxLink.style.display = "none";
-      elDocxLink.href = "#";
-      elDocxLink.textContent = "";
-    }
-
-    // HTML
-    if (btnHtml) btnHtml.disabled = true;
-    if (elHtmlLink) {
-      elHtmlLink.style.display = "none";
-      elHtmlLink.href = "#";
-      elHtmlLink.textContent = "";
-    }
-
-    // revoke old blob
-    if (LAST.htmlBlobUrl) {
-      try { URL.revokeObjectURL(LAST.htmlBlobUrl); } catch (e) {}
-    }
-
-    LAST.docUrl = "";
-    LAST.geoHtml = "";
-    LAST.htmlBlobUrl = "";
-  }
-
-  function setDocxUrl(docUrl) {
-    LAST.docUrl = docUrl || "";
-
-    if (!btnDocx || !elDocxLink) return;
-
-    if (docUrl) {
-      elDocxLink.href = docUrl;
-      elDocxLink.textContent = "Download .docx";
-      elDocxLink.style.display = "inline-block";
-      btnDocx.disabled = false;
-
-      btnDocx.onclick = function () {
-        elDocxLink.click();
-      };
-    } else {
-      btnDocx.disabled = true;
-      elDocxLink.style.display = "none";
-      elDocxLink.href = "#";
-      elDocxLink.textContent = "";
-      btnDocx.onclick = null;
-    }
-  }
-
-  function buildHtmlDownload(title, permalink, html) {
-    const safeTitle = (title || "geo-output").replace(/[^\w\-]+/g, "-").replace(/\-+/g, "-").replace(/^\-|\-$/g, "");
-    const filename = `${safeTitle || "geo-output"}.html`;
-
-    const doc = `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>${escapeHtml(title || "GEO Output")}</title>
-</head>
-<body>
-<!-- Page Title: ${escapeHtml(title || "")} -->
-<!-- Permalink: ${escapeHtml(permalink || "")} -->
-${html || ""}
-</body>
-</html>`;
-
-    const blob = new Blob([doc], { type: "text/html;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-
-    // store & clean old
-    if (LAST.htmlBlobUrl) {
-      try { URL.revokeObjectURL(LAST.htmlBlobUrl); } catch (e) {}
-    }
-    LAST.htmlBlobUrl = url;
-
-    if (btnHtml && elHtmlLink) {
-      elHtmlLink.href = url;
-      elHtmlLink.download = filename;
-      elHtmlLink.textContent = "Download .html";
-      elHtmlLink.style.display = "inline-block";
-      btnHtml.disabled = false;
-
-      btnHtml.onclick = function () {
-        elHtmlLink.click();
-      };
-    }
-  }
-
-  function escapeHtml(s) {
-    return String(s || "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
-  }
-
-  // -----------------------------
-  // Analyze
+  // Analyze (Preview + downloads)
   // -----------------------------
   async function analyzeSelected() {
     const ids = getSelectedIDs();
@@ -349,17 +218,16 @@ ${html || ""}
       return;
     }
 
-    const template = requireTemplateOrAlert();
-    if (!template) return;
+    const template = getTemplateValue();
+    if (!template) {
+      log("Analyze error: missing_template");
+      alert("Prompt template is empty. Save a prompt template first.");
+      return;
+    }
 
     STOP = false;
     processed = 0;
     if (elCount) elCount.textContent = "0";
-
-    // clear panes + downloads
-    if (elPreview) elPreview.innerHTML = "";
-    if (elDiff) elDiff.innerHTML = "";
-    if (elOutput) elOutput.textContent = "";
     resetDownloads();
 
     setBusy(true, "Analyzing…");
@@ -375,50 +243,40 @@ ${html || ""}
           post_id: postId,
           mode: getMode(),
           with_anchors: withAnchors() ? "1" : "0",
-          template: template,
-          tokens: getTokens(),
-          temperature: getTemperature()
+          include_faq_howto: includeFaqHowto() ? "1" : "0",
+          template,
+          tokens: String(getTokensValue()),
+          temperature: String(getTempValue()),
         });
 
-        const title = data.title || "";
-        const url = data.url || "";
-        const rawCombined = data.raw_combined || data.combined || data.raw || "";
-        const geoHtml = data.geo_html || data.geoHtml || data.html || "";
+        const geoHtml = data.geo_html || data.html || "";
 
-        // stash latest
-        LAST.postId = postId;
-        LAST.title = title;
-        LAST.url = url;
-        LAST.geoHtml = geoHtml;
-
-        if (elOutput) elOutput.textContent = rawCombined;
-
+        // Preview should render as HTML
         if (elPreview) {
-          elPreview.innerHTML = geoHtml ? geoHtml : "<p><em>No GEO output returned.</em></p>";
+          elPreview.innerHTML = geoHtml || "<p><em>No GEO output returned.</em></p>";
         }
 
-        if (elDiff) {
-          if (data.diff_html) {
-            elDiff.innerHTML = data.diff_html;
-          } else {
-            elDiff.innerHTML = buildQuickDiff(data.page_text || "", geoHtml);
-          }
+        // Raw combined for debugging
+        if (elOutput) {
+          elOutput.textContent = data.combined || data.raw || "";
         }
 
-        // Enable HTML download if we have any HTML
-        if (geoHtml) {
-          buildHtmlDownload(title, url, geoHtml);
-        }
+        // Capture downloads
+        LAST.postId = postId;
+        LAST.title = data.title || "";
+        LAST.url = data.url || "";
+        LAST.geoHtml = geoHtml;
+        LAST.docxUrl = data.doc_url || "";
+        LAST.htmlFilename = `${safeFilename(LAST.title)}-${postId}-geo.html`;
 
-        // Enable DOCX if returned
+        enableDownloads();
+
         if (data.doc_url) {
-          setDocxUrl(data.doc_url);
-          if (elStatus) {
-            elStatus.innerHTML = `<a href="${data.doc_url}" target="_blank" rel="noopener">Download .docx</a>`;
-          }
-          log(`DOCX ready: ${data.doc_url}`);
+          log(`Generated DOCX for post #${postId}: ${data.doc_url}`);
+          if (elStatus) elStatus.innerHTML = `<a href="${data.doc_url}" target="_blank" rel="noopener">Download .docx</a>`;
         } else {
-          setDocxUrl("");
+          if (btnDocx) btnDocx.disabled = true;
+          if (elStatus) elStatus.textContent = includeFaqHowto() ? "No .docx returned (prompt must output DOC section)." : "No .docx returned.";
         }
 
         processed++;
@@ -441,12 +299,17 @@ ${html || ""}
       return;
     }
 
-    const template = requireTemplateOrAlert();
-    if (!template) return;
+    const template = getTemplateValue();
+    if (!template) {
+      log("Convert error: missing_template");
+      alert("Prompt template is empty. Save a prompt template first.");
+      return;
+    }
 
     STOP = false;
     processed = 0;
     if (elCount) elCount.textContent = "0";
+    resetDownloads();
 
     setBusy(true, "Converting…");
     log(`Convert queued: ${ids.length} post(s).`);
@@ -455,35 +318,40 @@ ${html || ""}
       if (STOP) break;
 
       try {
-        log(`Converting post #${postId}…`);
+        log(`Converting post #${postId} to draft…`);
 
         const data = await postAJAX(CFG.action_convert, {
           post_id: postId,
           mode: getMode(),
           with_anchors: withAnchors() ? "1" : "0",
-          template: template,
-          tokens: getTokens(),
-          temperature: getTemperature()
+          include_faq_howto: includeFaqHowto() ? "1" : "0",
+          template,
+          tokens: String(getTokensValue()),
+          temperature: String(getTempValue()),
         });
 
-        const newId = data.new_post_id || data.draft_id || data.new_id || "";
-        const editUrl = data.edit_url || data.edit_link || "";
-        const previewUrl = data.preview_url || "";
-
-        log(`Created draft #${newId || "(id not returned)"} from #${postId}.`);
+        const draftId = data.new_post_id || data.draft_id || 0;
+        const editLink = data.edit_url || data.edit_link || "";
 
         if (elStatus) {
-          if (editUrl) {
-            elStatus.innerHTML =
-              `<a href="${editUrl}" target="_blank" rel="noopener">Open Draft #${newId || ""}</a>` +
-              (previewUrl ? ` &nbsp;|&nbsp; <a href="${previewUrl}" target="_blank" rel="noopener">Preview</a>` : "");
-          } else {
-            elStatus.textContent = newId ? `Draft #${newId} created.` : "Draft created.";
-          }
+          elStatus.innerHTML = editLink
+            ? `<a href="${editLink}" target="_blank" rel="noopener">Open Draft #${draftId}</a>`
+            : `Draft #${draftId} created.`;
         }
+
+        // capture downloads from convert if returned
+        LAST.postId = postId;
+        LAST.title = data.source_title || "";
+        LAST.url = data.url || "";
+        LAST.geoHtml = data.html || "";
+        LAST.docxUrl = data.doc_url || "";
+        LAST.htmlFilename = `${safeFilename(LAST.title)}-${postId}-geo.html`;
+        enableDownloads();
 
         processed++;
         if (elCount) elCount.textContent = String(processed);
+
+        log(`Created draft #${draftId} from #${postId}.`);
       } catch (e) {
         log(`Convert error for #${postId}: ${e.message}`);
       }
@@ -493,7 +361,7 @@ ${html || ""}
   }
 
   // -----------------------------
-  // Duplicate to draft
+  // Duplicate to draft (no rewrite)
   // -----------------------------
   async function duplicateNoRewrite() {
     const ids = getSelectedIDs();
@@ -505,18 +373,18 @@ ${html || ""}
     STOP = false;
     processed = 0;
     if (elCount) elCount.textContent = "0";
+    resetDownloads();
 
     setBusy(true, "Duplicating…");
-    log(`Duplicate queued: ${ids.length} post(s).`);
+    log("Duplicate queued.");
 
     for (const postId of ids) {
       if (STOP) break;
 
       try {
         const data = await postAJAX(CFG.action_duplicate, { post_id: postId });
-        const newId = data.new_post_id || data.draft_id || data.new_id || "";
-        log(`Duplicated #${postId} → draft #${newId || "(id not returned)"}.`);
-
+        const draftId = data.new_post_id || data.draft_id || 0;
+        log(`Duplicated #${postId} → draft #${draftId}.`);
         processed++;
         if (elCount) elCount.textContent = String(processed);
       } catch (e) {
@@ -528,33 +396,103 @@ ${html || ""}
   }
 
   // -----------------------------
+  // Downloads
+  // -----------------------------
+  function downloadDocx() {
+    if (!LAST.docxUrl) return;
+    window.open(LAST.docxUrl, "_blank", "noopener");
+  }
+
+  function downloadHtml() {
+    if (!LAST.geoHtml) return;
+
+    const html = String(LAST.geoHtml);
+
+    // Do NOT wrap in <html>... by default; user wants copy/paste ready markup.
+    // Still save as .html for convenience.
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = LAST.htmlFilename || "geo.html";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    setTimeout(() => URL.revokeObjectURL(url), 2500);
+  }
+
+  // -----------------------------
+  // Selection UX: keep selection local, avoid accidental full-page selection
+  // -----------------------------
+  function installSelectBoxGuards(el) {
+    if (!el) return;
+
+    // Focus ring
+    el.addEventListener("focus", () => el.classList.add("is-focused"));
+    el.addEventListener("blur", () => el.classList.remove("is-focused"));
+
+    // Ctrl/Cmd + A should select within the box, not the whole admin page
+    el.addEventListener("keydown", (e) => {
+      const isA = (e.key || "").toLowerCase() === "a";
+      if (!isA) return;
+      if (!(e.ctrlKey || e.metaKey)) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const sel = window.getSelection();
+      if (sel) {
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+    });
+  }
+
+  // -----------------------------
   // Events
   // -----------------------------
   if (elPT) {
     elPT.addEventListener("change", () => loadPostsByType(elPT.value));
   }
 
-  if (btnSelectAll && elPosts) btnSelectAll.addEventListener("click", () => {
-    Array.from(elPosts.options).forEach(o => (o.selected = true));
-  });
+  if (btnSelectAll && elPosts) {
+    btnSelectAll.addEventListener("click", () => {
+      Array.from(elPosts.options).forEach((o) => (o.selected = true));
+      resetDownloads();
+    });
+  }
 
-  if (btnClear && elPosts) btnClear.addEventListener("click", () => {
-    Array.from(elPosts.options).forEach(o => (o.selected = false));
-  });
+  if (btnClear && elPosts) {
+    btnClear.addEventListener("click", () => {
+      Array.from(elPosts.options).forEach((o) => (o.selected = false));
+      resetDownloads();
+    });
+  }
 
   if (btnAnalyze) btnAnalyze.addEventListener("click", analyzeSelected);
   if (btnConvert) btnConvert.addEventListener("click", convertToDraft);
   if (btnDuplicate) btnDuplicate.addEventListener("click", duplicateNoRewrite);
 
-  if (btnStop) btnStop.addEventListener("click", () => {
-    STOP = true;
-    log("Stop requested.");
-    setBusy(true, "Stopping…");
-    setTimeout(() => setBusy(false, "Stopped."), 250);
-  });
+  if (btnDocx) btnDocx.addEventListener("click", downloadDocx);
+  if (btnHtml) btnHtml.addEventListener("click", downloadHtml);
+
+  if (btnStop) {
+    btnStop.addEventListener("click", () => {
+      STOP = true;
+      log("Stop requested.");
+      setBusy(true, "Stopping…");
+      setTimeout(() => setBusy(false, "Stopped."), 250);
+    });
+  }
 
   // Boot
-  resetDownloads();
-  loadPostsByType(CFG.defaultType);
+  installSelectBoxGuards(elPreview);
+  installSelectBoxGuards(elOutput);
+  installSelectBoxGuards(elResults);
 
+  if (CFG.defaultType) loadPostsByType(CFG.defaultType);
 })();

@@ -2,7 +2,9 @@
 /**
  * Plugin Name: My Local SEO
  * Description: Modular local SEO toolkit with YouTube → Video drafts, shortcodes, and admin tabs.
- * Version: 3.5
+ * Version: 4.0
+  * Plugin URI: https://mylocalseo.ai/
+  * Author URI: https://davebarry.io/
  * Author: Dave Barry
  * Text Domain: my-local-seo
  */
@@ -99,8 +101,12 @@ require_once MYLS_PATH . 'inc/schema/localbusiness-sync.php';
 /** AI plumbing (keep if files exist; otherwise comment these two lines) */
 require_once MYLS_PATH . 'inc/ajax/ai.php';
 require_once MYLS_PATH . 'inc/ajax/ai-about.php';
-require_once MYLS_PATH . 'inc/openai.php';
+
+// GEO Rewrite tab endpoints
 require_once MYLS_PATH . 'inc/ajax/ai-geo.php';
+
+require_once MYLS_PATH . 'inc/ajax/ai-faqs.php';
+require_once MYLS_PATH . 'inc/openai.php';
 
 /** Updater */
 require_once MYLS_PATH . 'update-plugin.php';
@@ -196,13 +202,12 @@ CSS;
 });
 
 add_action('wp_enqueue_scripts', function() {
-    wp_enqueue_style('myls-accordion', MYLS_URL . '/assets/css/myls-accordion.css', [], MYLS_VERSION);
+    wp_enqueue_style('myls-accordion', MYLS_URL . 'assets/css/myls-accordion.css', [], MYLS_VERSION);
 });
 
 /** Meta history */
 require_once MYLS_PATH . 'inc/myls-meta-history-logger.php';
 require_once MYLS_PATH . 'inc/myls-meta-history-endpoints.php';
-require_once MYLS_PATH . 'inc/llms-txt.php';
 
 if ( is_admin() ) {
 	require_once MYLS_PATH . 'admin/api-integration-tests.php';
