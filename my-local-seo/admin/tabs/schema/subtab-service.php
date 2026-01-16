@@ -6,6 +6,7 @@ if ( ! defined('ABSPATH') ) exit;
  * - Options:
  *    myls_service_enabled ("0"/"1")
  *    myls_service_default_type (string)
+ *    myls_service_subtype (string)           <-- NEW
  *    myls_service_pages (int[])
  */
 
@@ -24,6 +25,7 @@ $spec = [
 
     $enabled      = get_option('myls_service_enabled','0');
     $default_type = get_option('myls_service_default_type','');
+    $subtype      = get_option('myls_service_subtype',''); // NEW
 
     // Detect optional CPTs
     $has_service_cpt       = post_type_exists('service');
@@ -128,6 +130,10 @@ $spec = [
       .myls-filter input { margin:0; }
       .myls-select { width:100%; min-height:420px; }
       optgroup { font-weight:700; }
+
+      /* NEW: Search input */
+      .myls-search { width:100%; margin:.25rem 0 .5rem; }
+      .myls-search small { display:block; opacity:.8; margin-top:.25rem; }
     </style>
 
     <form method="post" class="myls-svc-wrap">
@@ -159,6 +165,18 @@ $spec = [
                 </select>
                 <div class="form-text">Used when a Service doesn’t specify a specific type.</div>
               </div>
+
+              <!-- NEW: Service Subtype -->
+              <div class="myls-col col-12">
+                <label class="form-label">Service Subtype (optional)</label>
+                <input type="text"
+                       name="myls_service_subtype"
+                       value="<?php echo esc_attr($subtype); ?>"
+                       placeholder="Example: Paver Sealing, Dryer Vent Cleaning, Emergency Leak Repair">
+                <div class="form-text">
+                  Outputs in schema as <code>serviceType</code> (as a secondary value) after the primary title-based <code>serviceType</code>.
+                </div>
+              </div>
             </div>
 
             <div class="myls-actions">
@@ -167,9 +185,10 @@ $spec = [
                 <summary style="cursor:pointer">Debug</summary>
                 <pre style="white-space:pre-wrap"><?php
                   echo esc_html( sprintf(
-                    "enabled=%s\ndefault_type=%s\nselected_count=%d",
+                    "enabled=%s\ndefault_type=%s\nsubtype=%s\nselected_count=%d",
                     $enabled,
                     $default_type,
+                    $subtype,
                     count($selected_ids)
                   ) );
                 ?></pre>
@@ -208,6 +227,13 @@ $spec = [
               <?php endif; ?>
               <button type="button" class="myls-btn myls-btn-outline" id="myls-service-select-all">Select All</button>
               <button type="button" class="myls-btn myls-btn-outline" id="myls-service-clear">Clear</button>
+            </div>
+
+            <!-- NEW: Search filter -->
+            <div class="myls-search">
+              <label class="form-label" style="margin-bottom:.25rem;">Search</label>
+              <input type="text" id="myls-service-search" placeholder="Type to filter titles...">
+              <small class="form-text">Filters visible options only (does not change saved selections).</small>
             </div>
 
             <!-- Hierarchical, grouped select -->
@@ -255,20 +281,55 @@ $spec = [
 
     <script>
 (function(){
-  const sel   = document.getElementById('myls-service-pages');
-  const chips = document.querySelectorAll('.myls-ptype');
+  const sel     = document.getElementById('myls-service-pages');
+  const chips   = document.querySelectorAll('.myls-ptype');
+  const search  = document.getElementById('myls-service-search');
+
+  // Helper: normalize text for searching
+  function norm(s){ return (s || '').toString().toLowerCase().trim(); }
 
   // Filter by post type via option.hidden (but NEVER change selection state here)
   function applyTypeFilter(){
     const allowed = new Set(Array.from(chips).filter(c => c.checked).map(c => c.value));
     for (const opt of sel.querySelectorAll('option')) {
       const t = opt.getAttribute('data-ptype') || 'page';
+      // type filter might hide; search filter will ALSO hide, handled in applySearchFilter()
       opt.hidden = !allowed.has(t);
-      // IMPORTANT: do NOT auto-deselect hidden options (preserves associations)
     }
   }
-  chips.forEach(ch => ch.addEventListener('change', applyTypeFilter));
-  applyTypeFilter();
+
+  // Search filter: only affects currently type-visible options; never changes selection state.
+  function applySearchFilter(){
+    const q = norm(search?.value || '');
+
+    for (const opt of sel.querySelectorAll('option')) {
+      // If already hidden by type filter, keep hidden
+      const typeHidden = opt.hidden === true;
+
+      // We need the "typeHidden" value BEFORE applying search;
+      // but opt.hidden already contains type filter result.
+      if (typeHidden) continue;
+
+      if (q === '') {
+        opt.hidden = false;
+        continue;
+      }
+
+      const text = norm(opt.textContent || opt.innerText || '');
+      opt.hidden = text.indexOf(q) === -1;
+    }
+  }
+
+  // Combined: type filter first, then search filter on the remaining options
+  function applyAllFilters(){
+    applyTypeFilter();
+    applySearchFilter();
+  }
+
+  chips.forEach(ch => ch.addEventListener('change', applyAllFilters));
+  search?.addEventListener('input', applyAllFilters);
+
+  applyAllFilters();
 
   // Select All (visible only)
   document.getElementById('myls-service-select-all')?.addEventListener('click', function(){
@@ -289,8 +350,12 @@ $spec = [
     if ( ! isset($_POST['myls_schema_nonce']) || ! wp_verify_nonce($_POST['myls_schema_nonce'], 'myls_schema_save') ) {
       return;
     }
+
     update_option('myls_service_enabled',       sanitize_text_field($_POST['myls_service_enabled'] ?? '0'));
     update_option('myls_service_default_type',  sanitize_text_field($_POST['myls_service_default_type'] ?? ''));
+
+    // NEW: subtype
+    update_option('myls_service_subtype', sanitize_text_field($_POST['myls_service_subtype'] ?? ''));
 
     $pages = isset($_POST['myls_service_pages']) && is_array($_POST['myls_service_pages'])
       ? array_map('absint', $_POST['myls_service_pages'])
