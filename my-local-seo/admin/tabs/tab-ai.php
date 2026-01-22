@@ -113,7 +113,9 @@ add_action('admin_enqueue_scripts', function($hook){
 	if ( empty($_GET['page']) || $_GET['page'] !== 'my-local-seo' ) return;
 
 	$base_url = myls_plugin_base_url(); // e.g., https://site/wp-content/plugins/my-local-seo
-	$ver      = defined('MYLS_VERSION') ? MYLS_VERSION : time();
+	// Cache-busting: use filemtime when possible so edits propagate immediately.
+	$ai_js_path = ( defined('MYLS_PATH') ? MYLS_PATH : dirname(__DIR__, 2) . '/' ) . 'assets/js/myls-ai.js';
+	$ver = file_exists($ai_js_path) ? (string) filemtime($ai_js_path) : ( defined('MYLS_VERSION') ? MYLS_VERSION : (string) time() );
 
 	// Script URL will be like: {base}/assets/js/myls-ai.js
 	wp_enqueue_script(

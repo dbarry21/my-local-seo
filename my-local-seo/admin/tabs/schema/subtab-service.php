@@ -3,11 +3,18 @@ if ( ! defined('ABSPATH') ) exit;
 
 /**
  * Schema > Service (Two-column; Local Business styling)
- * - Options:
- *    myls_service_enabled ("0"/"1")
- *    myls_service_default_type (string)
- *    myls_service_subtype (string)           <-- NEW
- *    myls_service_pages (int[])
+ * - FIX: Keep selected posts persistent unless explicitly deselected.
+ *
+ * Problem (what was happening):
+ * - A native <select multiple> only submits currently-selected options.
+ * - If you "filter" by hiding options and then click "Clear" (or change visible selection),
+ *   any hidden selections may be lost on submit because they were never re-selected/submitted.
+ *
+ * Solution:
+ * 1) JS keeps an internal Set() of "persisted selections" and mirrors it into hidden inputs.
+ *    -> Hidden inputs are ALWAYS submitted, even when options are hidden.
+ * 2) "Clear" only clears visible options AND updates the persisted set accordingly.
+ * 3) PHP on_save accepts hidden inputs. If they exist, they become the source of truth.
  */
 
 $spec = [
@@ -25,14 +32,14 @@ $spec = [
 
     $enabled      = get_option('myls_service_enabled','0');
     $default_type = get_option('myls_service_default_type','');
-    $subtype      = get_option('myls_service_subtype',''); // NEW
+    $subtype      = get_option('myls_service_subtype','');
 
     // Detect optional CPTs
     $has_service_cpt       = post_type_exists('service');
     $has_service_area_cpt  = post_type_exists('service_area');
 
     // Selected IDs (saved)
-    $selected_ids = array_map('absint', (array) get_option('myls_service_pages', []));
+    $selected_ids = array_values(array_unique(array_map('absint', (array) get_option('myls_service_pages', []))));
 
     // --- Build hierarchical "Pages"
     $pages = get_pages([
@@ -51,7 +58,7 @@ $spec = [
       if ( empty($page_children[$parent_id]) ) return;
       foreach ( $page_children[$parent_id] as $pg ) {
         $indent = str_repeat('— ', max(0, (int)$depth));
-        $sel    = in_array($pg->ID, $selected_ids, true) ? 'selected' : '';
+        $sel    = in_array((int)$pg->ID, $selected_ids, true) ? 'selected' : '';
         printf(
           '<option data-ptype="page" value="%d" %s>%s%s</option>',
           (int)$pg->ID,
@@ -131,9 +138,12 @@ $spec = [
       .myls-select { width:100%; min-height:420px; }
       optgroup { font-weight:700; }
 
-      /* NEW: Search input */
+      /* Search input */
       .myls-search { width:100%; margin:.25rem 0 .5rem; }
       .myls-search small { display:block; opacity:.8; margin-top:.25rem; }
+
+      /* Hidden persisted selection container (not visible) */
+      #myls-service-pages-hidden { display:none; }
     </style>
 
     <form method="post" class="myls-svc-wrap">
@@ -166,7 +176,6 @@ $spec = [
                 <div class="form-text">Used when a Service doesn’t specify a specific type.</div>
               </div>
 
-              <!-- NEW: Service Subtype -->
               <div class="myls-col col-12">
                 <label class="form-label">Service Subtype (optional)</label>
                 <input type="text"
@@ -229,22 +238,25 @@ $spec = [
               <button type="button" class="myls-btn myls-btn-outline" id="myls-service-clear">Clear</button>
             </div>
 
-            <!-- NEW: Search filter -->
+            <!-- Search filter -->
             <div class="myls-search">
               <label class="form-label" style="margin-bottom:.25rem;">Search</label>
               <input type="text" id="myls-service-search" placeholder="Type to filter titles...">
               <small class="form-text">Filters visible options only (does not change saved selections).</small>
             </div>
 
+            <!-- Persisted selections are submitted here (source of truth on save) -->
+            <div id="myls-service-pages-hidden" aria-hidden="true"></div>
+
             <!-- Hierarchical, grouped select -->
-            <select name="myls_service_pages[]" id="myls-service-pages" class="myls-select" multiple size="18">
+            <select id="myls-service-pages" class="myls-select" multiple size="18">
               <optgroup label="Pages">
-                <?php $render_page_options(0, 0); // options carry data-ptype="page" in renderer ?>
+                <?php $render_page_options(0, 0); ?>
               </optgroup>
 
               <optgroup label="Posts">
                 <?php foreach ( $posts as $p ):
-                  $sel = in_array($p->ID, $selected_ids, true) ? 'selected' : '';
+                  $sel = in_array((int)$p->ID, $selected_ids, true) ? 'selected' : '';
                   printf('<option data-ptype="post" value="%d" %s>%s</option>',
                     (int)$p->ID, $sel, esc_html($p->post_title));
                 endforeach; ?>
@@ -253,7 +265,7 @@ $spec = [
               <?php if ( $has_service_cpt ): ?>
                 <optgroup label="Service">
                   <?php foreach ( $services as $p ):
-                    $sel = in_array($p->ID, $selected_ids, true) ? 'selected' : '';
+                    $sel = in_array((int)$p->ID, $selected_ids, true) ? 'selected' : '';
                     printf('<option data-ptype="service" value="%d" %s>%s</option>',
                       (int)$p->ID, $sel, esc_html($p->post_title));
                   endforeach; ?>
@@ -263,7 +275,7 @@ $spec = [
               <?php if ( $has_service_area_cpt ): ?>
                 <optgroup label="Service Area">
                   <?php foreach ( $service_areas as $p ):
-                    $sel = in_array($p->ID, $selected_ids, true) ? 'selected' : '';
+                    $sel = in_array((int)$p->ID, $selected_ids, true) ? 'selected' : '';
                     printf('<option data-ptype="service_area" value="%d" %s>%s</option>',
                       (int)$p->ID, $sel, esc_html($p->post_title));
                   endforeach; ?>
@@ -274,6 +286,11 @@ $spec = [
             <div class="form-text" style="margin-top:.5rem">
               Hold <strong>Ctrl/Cmd</strong> to select multiple. Use the chips to filter by post type.
             </div>
+
+            <!-- IMPORTANT:
+              We removed name="myls_service_pages[]" from the visible select on purpose.
+              The hidden container will submit myls_service_pages_persist[] instead.
+            -->
           </div>
         </div>
       </div>
@@ -281,46 +298,78 @@ $spec = [
 
     <script>
 (function(){
-  const sel     = document.getElementById('myls-service-pages');
-  const chips   = document.querySelectorAll('.myls-ptype');
-  const search  = document.getElementById('myls-service-search');
+  const sel        = document.getElementById('myls-service-pages');
+  const chips      = document.querySelectorAll('.myls-ptype');
+  const search     = document.getElementById('myls-service-search');
+  const hiddenWrap = document.getElementById('myls-service-pages-hidden');
 
-  // Helper: normalize text for searching
+  if (!sel || !hiddenWrap) return;
+
   function norm(s){ return (s || '').toString().toLowerCase().trim(); }
 
-  // Filter by post type via option.hidden (but NEVER change selection state here)
+  // Persisted = the assignments (truth)
+  const persisted = new Set();
+
+  // Map value -> option element (fast lookups)
+  const optByVal = new Map();
+  for (const opt of sel.querySelectorAll('option')) {
+    const v = String(opt.value);
+    optByVal.set(v, opt);
+    if (opt.selected) persisted.add(v); // seed from PHP-selected
+  }
+
+  function syncHiddenInputs(){
+    hiddenWrap.innerHTML = '';
+    const vals = Array.from(persisted);
+    vals.sort((a,b) => (parseInt(a,10)||0) - (parseInt(b,10)||0));
+
+    for (const v of vals) {
+      const input = document.createElement('input');
+      input.type  = 'hidden';
+      input.name  = 'myls_service_pages_persist[]';
+      input.value = v;
+      hiddenWrap.appendChild(input);
+    }
+  }
+
+  // Apply UI selection state to match persisted
+  // IMPORTANT: We avoid looping ALL options when possible.
+  function applyPersistedToUI(){
+    // 1) Unselect anything selected that is not persisted (selectedOptions is small)
+    const selectedNow = Array.from(sel.selectedOptions || []);
+    for (const o of selectedNow) {
+      const v = String(o.value);
+      if (!persisted.has(v)) o.selected = false;
+    }
+
+    // 2) Ensure everything in persisted is selected (persisted count is usually manageable)
+    for (const v of persisted) {
+      const o = optByVal.get(v);
+      if (o) o.selected = true;
+    }
+  }
+
+  // --- Filters (hide only; NEVER touch persisted)
   function applyTypeFilter(){
     const allowed = new Set(Array.from(chips).filter(c => c.checked).map(c => c.value));
     for (const opt of sel.querySelectorAll('option')) {
       const t = opt.getAttribute('data-ptype') || 'page';
-      // type filter might hide; search filter will ALSO hide, handled in applySearchFilter()
       opt.hidden = !allowed.has(t);
     }
   }
 
-  // Search filter: only affects currently type-visible options; never changes selection state.
   function applySearchFilter(){
     const q = norm(search?.value || '');
 
     for (const opt of sel.querySelectorAll('option')) {
-      // If already hidden by type filter, keep hidden
-      const typeHidden = opt.hidden === true;
-
-      // We need the "typeHidden" value BEFORE applying search;
-      // but opt.hidden already contains type filter result.
-      if (typeHidden) continue;
-
-      if (q === '') {
-        opt.hidden = false;
-        continue;
-      }
+      if (opt.hidden) continue; // already hidden by type filter
+      if (q === '') { opt.hidden = false; continue; }
 
       const text = norm(opt.textContent || opt.innerText || '');
       opt.hidden = text.indexOf(q) === -1;
     }
   }
 
-  // Combined: type filter first, then search filter on the remaining options
   function applyAllFilters(){
     applyTypeFilter();
     applySearchFilter();
@@ -329,19 +378,83 @@ $spec = [
   chips.forEach(ch => ch.addEventListener('change', applyAllFilters));
   search?.addEventListener('input', applyAllFilters);
 
-  applyAllFilters();
+  // Track what the user actually clicked (so we can toggle only that item)
+  let lastClickedValue = '';
+  let lastScrollTop    = 0;
 
-  // Select All (visible only)
+  sel.addEventListener('mousedown', function(e){
+    const opt = (e.target && e.target.tagName === 'OPTION') ? e.target : null;
+    if (!opt) return;
+
+    // capture BEFORE the browser changes selection/scroll
+    lastClickedValue = String(opt.value);
+    lastScrollTop    = sel.scrollTop;
+  });
+
+  // Toggle logic on change:
+  // - only the clicked item changes persisted
+  // - then we re-apply persisted back into the UI (restoring “lost” selections)
+  sel.addEventListener('change', function(){
+    const v = String(lastClickedValue || sel.options[sel.selectedIndex]?.value || '');
+    if (!v) return;
+
+    // Toggle only the clicked value
+    if (persisted.has(v)) persisted.delete(v);
+    else persisted.add(v);
+
+    // Re-apply persisted selection to UI (undo browser clearing)
+    applyPersistedToUI();
+
+    // Sync hidden inputs for submit
+    syncHiddenInputs();
+
+    // Restore scroll (browser may jump when it cleared selection)
+    sel.scrollTop = lastScrollTop;
+
+    // Reset click marker
+    lastClickedValue = '';
+  });
+
+  // Select All (visible only): add visible items to persisted
   document.getElementById('myls-service-select-all')?.addEventListener('click', function(){
-    for (const o of sel.options) if (!o.hidden) o.selected = true;
+    const st = sel.scrollTop;
+
+    for (const opt of sel.querySelectorAll('option')) {
+      if (opt.hidden) continue;
+      persisted.add(String(opt.value));
+      opt.selected = true;
+    }
+
+    syncHiddenInputs();
+    sel.scrollTop = st;
   });
 
-  // Clear (visible only) -> hidden selections remain, preserving associations
+  // Clear (visible only): remove visible items from persisted
   document.getElementById('myls-service-clear')?.addEventListener('click', function(){
-    for (const o of sel.options) if (!o.hidden) o.selected = false;
+    const st = sel.scrollTop;
+
+    for (const opt of sel.querySelectorAll('option')) {
+      if (opt.hidden) continue;
+      persisted.delete(String(opt.value));
+      opt.selected = false;
+    }
+
+    // Ensure hidden selections remain selected in UI
+    applyPersistedToUI();
+
+    syncHiddenInputs();
+    sel.scrollTop = st;
   });
+
+  // Init
+  applyPersistedToUI();
+  syncHiddenInputs();
+  applyAllFilters();
 })();
 </script>
+
+
+
 
     <?php
   },
@@ -353,14 +466,24 @@ $spec = [
 
     update_option('myls_service_enabled',       sanitize_text_field($_POST['myls_service_enabled'] ?? '0'));
     update_option('myls_service_default_type',  sanitize_text_field($_POST['myls_service_default_type'] ?? ''));
+    update_option('myls_service_subtype',       sanitize_text_field($_POST['myls_service_subtype'] ?? ''));
 
-    // NEW: subtype
-    update_option('myls_service_subtype', sanitize_text_field($_POST['myls_service_subtype'] ?? ''));
+    /**
+     * Persisted selections:
+     * - If JS ran, we'll receive myls_service_pages_persist[] (hidden inputs).
+     * - If JS did not run (very rare), fall back to myls_service_pages[] if present.
+     */
+    $ids = [];
 
-    $pages = isset($_POST['myls_service_pages']) && is_array($_POST['myls_service_pages'])
-      ? array_map('absint', $_POST['myls_service_pages'])
-      : [];
-    update_option('myls_service_pages', $pages);
+    if ( isset($_POST['myls_service_pages_persist']) && is_array($_POST['myls_service_pages_persist']) ) {
+      $ids = array_map('absint', $_POST['myls_service_pages_persist']);
+    } elseif ( isset($_POST['myls_service_pages']) && is_array($_POST['myls_service_pages']) ) {
+      $ids = array_map('absint', $_POST['myls_service_pages']);
+    }
+
+    // Clean + store
+    $ids = array_values(array_filter(array_unique($ids)));
+    update_option('myls_service_pages', $ids);
   }
 ];
 
