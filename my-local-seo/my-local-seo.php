@@ -3,7 +3,7 @@
  * Plugin Name:       My Local SEO
  * Plugin URI:        https://mylocalseo.ai/
  * Description:       Modular local SEO toolkit with schema, AI tools, bulk operations, and shortcode utilities.
- * Version:           4.4.1
+ * Version:           4.5.0
  * Author:            Dave Barry
  * Author URI:        https://davebarry.io/
  * Text Domain:       my-local-seo
@@ -112,6 +112,22 @@ require_once MYLS_PATH . 'inc/ajax/ai-excerpts.php';
 
 /** Updater */
 require_once MYLS_PATH . 'update-plugin.php';
+
+
+// Load Divi modules (only if Divi Builder is present)
+add_action('plugins_loaded', function () {
+
+	// Divi defines ET_Builder_* classes. If missing, we skip safely.
+	if ( ! class_exists('ET_Builder_Module') && ! did_action('et_builder_ready') ) {
+		return;
+	}
+
+	$divi_faq = MYLS_PATH . 'modules/divi/faq-accordion.php';
+
+	if ( file_exists($divi_faq ) ) {
+		require_once $divi_faq;
+	}
+});
 
 /** Include non-CPT modules (skip modules/cpt) */
 if ( ! function_exists('myls_include_dir_excluding') ) {
