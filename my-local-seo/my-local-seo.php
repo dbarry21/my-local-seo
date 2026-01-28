@@ -3,7 +3,7 @@
  * Plugin Name:       My Local SEO
  * Plugin URI:        https://mylocalseo.ai/
  * Description:       Modular local SEO toolkit with schema, AI tools, bulk operations, and shortcode utilities.
- * Version:           4.5.0
+ * Version:           4.6.0
  * Author:            Dave Barry
  * Author URI:        https://davebarry.io/
  * Text Domain:       my-local-seo
@@ -98,6 +98,9 @@ require_once MYLS_PATH . 'inc/schema/providers/video-collection-head.php';
 require_once MYLS_PATH . 'inc/schema/providers/faq.php';
 require_once MYLS_PATH . 'inc/schema/providers/blog-posting.php';
 require_once MYLS_PATH . 'inc/schema/localbusiness-sync.php';
+require_once MYLS_PATH . '/inc/faqs.php';
+require_once MYLS_PATH . '/inc/city-state.php';
+require_once MYLS_PATH . '/inc/admin/metaboxes/faq.php';
 
 /** AI plumbing (keep if files exist; otherwise comment these two lines) */
 require_once MYLS_PATH . 'inc/ajax/ai.php';
