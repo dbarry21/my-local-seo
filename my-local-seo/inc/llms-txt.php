@@ -1,459 +1,373 @@
 <?php
 /**
- * MYLS — llms.txt Endpoint (Fresh File)
+ * My Local SEO – llms.txt
  *
- * Serves: https://example.com/llms.txt
+ * Best-practice location is the site root: https://example.com/llms.txt
+ * Spec / guidance: https://llmstxt.org/
  *
- * - WP-native rewrite + query_var (no direct REQUEST_URI regex needed)
- * - Pulls org data from MYLS options first, then falls back to legacy SSSEO options
- * - If key org fields are missing, it will try to fetch Organization/LocalBusiness JSON-LD from org_url
- * - Meta description fallback if description still empty
- * - Outputs services + service_areas post types (publish only)
- * - Caches remote schema fetch in a transient to avoid hammering the homepage
- *
- * Install:
- *  1) Save as: my-local-seo/inc/llms-txt.php
- *  2) Include it from main plugin file:
- *       require_once MYLS_PATH . 'inc/llms-txt.php';
- *  3) Flush permalinks once (Settings → Permalinks → Save)
+ * This implementation is intentionally simple (v1):
+ * - Adds a rewrite rule for /llms.txt
+ * - Serves a Markdown (plain text) response with basic, high-value links
+ * - Provides filters so we can expand later without breaking the endpoint
  */
 
 if ( ! defined('ABSPATH') ) exit;
 
-/** -------------------------------------------------------------------------
- *  Rewrite: /llms.txt
- *  ---------------------------------------------------------------------- */
-add_action('init', function () {
-	add_rewrite_rule('^llms\.txt$', 'index.php?myls_llms_txt=1', 'top');
-}, 10);
+/* -------------------------------------------------------------------------
+ * Options
+ * ------------------------------------------------------------------------- */
 
-add_filter('query_vars', function ($vars) {
-	$vars[] = 'myls_llms_txt';
+/**
+ * Get a boolean-ish option.
+ * Accepts: 1, '1', true, 'true', 'yes', 'on'
+ */
+if ( ! function_exists('myls_llms_opt_bool') ) {
+	function myls_llms_opt_bool( string $key, bool $default = true ) : bool {
+		$val = get_option( $key, $default ? '1' : '0' );
+		if ( is_bool($val) ) return $val;
+		$val = is_string($val) ? strtolower(trim($val)) : $val;
+		return in_array( $val, [ 1, '1', 'true', 'yes', 'on' ], true );
+	}
+}
+
+/**
+ * Get an integer option with sane clamping.
+ */
+if ( ! function_exists('myls_llms_opt_int') ) {
+	function myls_llms_opt_int( string $key, int $default, int $min = 0, int $max = 500 ) : int {
+		$val = (int) get_option( $key, (string) $default );
+		if ( $val < $min ) $val = $min;
+		if ( $val > $max ) $val = $max;
+		return $val;
+	}
+}
+
+/* -------------------------------------------------------------------------
+ * Builders
+ * ------------------------------------------------------------------------- */
+
+/**
+ * Build a simple list of markdown links for a post type.
+ */
+if ( ! function_exists('myls_llms_links_for_post_type') ) {
+	function myls_llms_links_for_post_type( string $post_type, int $limit = 15 ) : array {
+		$limit = max( 1, min( 200, $limit ) );
+
+		$q = new WP_Query([
+			'post_type'           => $post_type,
+			'post_status'         => 'publish',
+			'posts_per_page'      => $limit,
+			'orderby'             => 'menu_order title',
+			'order'               => 'ASC',
+			'no_found_rows'       => true,
+			'ignore_sticky_posts' => true,
+			'fields'              => 'ids',
+		]);
+
+		if ( empty($q->posts) ) return [];
+
+		$lines = [];
+		foreach ( $q->posts as $pid ) {
+			$pid   = (int) $pid;
+			$title = get_the_title( $pid );
+			$url   = get_permalink( $pid );
+			if ( ! $title || ! $url ) continue;
+			$lines[] = '- [' . wp_strip_all_tags($title) . '](' . esc_url_raw($url) . ')';
+		}
+		return $lines;
+	}
+}
+
+/**
+ * Build a master list of FAQ links by scanning posts that have MYLS FAQ meta.
+ *
+ * Storage:
+ *  - _myls_faq_items = [ [ 'q' => '...', 'a' => '...' ], ... ]
+ *
+ * Output:
+ *  - [Question](Page URL)
+ *
+ * Notes:
+ *  - We link to the page URL (anchors are not stable today because accordion IDs are UUID-based).
+ *  - Global dedupe by question text to avoid repeated Qs across pages.
+ */
+if ( ! function_exists('myls_llms_collect_master_faq_links') ) {
+	function myls_llms_collect_master_faq_links( int $limit = 25 ) : array {
+		global $wpdb;
+
+		$limit = max( 1, min( 200, $limit ) );
+
+		// Find posts that actually have the FAQ meta key.
+		$post_ids = $wpdb->get_col(
+			$wpdb->prepare(
+				"
+				SELECT DISTINCT pm.post_id
+				FROM {$wpdb->postmeta} pm
+				INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+				WHERE pm.meta_key = %s
+				  AND p.post_status = 'publish'
+				  AND p.post_type NOT IN ('revision','nav_menu_item','attachment')
+				ORDER BY p.post_modified_gmt DESC
+				LIMIT %d
+				",
+				'_myls_faq_items',
+				500
+			)
+		);
+
+		if ( empty( $post_ids ) ) return [];
+
+		$lines       = [];
+		$seen_q      = [];
+		$total_added = 0;
+
+		foreach ( $post_ids as $post_id ) {
+			if ( $total_added >= $limit ) break;
+
+			$post_id = (int) $post_id;
+			$url     = get_permalink( $post_id );
+			if ( ! $url ) continue;
+
+			$items = get_post_meta( $post_id, '_myls_faq_items', true );
+			if ( ! is_array( $items ) || empty( $items ) ) continue;
+
+			// Stable per-page anchors: #faq-1, #faq-2, ...
+			// These are emitted by the FAQ accordion shortcode (see modules/shortcodes/faq-schema-accordion.php).
+			$idx = 0;
+			foreach ( $items as $row ) {
+				$pos = $idx + 1; // 1-based position in the stored meta array
+				$idx++;
+				if ( $total_added >= $limit ) break;
+				if ( ! is_array( $row ) ) continue;
+
+				$q = trim( sanitize_text_field( (string) ( $row['q'] ?? '' ) ) );
+				$a = (string) ( $row['a'] ?? '' );
+
+				// Skip blanks / empty answer HTML.
+				$a_plain = trim( wp_strip_all_tags( $a ) );
+				if ( $q === '' || $a_plain === '' ) continue;
+
+				// Global dedupe by normalized question.
+				$q_key = strtolower( preg_replace('/\s+/', ' ', $q ) );
+				if ( isset( $seen_q[ $q_key ] ) ) continue;
+				$seen_q[ $q_key ] = true;
+
+				$anchor = '#faq-' . $pos;
+				$lines[] = '- [' . $q . '](' . esc_url_raw( $url . $anchor ) . ')';
+				$total_added++;
+			}
+		}
+
+		return $lines;
+	}
+}
+
+/**
+ * Build "Business details" lines.
+ *
+ * Source order:
+ *  1) MYLS Organization options
+ *  2) LocalBusiness location #1 (myls_lb_locations)
+ *  3) Site name + home URL
+ */
+if ( ! function_exists('myls_llms_business_details_lines') ) {
+	function myls_llms_business_details_lines() : array {
+		$site_name = wp_strip_all_tags( get_bloginfo('name') );
+		$home      = home_url( '/' );
+
+		$org_name = trim( (string) get_option('myls_org_name', '') );
+		$org_url  = trim( (string) get_option('myls_org_url', '') );
+		$org_tel  = trim( (string) get_option('myls_org_tel', '') );
+		$street   = trim( (string) get_option('myls_org_street', '') );
+		$city     = trim( (string) get_option('myls_org_locality', '') );
+		$state    = trim( (string) get_option('myls_org_region', '') );
+		$zip      = trim( (string) get_option('myls_org_postal', '') );
+		$country  = trim( (string) get_option('myls_org_country', '') );
+
+		// Fallback to LocalBusiness location #1 if org fields are missing.
+		$locs = function_exists('myls_lb_get_locations_cached') ? (array) myls_lb_get_locations_cached() : (array) get_option('myls_lb_locations', []);
+		$loc0 = ( ! empty($locs) && is_array($locs[0] ?? null) ) ? (array) $locs[0] : [];
+
+		$name = $org_name ?: trim( (string) ( $loc0['name'] ?? '' ) );
+		$url  = $org_url ?: $home;
+		$tel  = $org_tel ?: trim( (string) ( $loc0['phone'] ?? '' ) );
+
+		if ( ! $street )  $street  = trim( (string) ( $loc0['street']  ?? '' ) );
+		if ( ! $city )    $city    = trim( (string) ( $loc0['city']    ?? '' ) );
+		if ( ! $state )   $state   = trim( (string) ( $loc0['state']   ?? '' ) );
+		if ( ! $zip )     $zip     = trim( (string) ( $loc0['zip']     ?? '' ) );
+		if ( ! $country ) $country = trim( (string) ( $loc0['country'] ?? '' ) );
+
+		$name = $name ?: ( $site_name ?: 'Business' );
+		$url  = $url ?: $home;
+
+		$addr_parts = array_filter( [ $street, $city, $state, $zip, $country ] );
+		$addr       = $addr_parts ? implode( ', ', $addr_parts ) : '';
+
+		$lines = [];
+		$lines[] = '- Legal name: ' . $name;
+		$lines[] = '- Website: ' . $url;
+		if ( $tel )  $lines[] = '- Phone: ' . $tel;
+		if ( $addr ) $lines[] = '- Address: ' . $addr;
+
+		return $lines;
+	}
+}
+
+/**
+ * Register rewrite rule early.
+ *
+ * Note: Activation flush happens elsewhere; during activation we also call this
+ * function (if available) before flushing rewrite rules.
+ */
+if ( ! function_exists('myls_llms_register_rewrite') ) {
+	function myls_llms_register_rewrite() : void {
+		// Example match: https://example.com/llms.txt
+		add_rewrite_rule( '^llms\.txt$', 'index.php?myls_llms=1', 'top' );
+	}
+	add_action( 'init', 'myls_llms_register_rewrite', 1 );
+}
+
+/** Make our query var public. */
+add_filter( 'query_vars', function( $vars ) {
+	$vars[] = 'myls_llms';
 	return $vars;
-}, 10);
+} );
 
-add_action('template_redirect', function () {
-	if ( ! get_query_var('myls_llms_txt') ) return;
+/**
+ * Build a basic llms.txt payload.
+ *
+ * The llmstxt.org spec recommends:
+ *  - H1 title (required)
+ *  - blockquote summary
+ *  - optional paragraphs
+ *  - H2 sections containing lists of markdown links
+ */
+if ( ! function_exists('myls_llms_generate_content') ) {
+	function myls_llms_generate_content() : string {
+		$site_name = wp_strip_all_tags( get_bloginfo('name') );
+		$tagline   = wp_strip_all_tags( get_bloginfo('description') );
 
-	nocache_headers();
-	header('Content-Type: text/plain; charset=utf-8');
+		// Prefer the plugin's Organization description when available.
+		$org_desc = trim( (string) get_option('myls_org_description', '') );
+		$summary  = $org_desc ? wp_strip_all_tags( $org_desc ) : $tagline;
 
-	echo myls_llms_build_txt();
+		$home      = home_url( '/' );
+		$sitemap   = home_url( '/sitemap.xml' );
+		$robots    = home_url( '/robots.txt' );
 
+		// Attempt to find a “Contact” page by common slugs (optional).
+		$contact_url = '';
+		foreach ( [ 'contact', 'contact-us', 'contact-us-2', 'get-a-quote', 'request-a-quote' ] as $slug ) {
+			$p = get_page_by_path( $slug );
+			if ( $p instanceof WP_Post ) {
+				$contact_url = get_permalink( $p );
+				break;
+			}
+		}
+
+		$lines = [];
+		$lines[] = '# ' . ( $site_name ?: 'Website' );
+		if ( $summary ) {
+			$lines[] = '';
+			$lines[] = '> ' . $summary;
+		}
+
+		// Optional: make the file self-describing (Markdown comment).
+		$lines[] = '';
+		$lines[] = '<!-- Generated by My Local SEO | Last updated: ' . gmdate('Y-m-d') . ' -->';
+
+		$lines[] = '';
+		$lines[] = '## Key pages';
+		$lines[] = '- [Home](' . esc_url_raw($home) . '): Main homepage.';
+		if ( $contact_url ) {
+			$lines[] = '- [Contact](' . esc_url_raw($contact_url) . '): Primary contact page.';
+		}
+		$lines[] = '- [Sitemap](' . esc_url_raw($sitemap) . '): XML sitemap (if enabled).';
+		$lines[] = '- [Robots](' . esc_url_raw($robots) . '): robots.txt directives.';
+
+		$lines[] = '';
+		$lines[] = '## Optional';
+		$lines[] = '- [REST API Index](' . esc_url_raw( home_url('/wp-json/') ) . '): WordPress REST API entry point.';
+
+		// -------------------------------------------------
+		// Authority signals
+		// -------------------------------------------------
+		if ( myls_llms_opt_bool('myls_llms_include_business_details', true) ) {
+			$bd = myls_llms_business_details_lines();
+			if ( ! empty($bd) ) {
+				$lines[] = '';
+				$lines[] = '## Business details';
+				$lines   = array_merge( $lines, $bd );
+			}
+		}
+
+		// -------------------------------------------------
+		// High ROI sections
+		// -------------------------------------------------
+
+		if ( myls_llms_opt_bool('myls_llms_include_services', true) ) {
+			$limit = myls_llms_opt_int('myls_llms_services_limit', 15, 1, 200);
+			$svc   = myls_llms_links_for_post_type( 'service', $limit );
+			if ( ! empty($svc) ) {
+				$lines[] = '';
+				$lines[] = '## Primary services';
+				$lines   = array_merge( $lines, $svc );
+			}
+		}
+
+		if ( myls_llms_opt_bool('myls_llms_include_service_areas', true) ) {
+			$limit = myls_llms_opt_int('myls_llms_service_areas_limit', 20, 1, 300);
+			$areas = myls_llms_links_for_post_type( 'service_area', $limit );
+			if ( ! empty($areas) ) {
+				$lines[] = '';
+				$lines[] = '## Service areas';
+				$lines   = array_merge( $lines, $areas );
+			}
+		}
+
+		if ( myls_llms_opt_bool('myls_llms_include_faqs', true) ) {
+			$limit = myls_llms_opt_int('myls_llms_faqs_limit', 25, 1, 200);
+			$faqs  = myls_llms_collect_master_faq_links( $limit );
+			if ( ! empty($faqs) ) {
+				$lines[] = '';
+				$lines[] = '## Frequently asked questions';
+				$lines   = array_merge( $lines, $faqs );
+			}
+		}
+
+		$content = implode( "\n", $lines ) . "\n";
+
+		/**
+		 * Filter: myls_llms_txt_content
+		 * Allows other MYLS modules (or themes) to modify/extend the llms.txt output.
+		 */
+		return (string) apply_filters( 'myls_llms_txt_content', $content );
+	}
+}
+
+/**
+ * Serve llms.txt when requested.
+ */
+add_action( 'template_redirect', function() {
+	$flag = get_query_var('myls_llms');
+	if ( (string) $flag !== '1' ) return;
+
+	// Allow disabling the endpoint without removing the rewrite rule.
+	if ( ! myls_llms_opt_bool('myls_llms_enabled', true) ) {
+		status_header( 404 );
+		exit;
+	}
+
+	// Prevent theme output.
+	if ( function_exists('nocache_headers') ) nocache_headers();
+	status_header( 200 );
+	header( 'Content-Type: text/plain; charset=utf-8' );
+
+	// Helpful for debugging and confirms plugin ownership.
+	header( 'X-My-Local-SEO: llms.txt' );
+
+	// Output.
+	echo myls_llms_generate_content();
 	exit;
-}, 0);
-
-/** -------------------------------------------------------------------------
- *  Builder
- *  ---------------------------------------------------------------------- */
-function myls_llms_build_txt(): string {
-
-	$output = [];
-
-	// === ORGANIZATION FIELDS (Prefer MYLS, fallback to legacy SSSEO) ===
-	$org_url        = myls_llms_get_opt('myls_org_url', 'ssseo_org_url', home_url('/'));
-	$org_name       = myls_llms_get_opt('myls_org_name', 'ssseo_org_name', '');
-	$org_legal_name = myls_llms_get_opt('myls_org_legal_name', 'ssseo_org_legal_name', '');
-	$org_desc       = myls_llms_get_opt('myls_org_description', 'ssseo_org_description', '');
-	$org_logo       = myls_llms_get_opt('myls_org_logo', 'ssseo_org_logo', '');
-	$org_email      = myls_llms_get_opt('myls_org_email', 'ssseo_org_email', get_option('admin_email'));
-	$org_phone      = myls_llms_get_opt('myls_org_phone', 'ssseo_org_phone', '');
-	$org_founded    = myls_llms_get_opt('myls_org_founding_date', 'ssseo_org_founding_date', '');
-	$org_social     = myls_llms_get_opt('myls_org_social', 'ssseo_org_social', []);
-	$org_hours      = myls_llms_get_opt('myls_org_hours', 'ssseo_org_hours', []);
-
-	$org_url = $org_url ? esc_url_raw($org_url) : home_url('/');
-	$org_email = sanitize_email($org_email);
-
-	// Normalize arrays
-	$org_social = is_array($org_social) ? $org_social : ( $org_social ? (array) $org_social : [] );
-	$org_hours  = is_array($org_hours)  ? $org_hours  : ( $org_hours  ? (array) $org_hours  : [] );
-
-	// === FETCH SCHEMA IF IMPORTANT FIELDS ARE EMPTY ===
-	$schema = [];
-	if (empty($org_name) || empty($org_legal_name) || empty($org_logo) || empty($org_desc) || empty($org_phone)) {
-		$schema = myls_llms_fetch_schema_from_url($org_url);
-	}
-
-	if ( ! empty($schema['Organization']) ) {
-		$orgSchema = $schema['Organization'];
-
-		if (empty($org_name)) {
-			$org_name = $orgSchema['name'] ?? '';
-		}
-		if (empty($org_legal_name)) {
-			$org_legal_name = $orgSchema['legalName'] ?? ($orgSchema['name'] ?? '');
-		}
-		if (empty($org_logo)) {
-			if (is_array($orgSchema['logo'] ?? null) && isset($orgSchema['logo']['url'])) {
-				$org_logo = $orgSchema['logo']['url'];
-			} elseif (is_string($orgSchema['logo'] ?? null)) {
-				$org_logo = $orgSchema['logo'];
-			}
-		}
-		if (empty($org_desc)) {
-			$org_desc = $orgSchema['description'] ?? '';
-		}
-		if (empty($org_social) && ! empty($orgSchema['sameAs'])) {
-			$org_social = is_array($orgSchema['sameAs']) ? $orgSchema['sameAs'] : [$orgSchema['sameAs']];
-		}
-	}
-
-	// === META DESCRIPTION FALLBACK ===
-	if (empty($org_desc)) {
-		$meta_desc = myls_llms_extract_meta_description($org_url);
-		if (!empty($meta_desc)) $org_desc = $meta_desc;
-	}
-
-	// Clean final strings for text output
-	$org_name       = myls_llms_clean_line($org_name);
-	$org_legal_name = myls_llms_clean_line($org_legal_name);
-	$org_desc       = myls_llms_clean_line($org_desc);
-	$org_logo       = myls_llms_clean_line($org_logo);
-	$org_phone      = myls_llms_clean_line($org_phone);
-	$org_founded    = myls_llms_clean_line($org_founded);
-
-	// === LOCATIONS (schema LocalBusiness first; fallback to stored entries) ===
-	$locations = [];
-
-	if ( ! empty($schema['LocalBusiness']) ) {
-
-		$schemaLocations = (is_array($schema['LocalBusiness']) && isset($schema['LocalBusiness'][0]))
-			? $schema['LocalBusiness']
-			: [$schema['LocalBusiness']];
-
-		foreach ($schemaLocations as $loc) {
-			$locations[] = [
-				'location_name'  => myls_llms_clean_line($loc['name'] ?? 'Office'),
-				'street_address' => myls_llms_clean_line($loc['address']['streetAddress'] ?? ''),
-				'locality'       => myls_llms_clean_line($loc['address']['addressLocality'] ?? ''),
-				'region'         => myls_llms_clean_line($loc['address']['addressRegion'] ?? ''),
-				'postal_code'    => myls_llms_clean_line($loc['address']['postalCode'] ?? ''),
-				'country'        => myls_llms_clean_line($loc['address']['addressCountry'] ?? ''),
-				'latitude'       => myls_llms_clean_line($loc['geo']['latitude'] ?? ''),
-				'longitude'      => myls_llms_clean_line($loc['geo']['longitude'] ?? ''),
-				'phone'          => myls_llms_clean_line($loc['telephone'] ?? ''),
-				'opening_hours'  => myls_llms_parse_opening_hours($loc['openingHours'] ?? null),
-			];
-		}
-
-		// Fallback phone from first LocalBusiness
-		if (empty($org_phone)) {
-			foreach ($locations as $loc) {
-				if (!empty($loc['phone'])) { $org_phone = $loc['phone']; break; }
-			}
-		}
-	}
-
-	if (empty($locations)) {
-		// Prefer MYLS localbusiness entries, fallback SSSEO legacy
-		$locations = myls_llms_get_opt('myls_localbusiness_entries', 'ssseo_localbusiness_entries', []);
-		$locations = is_array($locations) ? $locations : [];
-	}
-
-	// === SERVICES + SERVICE AREAS ===
-	$services = get_posts([
-		'post_type'      => 'service',
-		'post_status'    => 'publish',
-		'posts_per_page' => -1,
-		'orderby'        => 'title',
-		'order'          => 'ASC',
-	]);
-
-	$service_areas = get_posts([
-		'post_type'      => 'service_area',
-		'post_status'    => 'publish',
-		'posts_per_page' => -1,
-		'orderby'        => 'title',
-		'order'          => 'ASC',
-	]);
-
-	// === OUTPUT ===
-	$output[] = "# llms.txt dynamically generated by My Local SEO";
-	$output[] = "version: 1.0";
-	$output[] = "";
-
-	$output[] = "organization:";
-	if (!empty($org_name))       $output[] = "  name: {$org_name}";
-	if (!empty($org_legal_name)) $output[] = "  legal_name: {$org_legal_name}";
-	$output[] = "  url: " . myls_llms_clean_line($org_url);
-	if (!empty($org_logo))       $output[] = "  logo: {$org_logo}";
-	if (!empty($org_desc))       $output[] = "  description: {$org_desc}";
-	if (!empty($org_email))      $output[] = "  email: " . myls_llms_clean_line($org_email);
-	if (!empty($org_phone))      $output[] = "  phone: {$org_phone}";
-	if (!empty($org_founded))    $output[] = "  founding_date: {$org_founded}";
-	$output[] = "  is_local: true";
-	$output[] = "";
-
-	$output[] = "locations:";
-	if (!empty($locations)) {
-		foreach ($locations as $loc) {
-			$name    = myls_llms_clean_line($loc['location_name'] ?? ($loc['name'] ?? 'Office'));
-			$addr    = myls_llms_clean_line($loc['street_address'] ?? ($loc['address'] ?? ''));
-			$local   = myls_llms_clean_line($loc['locality'] ?? '');
-			$region  = myls_llms_clean_line($loc['region'] ?? '');
-			$postal  = myls_llms_clean_line($loc['postal_code'] ?? '');
-			$country = myls_llms_clean_line($loc['country'] ?? 'US');
-			$lat     = myls_llms_clean_line($loc['latitude'] ?? '');
-			$lng     = myls_llms_clean_line($loc['longitude'] ?? '');
-			$phone   = myls_llms_clean_line($loc['phone'] ?? $org_phone);
-
-			$output[] = "  - name: " . ($name ?: 'Office');
-			$output[] = "    address: {$addr}";
-			$output[] = "    locality: {$local}";
-			$output[] = "    region: {$region}";
-			$output[] = "    postal_code: {$postal}";
-			$output[] = "    country: {$country}";
-			$output[] = "    latitude: {$lat}";
-			$output[] = "    longitude: {$lng}";
-			$output[] = "    phone: {$phone}";
-			$output[] = "";
-		}
-	} else {
-		$output[] = "  - name: Office";
-		$output[] = "    address:";
-		$output[] = "    locality:";
-		$output[] = "    region:";
-		$output[] = "    postal_code:";
-		$output[] = "    country: US";
-		$output[] = "    latitude:";
-		$output[] = "    longitude:";
-		$output[] = "    phone: {$org_phone}";
-		$output[] = "";
-	}
-
-	$output[] = "services:";
-	foreach ($services as $svc) {
-		$title = myls_llms_clean_line($svc->post_title ?? '');
-		if ($title) $output[] = "  - name: {$title}";
-	}
-
-	$output[] = "service_areas:";
-	foreach ($service_areas as $area) {
-		$title = myls_llms_clean_line($area->post_title ?? '');
-		if ($title) $output[] = "  - name: {$title}";
-	}
-
-	$output[] = "";
-	$output[] = "languages:";
-	$output[] = "  - en";
-
-	$output[] = "audience:";
-	$output[] = "  - individuals";
-	$output[] = "  - local customers";
-	$output[] = "  - professionals";
-
-	$output[] = "accessibility:";
-	$output[] = "  wheelchair_accessible: true";
-	$output[] = "  ada_compliant: true";
-
-	// Hours: prefer first location opening hours, fallback to org_hours option
-	$hours = [];
-	if (!empty($locations) && is_array($locations) && !empty($locations[0]['opening_hours'])) {
-		$hours = $locations[0]['opening_hours'];
-	} elseif (!empty($org_hours)) {
-		$hours = $org_hours;
-	}
-
-	if (!empty($hours) && is_array($hours)) {
-		$output[] = "hours:";
-		foreach ($hours as $entry) {
-			$day    = strtolower(trim((string)($entry['day'] ?? '')));
-			$opens  = trim((string)($entry['opens'] ?? ''));
-			$closes = trim((string)($entry['closes'] ?? ''));
-			if ($day && $opens && $closes) {
-				$output[] = "  {$day}: " . myls_llms_clean_line("{$opens}-{$closes}");
-			}
-		}
-	}
-
-	if (!empty($org_social)) {
-		$output[] = "social_profiles:";
-		foreach ((array)$org_social as $url) {
-			$url = myls_llms_clean_line($url);
-			if ($url) $output[] = "  - {$url}";
-		}
-	}
-
-	$output[] = "";
-	$output[] = "ai_usage:";
-	$output[] = "  ai_chat_compatible: true";
-	$output[] = "  accepts_ai_contact: true";
-	$output[] = "  chatbot_url:";
-
-	// Allow last-minute customization by other code
-	$output = apply_filters('myls_llms_txt_lines', $output);
-
-	return implode("\n", $output) . "\n";
-}
-
-/** -------------------------------------------------------------------------
- *  Helpers
- *  ---------------------------------------------------------------------- */
-
-/**
- * Prefer MYLS option key; fallback to legacy SSSEO; else default.
- */
-function myls_llms_get_opt(string $myls_key, string $legacy_key, $default = '') {
-	$val = get_option($myls_key, null);
-	if ($val !== null && $val !== '' && $val !== false) return $val;
-
-	$legacy = get_option($legacy_key, null);
-	if ($legacy !== null && $legacy !== '' && $legacy !== false) return $legacy;
-
-	return $default;
-}
-
-/**
- * Clean a value to a single safe text line (for YAML-like plain text output).
- */
-function myls_llms_clean_line($value): string {
-	if (is_array($value)) $value = implode(', ', array_filter(array_map('strval', $value)));
-	$value = (string) $value;
-	$value = wp_strip_all_tags($value);
-	$value = html_entity_decode($value, ENT_QUOTES, 'UTF-8');
-	$value = preg_replace('/[\r\n\t]+/', ' ', $value);
-	$value = preg_replace('/\s{2,}/', ' ', $value);
-	return trim($value);
-}
-
-/** -------------------------------------------------------------------------
- *  Schema fetcher (cached)
- *  ---------------------------------------------------------------------- */
-function myls_llms_fetch_schema_from_url(string $url): array {
-
-	$url = esc_url_raw($url);
-	if (!$url) return [];
-
-	$cache_key = 'myls_llms_schema_' . md5($url);
-	$cached = get_transient($cache_key);
-	if (is_array($cached)) return $cached;
-
-	$resp = wp_remote_get($url, [
-		'timeout' => 10,
-		'headers' => [
-			'User-Agent' => 'MYLS-llms.txt/1.0; ' . home_url('/'),
-		],
-	]);
-
-	if (is_wp_error($resp) || (int) wp_remote_retrieve_response_code($resp) !== 200) {
-		set_transient($cache_key, [], 6 * HOUR_IN_SECONDS);
-		return [];
-	}
-
-	$html = wp_remote_retrieve_body($resp);
-	if (!$html) {
-		set_transient($cache_key, [], 6 * HOUR_IN_SECONDS);
-		return [];
-	}
-
-	if (!preg_match_all('/<script[^>]*type=["\']application\/ld\+json["\'][^>]*>(.*?)<\/script>/is', $html, $matches)) {
-		set_transient($cache_key, [], 6 * HOUR_IN_SECONDS);
-		return [];
-	}
-
-	$data = [];
-
-	foreach ($matches[1] as $json) {
-		$obj = json_decode(trim($json), true);
-		if (!$obj) continue;
-
-		$items = isset($obj['@type']) ? [$obj] : ($obj['@graph'] ?? []);
-		if (!is_array($items)) $items = [];
-
-		foreach ($items as $item) {
-			if (!is_array($item)) continue;
-
-			$type = $item['@type'] ?? '';
-			if (is_array($type)) $type = $type[0] ?? '';
-			$type = (string) $type;
-
-			if (in_array($type, ['Organization', 'LocalBusiness'], true)) {
-				if (!isset($data[$type])) $data[$type] = [];
-				$data[$type][] = $item;
-			}
-		}
-	}
-
-	// If only one of each, collapse to single object (match your old behavior)
-	foreach (['Organization', 'LocalBusiness'] as $type) {
-		if (isset($data[$type]) && is_array($data[$type]) && count($data[$type]) === 1) {
-			$data[$type] = $data[$type][0];
-		}
-	}
-
-	set_transient($cache_key, $data, 12 * HOUR_IN_SECONDS);
-	return $data;
-}
-
-/** -------------------------------------------------------------------------
- *  Meta description fetcher (cached lightly)
- *  ---------------------------------------------------------------------- */
-function myls_llms_extract_meta_description(string $url): string {
-
-	$url = esc_url_raw($url);
-	if (!$url) return '';
-
-	$cache_key = 'myls_llms_meta_desc_' . md5($url);
-	$cached = get_transient($cache_key);
-	if (is_string($cached)) return $cached;
-
-	$resp = wp_remote_get($url, ['timeout' => 10]);
-	if (is_wp_error($resp) || (int) wp_remote_retrieve_response_code($resp) !== 200) {
-		set_transient($cache_key, '', 6 * HOUR_IN_SECONDS);
-		return '';
-	}
-
-	$html = wp_remote_retrieve_body($resp);
-	if (!$html) {
-		set_transient($cache_key, '', 6 * HOUR_IN_SECONDS);
-		return '';
-	}
-
-	$desc = '';
-	if (preg_match('/<meta\s+name=["\']description["\']\s+content=["\']([^"\']+)["\']/i', $html, $m)) {
-		$desc = trim($m[1]);
-	}
-
-	$desc = myls_llms_clean_line($desc);
-	set_transient($cache_key, $desc, 12 * HOUR_IN_SECONDS);
-
-	return $desc;
-}
-
-/** -------------------------------------------------------------------------
- *  Hours parser (same behavior as old file, but tolerant)
- *  ---------------------------------------------------------------------- */
-function myls_llms_parse_opening_hours($input): array {
-
-	if (!$input) return [];
-
-	$lines = is_array($input) ? $input : preg_split('/\r\n|\r|\n/', (string)$input);
-	if (!is_array($lines)) $lines = [];
-
-	$result = [];
-
-	foreach ($lines as $line) {
-		$line = trim((string)$line);
-		if ($line === '') continue;
-
-		// Matches: "Mon,Tue 08:00-17:00" or "Monday 08:00-17:00"
-		if (preg_match('/^(?P<days>[A-Za-z,\-]+)\s+(?P<times>\d{2}:\d{2}-\d{2}:\d{2})$/', $line, $m)) {
-			$times = $m['times'] ?? '';
-			[$opens, $closes] = array_pad(explode('-', $times, 2), 2, '');
-
-			foreach (explode(',', (string)($m['days'] ?? '')) as $d) {
-				$d = strtolower(trim($d));
-				if (!$d) continue;
-
-				$result[] = [
-					'day'    => $d,
-					'opens'  => trim($opens),
-					'closes' => trim($closes),
-				];
-			}
-		}
-	}
-
-	return $result;
-}
+}, 0 );

@@ -75,6 +75,7 @@ function mlseo_render_full_docs_page() {
 		'tabs'       => 'Tabs & Subtabs',
 		'shortcodes' => 'Shortcodes',
 		'tutorials'  => 'Tutorials',
+		'release'    => 'Release Notes',
 		'autodocs'   => 'API Reference',
 		'sc_auto'    => 'Shortcodes (Auto)',
 	];
@@ -105,6 +106,13 @@ function mlseo_render_full_docs_page() {
 			// Auto-generated shortcode reference + export (Phase 3)
 			if ( $active_tab === 'sc_auto' ) {
 				include plugin_dir_path(__FILE__) . 'shortcodes-auto.php';
+				echo '</div></div>';
+				return;
+			}
+
+			// Release notes (reads CHANGELOG.md and shows optional append UI)
+			if ( $active_tab === 'release' ) {
+				include plugin_dir_path(__FILE__) . 'release-notes.php';
 				echo '</div></div>';
 				return;
 			}

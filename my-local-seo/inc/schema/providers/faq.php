@@ -1,95 +1,143 @@
 <?php
-/**
- * MYLS – FAQPage JSON-LD in <head> (all public post types)
- * - Auto-detects ACF repeater `faq_items` (question/answer)
- * - Optional page-level selector `page_schemas` containing 'faq'
- * - Respects global toggle: myls_faq_enabled === '1'
- */
-
+// File: inc/schema/providers/faq.php
 if ( ! defined('ABSPATH') ) exit;
 
-/** Build mainEntity from ACF rows */
-if ( ! function_exists('myls_faq_collect_main_entity') ) {
-	function myls_faq_collect_main_entity( int $post_id ) : array {
-		if ( ! function_exists('have_rows') || ! function_exists('get_sub_field') ) return [];
+/**
+ * Provider: FAQPage
+ *
+ * Goal: Remove ACF dependency over time.
+ *
+ * Data sources (in priority order):
+ *  1) Native MYLS custom fields:
+ *      - _myls_faq_items (array of ['q' => string, 'a' => html])
+ *  2) Legacy ACF repeater fallback:
+ *      - faq_items (question/answer)
+ *
+ * Enable toggle:
+ *  - myls_faq_enabled === '1' (Schema → FAQ subtab)
+ */
 
+/* -------------------------------------------------------------------------
+ * Helpers
+ * ------------------------------------------------------------------------- */
+
+if ( ! function_exists('myls_faq_collect_items_native') ) {
+	/**
+	 * Pull MYLS FAQs from post meta.
+	 * Returns normalized array of ['q' => string, 'a' => string(html)]
+	 */
+	function myls_faq_collect_items_native( int $post_id ) : array {
+		$items = null;
+
+		// Prefer the helper from the meta box file if present.
+		if ( function_exists('myls_get_faq_items_meta') ) {
+			$items = myls_get_faq_items_meta( $post_id );
+		} else {
+			$items = get_post_meta( $post_id, '_myls_faq_items', true );
+		}
+
+		if ( ! is_array($items) ) return [];
+
+		$out = [];
+		foreach ( $items as $row ) {
+			if ( ! is_array($row) ) continue;
+			$q = trim( sanitize_text_field( (string) ( $row['q'] ?? '' ) ) );
+			$a = trim( wp_kses_post( (string) ( $row['a'] ?? '' ) ) );
+			if ( $q === '' || $a === '' ) continue;
+			$out[] = [ 'q' => $q, 'a' => $a ];
+		}
+		return $out;
+	}
+}
+
+if ( ! function_exists('myls_faq_collect_items_acf') ) {
+	/**
+	 * Legacy fallback: ACF repeater faq_items.
+	 * Returns normalized array of ['q' => string, 'a' => string(html)]
+	 */
+	function myls_faq_collect_items_acf( int $post_id ) : array {
+		if ( ! function_exists('have_rows') || ! function_exists('get_sub_field') ) return [];
+		if ( ! have_rows('faq_items', $post_id) ) return [];
+
+		$out = [];
+		while ( have_rows('faq_items', $post_id) ) {
+			the_row();
+			$q = trim( sanitize_text_field( (string) get_sub_field('question') ) );
+			$a = trim( wp_kses_post( (string) get_sub_field('answer') ) );
+			if ( $q === '' || $a === '' ) continue;
+			$out[] = [ 'q' => $q, 'a' => $a ];
+		}
+		return $out;
+	}
+}
+
+if ( ! function_exists('myls_faq_items_to_main_entity') ) {
+	/**
+	 * Convert normalized items into Schema.org mainEntity.
+	 */
+	function myls_faq_items_to_main_entity( array $items ) : array {
 		$main = [];
-		if ( have_rows('faq_items', $post_id) ) {
-			while ( have_rows('faq_items', $post_id) ) {
-				the_row();
-				$q = sanitize_text_field( trim( (string) get_sub_field('question') ) );
-				$a = wp_kses_post(        trim( (string) get_sub_field('answer')   ) );
-				if ( $q !== '' && $a !== '' ) {
-					$main[] = [
-						'@type'          => 'Question',
-						'name'           => $q,
-						'acceptedAnswer' => [
-							'@type' => 'Answer',
-							'text'  => $a,
-						],
-					];
-				}
-			}
+		foreach ( $items as $row ) {
+			$q = trim( (string)($row['q'] ?? '') );
+			$a = trim( (string)($row['a'] ?? '') );
+			if ( $q === '' || $a === '' ) continue;
+
+			$main[] = [
+				'@type'          => 'Question',
+				'name'           => $q,
+				'acceptedAnswer' => [
+					'@type' => 'Answer',
+					'text'  => $a,
+				],
+			];
 		}
 		return $main;
 	}
 }
 
-/** Should we render on this post? */
-if ( ! function_exists('myls_faq_should_render') ) {
-	function myls_faq_should_render( WP_Post $post ) : bool {
-		// Global toggle
-		if ( get_option('myls_faq_enabled','0') !== '1' ) return false;
+/* -------------------------------------------------------------------------
+ * Provider registration
+ * ------------------------------------------------------------------------- */
 
-		// Only for public post types
-		$public_types = get_post_types([ 'public' => true ]);
-		if ( ! in_array( get_post_type($post), $public_types, true ) ) return false;
+add_filter('myls_schema_graph', function( array $graph ) {
 
-		// Page-level selector (optional)
-		if ( function_exists('get_field') ) {
-			$selected = (array) get_field('page_schemas', $post->ID);
-			if ( in_array('faq', $selected, true) ) return true;
-		}
-
-		// Or: has ACF rows
-		return function_exists('have_rows') && have_rows('faq_items', $post->ID);
+	// Toggle
+	if ( get_option('myls_faq_enabled', '0') !== '1' ) {
+		return $graph;
 	}
-}
 
-/** Build full schema array */
-if ( ! function_exists('myls_faq_build_schema') ) {
-	function myls_faq_build_schema( WP_Post $post ) : ?array {
-		$main = myls_faq_collect_main_entity( $post->ID );
-		if ( empty($main) ) return null;
-
-		$permalink = get_permalink( $post );
-		$schema = [
-			'@context'   => 'https://schema.org',
-			'@type'      => 'FAQPage',
-			'@id'        => trailingslashit( $permalink ) . '#faq',
-			'mainEntity' => $main,
-		];
-
-		return apply_filters( 'myls_faq_schema', $schema, $post );
+	// Only singular content
+	if ( is_admin() || wp_doing_ajax() || ! is_singular() ) {
+		return $graph;
 	}
-}
 
-/** Print into <head> */
-if ( ! function_exists('myls_faq_print_head_schema') ) {
-	function myls_faq_print_head_schema() {
-		if ( is_admin() || wp_doing_ajax() || ! is_singular() ) return;
+	$post_id = (int) get_queried_object_id();
+	if ( $post_id <= 0 ) return $graph;
 
-		$post = get_queried_object();
-		if ( ! ($post instanceof WP_Post) ) return;
-		if ( ! myls_faq_should_render( $post ) ) return;
-
-		$schema = myls_faq_build_schema( $post );
-		if ( empty($schema) ) return;
-
-		echo "\n<!-- MYLS FAQPage JSON-LD (head) -->\n";
-		echo '<script type="application/ld+json">' . "\n";
-		echo wp_json_encode( $schema, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT ) . "\n";
-		echo "</script>\n";
+	// Only public post types (no attachments)
+	$public = get_post_types([ 'public' => true ], 'names');
+	unset($public['attachment']);
+	if ( ! in_array( get_post_type($post_id), $public, true ) ) {
+		return $graph;
 	}
-	add_action( 'wp_head', 'myls_faq_print_head_schema', 20 );
-}
+
+	// Collect items (MYLS first, then ACF fallback)
+	$items = myls_faq_collect_items_native( $post_id );
+	if ( empty($items) ) {
+		$items = myls_faq_collect_items_acf( $post_id );
+	}
+	if ( empty($items) ) return $graph;
+
+	$main = myls_faq_items_to_main_entity( $items );
+	if ( empty($main) ) return $graph;
+
+	$permalink = get_permalink( $post_id );
+	$node = [
+		'@type'      => 'FAQPage',
+		'@id'        => trailingslashit( $permalink ) . '#faq',
+		'mainEntity' => $main,
+	];
+
+	$graph[] = apply_filters( 'myls_faq_schema_node', $node, $post_id );
+	return $graph;
+});

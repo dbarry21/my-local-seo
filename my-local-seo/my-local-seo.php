@@ -3,7 +3,7 @@
  * Plugin Name:       My Local SEO
  * Plugin URI:        https://mylocalseo.ai/
  * Description:       Modular local SEO toolkit with schema, AI tools, bulk operations, and shortcode utilities.
- * Version:           4.6.1
+ * Version: 4.6.7
  * Author:            Dave Barry
  * Author URI:        https://davebarry.io/
  * Text Domain:       my-local-seo
@@ -15,7 +15,8 @@ if ( ! defined('ABSPATH') ) exit;
 /** ─────────────────────────────────────────────────────────────────────────
  * Canonical constants & helpers (single source of truth)
  * ───────────────────────────────────────────────────────────────────────── */
-if ( ! defined('MYLS_VERSION') )     define('MYLS_VERSION', '4.0.0'); // keep in sync with header
+// Keep in sync with plugin header above.
+if ( ! defined('MYLS_VERSION') )     define('MYLS_VERSION', '4.6.7');
 if ( ! defined('MYLS_MAIN_FILE') )   define('MYLS_MAIN_FILE', __FILE__);
 if ( ! defined('MYLS_PATH') )        define('MYLS_PATH', plugin_dir_path(MYLS_MAIN_FILE));
 if ( ! defined('MYLS_URL') )         define('MYLS_URL',  plugins_url('', MYLS_MAIN_FILE));
@@ -67,6 +68,9 @@ if ( function_exists('myls_load_all_admin_tabs') ) {
 require_once MYLS_PATH . 'inc/admin.php';
 require_once MYLS_PATH . 'admin/admin-docs-menu.php';
 
+/** Release notes helpers (Docs → Release Notes + optional changelog queue) */
+require_once MYLS_PATH . 'inc/release-notes.php';
+
 /** Assets */
 require_once MYLS_PATH . 'inc/assets.php';
 require_once MYLS_PATH . 'inc/blog-prefix.php';
@@ -76,9 +80,19 @@ require_once MYLS_PATH . 'inc/cpt-registration.php';
 require_once MYLS_PATH . 'inc/faq-schemas.php';
 require_once MYLS_PATH . 'inc/service-area-city-state.php';
 
+/** Serve /llms.txt (AI discovery file) */
+require_once MYLS_PATH . 'inc/llms-txt.php';
+
+/** Native MYLS meta boxes (FAQ + City/State) */
+require_once MYLS_PATH . 'inc/metaboxes/myls-faq-citystate.php';
+
 /** Admin AJAX + admin bar */
 require_once MYLS_PATH . 'inc/admin-ajax.php';
 require_once MYLS_PATH . 'inc/admin-bar-menu.php';
+
+/** Utilities: migration helpers + AJAX (admin-only, scoped) */
+require_once MYLS_PATH . 'inc/utilities/acf-migrations.php';
+require_once MYLS_PATH . 'inc/utilities/faq-editor.php';
 
 /** CPT extras AFTER registration */
 require_once MYLS_PATH . 'inc/load-cpt-modules.php';
@@ -98,9 +112,6 @@ require_once MYLS_PATH . 'inc/schema/providers/video-collection-head.php';
 require_once MYLS_PATH . 'inc/schema/providers/faq.php';
 require_once MYLS_PATH . 'inc/schema/providers/blog-posting.php';
 require_once MYLS_PATH . 'inc/schema/localbusiness-sync.php';
-require_once MYLS_PATH . '/inc/faqs.php';
-require_once MYLS_PATH . '/inc/city-state.php';
-require_once MYLS_PATH . '/inc/admin/metaboxes/faq.php';
 
 /** AI plumbing (keep if files exist; otherwise comment these two lines) */
 require_once MYLS_PATH . 'inc/ajax/ai.php';
@@ -115,22 +126,6 @@ require_once MYLS_PATH . 'inc/ajax/ai-excerpts.php';
 
 /** Updater */
 require_once MYLS_PATH . 'update-plugin.php';
-
-
-// Load Divi modules (only if Divi Builder is present)
-add_action('plugins_loaded', function () {
-
-	// Divi defines ET_Builder_* classes. If missing, we skip safely.
-	if ( ! class_exists('ET_Builder_Module') && ! did_action('et_builder_ready') ) {
-		return;
-	}
-
-	$divi_faq = MYLS_PATH . 'modules/divi/faq-accordion.php';
-
-	if ( file_exists($divi_faq ) ) {
-		require_once $divi_faq;
-	}
-});
 
 /** Include non-CPT modules (skip modules/cpt) */
 if ( ! function_exists('myls_include_dir_excluding') ) {
@@ -225,6 +220,23 @@ CSS;
 add_action('wp_enqueue_scripts', function() {
     wp_enqueue_style('myls-accordion', MYLS_URL . 'assets/css/myls-accordion.css', [], MYLS_VERSION);
 });
+
+
+/** Divi modules (safe: module file registers itself on et_builder_ready) */
+add_action('plugins_loaded', function () {
+	$divi_faq = MYLS_PATH . 'modules/divi/faq-accordion.php';
+	if ( file_exists($divi_faq) ) {
+		require_once $divi_faq;
+	}
+}, 20);
+
+
+
+
+
+
+
+
 
 /** Meta history */
 require_once MYLS_PATH . 'inc/myls-meta-history-logger.php';

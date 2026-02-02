@@ -5,7 +5,7 @@
  * - Loads posts by type
  * - Generate FAQs (Preview)
  * - Download .docx / .html (enabled when URLs returned)
- * - Insert generated FAQs into ACF repeater (optional replace)
+ * - Insert generated FAQs into MYLS FAQs repeater (optional replace)
  * - Delete auto-generated FAQs from ACF (bulk)
  * - Local Ctrl+A inside preview panes (doesn't select entire admin page)
  *
@@ -253,7 +253,7 @@
         if (elPreview) elPreview.innerHTML = outHtml || "<p><em>No output returned.</em></p>";
         if (elOutput) elOutput.textContent = (data.raw || "").trim();
 
-        // Track last output for ACF insertion
+        // Track last output for MYLS insertion
         lastHtml = outHtml;
         lastPostId = postId;
 
@@ -267,7 +267,7 @@
         processed++;
         if (elCount) elCount.textContent = String(processed);
 
-        // Enable downloads + ACF insert now that we have output
+        // Enable downloads + MYLS insert now that we have output
         setBusy(false, "Ready.");
       } catch (e) {
         log(`Generate error for #${postId}: ${e.message}`);
@@ -291,19 +291,22 @@
   // -----------------------------
   // ACF actions (Insert / Delete Auto)
   // -----------------------------
-  async function insertIntoACF() {
+  async function insertIntoMYLS() {
     if (!lastPostId || !lastHtml) {
       alert("Generate FAQs first so there is output to insert.");
       return;
     }
 
-    setBusy(true, "Inserting into ACF…");
+    setBusy(true, "Inserting into MYLS FAQs…");
 
     try {
       const replaceExisting = !!(cbReplaceExisting && cbReplaceExisting.checked);
 
       // IMPORTANT: PHP expects replace_existing + html
-      const data = await postAJAX(CFG.action_insert_acf, {
+      const insertAction = CFG.action_insert_myls || CFG.action_insert_acf; // back-compat
+      if (!insertAction) throw new Error("Missing AJAX action for insert.");
+
+      const data = await postAJAX(insertAction, {
         post_id: lastPostId,
         html: lastHtml,
         replace_existing: replaceExisting ? "1" : "0"
@@ -314,41 +317,44 @@
       const skipped = data.skipped_count ?? 0;
       const total = data.total_rows ?? 0;
 
-      log(`ACF insert OK for #${lastPostId}: inserted ${inserted}, skipped ${skipped}, total rows now ${total}.`);
-      setBusy(false, "Inserted into ACF.");
+      log(`MYLS insert OK for #${lastPostId}: inserted ${inserted}, skipped ${skipped}, total rows now ${total}.`);
+      setBusy(false, ` items inserted`);
     } catch (e) {
-      log(`ACF insert error: ${e.message}`);
-      setBusy(false, "ACF insert failed.");
+      log(`MYLS insert error: ${e.message}`);
+      setBusy(false, "MYLS insert failed.");
     }
   }
 
-  async function deleteAutoFromACF() {
+  async function deleteAutoFromMYLS() {
     const ids = getSelectedIDs();
     if (!ids.length) {
       alert("Select at least one post.");
       return;
     }
 
-    if (!confirm("Delete auto-generated FAQ items for the selected post(s)?")) return;
+    if (!confirm("Delete auto-generated MYLS FAQ items for the selected post(s)??")) return;
 
     STOP = false;
     processed = 0;
     if (elCount) elCount.textContent = "0";
 
-    setBusy(true, "Deleting auto-generated FAQs…");
+    setBusy(true, "Deleting auto-generated MYLS FAQs…");
     log(`Delete-auto queued: ${ids.length} post(s).`);
 
     for (const postId of ids) {
       if (STOP) break;
 
       try {
-        const data = await postAJAX(CFG.action_delete_auto_acf, { post_id: postId });
+        const deleteAction = CFG.action_delete_auto_myls || CFG.action_delete_auto_acf; // back-compat
+        if (!deleteAction) throw new Error("Missing AJAX action for delete-auto.");
+
+        const data = await postAJAX(deleteAction, { post_id: postId });
 
         // PHP returns deleted_count, total_rows
         const deleted = data.deleted_count ?? 0;
         const total = data.total_rows ?? 0;
 
-        log(`ACF delete-auto OK for #${postId}: deleted ${deleted}, rows remaining ${total}.`);
+        log(`MYLS delete-auto OK for #${postId}: deleted ${deleted}, rows remaining ${total}.`);
 
         processed++;
         if (elCount) elCount.textContent = String(processed);
@@ -388,8 +394,8 @@
   }
 
   if (btnGenerate) btnGenerate.addEventListener("click", generateSelected);
-  if (btnInsertACF) btnInsertACF.addEventListener("click", insertIntoACF);
-  if (btnDeleteAuto) btnDeleteAuto.addEventListener("click", deleteAutoFromACF);
+  if (btnInsertACF) btnInsertACF.addEventListener("click", insertIntoMYLS);
+  if (btnDeleteAuto) btnDeleteAuto.addEventListener("click", deleteAutoFromMYLS);
 
   if (btnStop) {
     btnStop.addEventListener("click", () => {

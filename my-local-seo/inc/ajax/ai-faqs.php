@@ -820,3 +820,227 @@ add_action('wp_ajax_myls_ai_faqs_generate_v1', function(){
     'doc_url'  => (string) $doc_url,
   ]);
 });
+
+/* =============================================================================
+ * MYLS (Native) insertion/deletion for generated FAQs
+ *
+ * Stores FAQs in:
+ *   _myls_faq_items = [ ['q' => string, 'a' => string(HTML)], ... ]
+ *
+ * We track which rows were auto-inserted via post meta hashes:
+ *   _myls_ai_faqs_auto_hashes_myls (array of sha1 hashes)
+ * ============================================================================= */
+
+if ( ! function_exists('myls_ai_faqs_myls_auto_meta_key') ) {
+  function myls_ai_faqs_myls_auto_meta_key() : string {
+    return (string) apply_filters('myls_ai_faqs_myls_auto_meta_key', '_myls_ai_faqs_auto_hashes_myls');
+  }
+}
+
+if ( ! function_exists('myls_ai_faqs_myls_get_items') ) {
+  function myls_ai_faqs_myls_get_items( int $post_id ) : array {
+    $items = get_post_meta($post_id, '_myls_faq_items', true);
+    return is_array($items) ? $items : [];
+  }
+}
+
+if ( ! function_exists('myls_ai_faqs_myls_normalize_items') ) {
+  /**
+   * Normalize existing MYLS FAQ items into safe shape.
+   */
+  function myls_ai_faqs_myls_normalize_items( array $items ) : array {
+    $out = [];
+    foreach ($items as $row) {
+      if ( ! is_array($row) ) continue;
+      $q = isset($row['q']) ? sanitize_text_field((string)$row['q']) : '';
+      $a = isset($row['a']) ? wp_kses_post((string)$row['a']) : '';
+      if ( trim($q) === '' && trim(wp_strip_all_tags($a)) === '' ) continue;
+      $out[] = [ 'q' => $q, 'a' => $a ];
+    }
+    return $out;
+  }
+}
+
+if ( ! function_exists('myls_ai_faqs_myls_hash_existing') ) {
+  /**
+   * Build a hash set for existing MYLS FAQs.
+   * We hash question + plain-text answer so it matches the extraction hash.
+   */
+  function myls_ai_faqs_myls_hash_existing( array $items ) : array {
+    $seen = [];
+    foreach ($items as $row) {
+      if ( ! is_array($row) ) continue;
+      $q = isset($row['q']) ? (string)$row['q'] : '';
+      $a = isset($row['a']) ? (string)$row['a'] : '';
+      $q = trim(wp_strip_all_tags($q));
+      $a_plain = trim(wp_strip_all_tags($a));
+      if ($q === '' || $a_plain === '') continue;
+      $seen[myls_ai_faqs_hash_row($q, $a_plain)] = true;
+    }
+    return $seen;
+  }
+}
+
+if ( ! function_exists('myls_ai_faqs_myls_answer_to_html') ) {
+  function myls_ai_faqs_myls_answer_to_html( string $answer_plain ) : string {
+    $answer_plain = trim((string)$answer_plain);
+    if ($answer_plain === '') return '';
+    // Store as HTML for wp_editor; keep it clean.
+    $answer_plain = wp_strip_all_tags($answer_plain);
+    return wpautop(esc_html($answer_plain));
+  }
+}
+
+/* =============================================================================
+ * AJAX: Insert generated FAQs into MYLS native structure
+ * Action: myls_ai_faqs_insert_myls_v1
+ * Expects:
+ *   - post_id
+ *   - html
+ *   - replace_existing (optional "1")
+ * ============================================================================= */
+add_action('wp_ajax_myls_ai_faqs_insert_myls_v1', function(){
+
+  myls_ai_check_nonce();
+
+  $post_id = (int) ($_POST['post_id'] ?? 0);
+  if ( $post_id <= 0 || get_post_status($post_id) === false ) {
+    wp_send_json_error(['marker'=>'faqs','status'=>'error','message'=>'bad_post'], 400);
+  }
+  if ( ! current_user_can('edit_post', $post_id) ) {
+    wp_send_json_error(['marker'=>'faqs','status'=>'error','message'=>'cap_denied'], 403);
+  }
+
+  $html    = (string) wp_unslash($_POST['html'] ?? '');
+  $replace = ! empty($_POST['replace_existing']);
+
+  $pairs = myls_ai_faqs_extract_pairs($html);
+  if ( empty($pairs) ) {
+    wp_send_json_error(['marker'=>'faqs','status'=>'error','message'=>'missing_faqs_for_myls'], 400);
+  }
+
+  $existing = $replace ? [] : myls_ai_faqs_myls_get_items($post_id);
+  $existing = myls_ai_faqs_myls_normalize_items($existing);
+
+  $seen = myls_ai_faqs_myls_hash_existing($existing);
+
+  $auto_key = myls_ai_faqs_myls_auto_meta_key();
+  $auto_hashes = get_post_meta($post_id, $auto_key, true);
+  if ( ! is_array($auto_hashes) ) $auto_hashes = [];
+
+  $inserted = 0;
+  $skipped  = 0;
+
+  foreach ($pairs as $pair) {
+    $q = (string) ($pair['question'] ?? '');
+    $a = (string) ($pair['answer'] ?? '');
+    $h = (string) ($pair['hash'] ?? '');
+
+    $q = trim(wp_strip_all_tags($q));
+    $a = trim(wp_strip_all_tags($a));
+
+    if ($q === '' || $a === '') { $skipped++; continue; }
+
+    if ($h === '') $h = myls_ai_faqs_hash_row($q, $a);
+    if ($h === '' || isset($seen[$h])) { $skipped++; continue; }
+
+    $existing[] = [
+      'q' => sanitize_text_field($q),
+      'a' => wp_kses_post(myls_ai_faqs_myls_answer_to_html($a)),
+    ];
+
+    $seen[$h] = true;
+    $auto_hashes[] = $h;
+    $inserted++;
+  }
+
+  $existing = array_values($existing);
+  $auto_hashes = array_values(array_unique(array_filter($auto_hashes)));
+
+  if ( empty($existing) ) {
+    delete_post_meta($post_id, '_myls_faq_items');
+  } else {
+    update_post_meta($post_id, '_myls_faq_items', $existing);
+  }
+
+  update_post_meta($post_id, $auto_key, $auto_hashes);
+
+  wp_send_json_success([
+    'marker'         => 'faqs',
+    'status'         => 'ok',
+    'post_id'        => $post_id,
+    'inserted_count' => $inserted,
+    'skipped_count'  => $skipped,
+    'total_rows'     => count($existing),
+  ]);
+});
+
+/* =============================================================================
+ * AJAX: Delete auto-generated FAQs from MYLS native structure
+ * Action: myls_ai_faqs_delete_auto_myls_v1
+ * ============================================================================= */
+add_action('wp_ajax_myls_ai_faqs_delete_auto_myls_v1', function(){
+
+  myls_ai_check_nonce();
+
+  $post_id = (int) ($_POST['post_id'] ?? 0);
+  if ( $post_id <= 0 || get_post_status($post_id) === false ) {
+    wp_send_json_error(['marker'=>'faqs','status'=>'error','message'=>'bad_post'], 400);
+  }
+  if ( ! current_user_can('edit_post', $post_id) ) {
+    wp_send_json_error(['marker'=>'faqs','status'=>'error','message'=>'cap_denied'], 403);
+  }
+
+  $items = myls_ai_faqs_myls_normalize_items(myls_ai_faqs_myls_get_items($post_id));
+  if ( empty($items) ) {
+    wp_send_json_success([
+      'marker'        => 'faqs',
+      'status'        => 'ok',
+      'post_id'       => $post_id,
+      'deleted_count' => 0,
+      'total_rows'    => 0,
+    ]);
+  }
+
+  $auto_key = myls_ai_faqs_myls_auto_meta_key();
+  $auto_hashes = get_post_meta($post_id, $auto_key, true);
+  if ( ! is_array($auto_hashes) ) $auto_hashes = [];
+  $auto_hashes = array_flip(array_values(array_unique(array_filter($auto_hashes))));
+
+  $kept = [];
+  $deleted = 0;
+
+  foreach ($items as $row) {
+    $q = isset($row['q']) ? (string)$row['q'] : '';
+    $a_plain = isset($row['a']) ? trim(wp_strip_all_tags((string)$row['a'])) : '';
+
+    $h = (trim($q) !== '' || $a_plain !== '') ? myls_ai_faqs_hash_row($q, $a_plain) : '';
+
+    if ($h !== '' && isset($auto_hashes[$h])) {
+      $deleted++;
+      continue;
+    }
+
+    $kept[] = [
+      'q' => sanitize_text_field($q),
+      'a' => wp_kses_post((string)($row['a'] ?? '')),
+    ];
+  }
+
+  if ( empty($kept) ) {
+    delete_post_meta($post_id, '_myls_faq_items');
+  } else {
+    update_post_meta($post_id, '_myls_faq_items', array_values($kept));
+  }
+
+  // Clear marker hashes once we've applied deletion.
+  delete_post_meta($post_id, $auto_key);
+
+  wp_send_json_success([
+    'marker'        => 'faqs',
+    'status'        => 'ok',
+    'post_id'       => $post_id,
+    'deleted_count' => $deleted,
+    'total_rows'    => count($kept),
+  ]);
+});

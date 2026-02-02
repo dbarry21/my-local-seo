@@ -1,155 +1,191 @@
-/**
- * MYLS – Universal AJAX Search
+/* MYLS – AJAX Search
+ * Path: /assets/js/myls-ajax-search.js
  *
- * Used by shortcode: [myls_ajax_search]
+ * Reads per-instance config from data-* attributes on .myls-ajax-search.
+ * Sends:
+ *  - action=myls_ajax_search
+ *  - term, max, post_types, priority
  *
- * Features:
- * - Live search while typing (debounced)
- * - Restricts search to post types provided via data attributes
- * - Supports multiple instances on the same page
- * - Gracefully hides results on blur / escape
- *
- * Requires localized object:
- *   MYLS_AJAX_SEARCH = {
- *     ajaxurl: "...",
- *     nonce: "..."
- *   }
+ * Renders:
+ *  - list-group results (thumb + title + optional type + date)
  */
 
-(function ($) {
-  "use strict";
+(function($){
+  'use strict';
 
-  /* ---------------------------------------------------------
-   * Helpers
-   * --------------------------------------------------------- */
-  function escapeHtml(str) {
-    return String(str || "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
+  function escHtml(str){
+    return String(str || '')
+      .replace(/&/g,'&amp;')
+      .replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;')
+      .replace(/'/g,'&#039;');
   }
 
-  function debounce(fn, wait) {
-    let timeout;
-    return function () {
-      const context = this;
-      const args = arguments;
-      clearTimeout(timeout);
-      timeout = setTimeout(function () {
-        fn.apply(context, args);
-      }, wait);
+  function getTransport(){
+    // Localized by shortcode in ajax-search.php
+    if (typeof window.MYLS_AJAX_SEARCH === 'object' && window.MYLS_AJAX_SEARCH) {
+      return window.MYLS_AJAX_SEARCH;
+    }
+    return { ajaxurl: '', nonce: '' };
+  }
+
+  function debounce(fn, ms){
+    var t = null;
+    return function(){
+      var ctx = this, args = arguments;
+      clearTimeout(t);
+      t = setTimeout(function(){ fn.apply(ctx, args); }, ms);
     };
   }
 
-  function renderResults($box, items, showType) {
-    if (!items || !items.length) {
-      $box.hide().empty();
-      return;
-    }
-
-    let html = "";
-
-    items.forEach(function (item) {
-      const title = escapeHtml(item.title);
-      const url   = escapeHtml(item.url);
-      const date  = escapeHtml(item.date || "");
-      const type  = escapeHtml(item.type || "");
-      const thumb = item.thumb ? escapeHtml(item.thumb) : "";
-
-      html += '<a href="' + url + '" class="list-group-item list-group-item-action">';
-      html += '  <div class="d-flex align-items-center gap-2">';
-
-      if (thumb) {
-        html += '    <img src="' + thumb + '" class="myls-ajax-search-thumb" alt="" loading="lazy">';
-      }
-
-      html += '    <div class="flex-grow-1">';
-      html += '      <div class="myls-ajax-search-title">' + title + "</div>";
-      html += '      <div class="small text-muted">';
-      html += date;
-      if (showType && type) {
-        html += ' · ' + type;
-      }
-      html += "</div>";
-      html += "    </div>";
-      html += "  </div>";
-      html += "</a>";
-    });
-
-    $box.html(html).show();
+  function closeAll(){
+    $('.myls-ajax-search-results').hide().empty();
   }
 
-  /* ---------------------------------------------------------
-   * Init
-   * --------------------------------------------------------- */
-  $(document).ready(function () {
+  function renderItems($wrap, items){
+    var $results = $wrap.find('.myls-ajax-search-results');
+    $results.empty();
 
-    if (typeof MYLS_AJAX_SEARCH === "undefined") {
-      console.warn("MYLS_AJAX_SEARCH not found – AJAX search disabled.");
+    if (!items || !items.length) {
+      $results.hide();
       return;
     }
 
-    const transport = MYLS_AJAX_SEARCH;
+    var showType = String($wrap.data('show-type') || '0') === '1';
 
-    $(".myls-ajax-search").each(function () {
+    items.forEach(function(it){
+      var title = escHtml(it.title || '(no title)');
+      var url   = escHtml(it.url || '#');
+      var type  = escHtml(it.type || '');
+      var date  = escHtml(it.date || '');
+      var thumb = String(it.thumb || '');
 
-      const $wrap    = $(this);
-      const $input   = $wrap.find(".myls-ajax-search-input");
-      const $results = $wrap.find(".myls-ajax-search-results");
+      var thumbHtml = '';
+      if (thumb) {
+        thumbHtml = '<img src="' + escHtml(thumb) + '" alt="" class="myls-ajax-search-thumb" loading="lazy" decoding="async">';
+      }
 
-      const postTypes  = String($wrap.data("post-types") || "");
-      const max        = parseInt($wrap.data("max") || 5, 10);
-      const minChars   = parseInt($wrap.data("min-chars") || 2, 10);
-      const debounceMs = parseInt($wrap.data("debounce-ms") || 200, 10);
-      const showType   = String($wrap.data("show-type") || "0") === "1";
+      var meta = [];
+      if (showType && type) meta.push('<span class="myls-ajax-search-type">' + type + '</span>');
+      if (date) meta.push('<span class="myls-ajax-search-date">' + date + '</span>');
 
-      const doSearch = debounce(function () {
+      var metaHtml = meta.length ? ('<div class="myls-ajax-search-meta">' + meta.join(' ') + '</div>') : '';
 
-        const term = ($input.val() || "").trim();
+      var html =
+        '<a class="list-group-item list-group-item-action myls-ajax-search-item" href="' + url + '">' +
+          '<div class="d-flex align-items-center gap-2">' +
+            (thumbHtml ? ('<div class="myls-ajax-search-thumb-wrap">' + thumbHtml + '</div>') : '') +
+            '<div class="myls-ajax-search-text">' +
+              '<div class="myls-ajax-search-title">' + title + '</div>' +
+              metaHtml +
+            '</div>' +
+          '</div>' +
+        '</a>';
 
-        if (term.length < minChars) {
-          $results.hide().empty();
+      $results.append(html);
+    });
+
+    $results.show();
+  }
+
+  function attach($wrap){
+    var tr = getTransport();
+    var ajaxurl = tr.ajaxurl || '';
+    var nonce   = tr.nonce || '';
+
+    var postTypes  = String($wrap.data('post-types') || '');
+    var priority   = String($wrap.data('priority') || '');
+    var max        = parseInt($wrap.data('max') || 5, 10);
+    var minChars   = parseInt($wrap.data('min-chars') || 2, 10);
+    var debounceMs = parseInt($wrap.data('debounce-ms') || 200, 10);
+
+    max = isNaN(max) ? 5 : Math.max(1, max);
+    minChars = isNaN(minChars) ? 2 : Math.max(1, minChars);
+    debounceMs = isNaN(debounceMs) ? 200 : Math.max(0, debounceMs);
+
+    var $input = $wrap.find('.myls-ajax-search-input');
+    var $results = $wrap.find('.myls-ajax-search-results');
+
+    if (!$input.length || !$results.length) return;
+
+    function doSearch(){
+      var term = ($input.val() || '').trim();
+
+      if (term.length < minChars) {
+        $results.hide().empty();
+        return;
+      }
+
+      if (!ajaxurl || !nonce) {
+        // fail silently but visible in console
+        console.warn('[MYLS AJAX SEARCH] Missing ajaxurl/nonce.');
+        $results.hide().empty();
+        return;
+      }
+
+      $.ajax({
+        url: ajaxurl,
+        method: 'POST',
+        dataType: 'json',
+        data: {
+          action: 'myls_ajax_search',
+          nonce: nonce,
+          term: term,
+          max: max,
+          post_types: postTypes,
+          priority: priority
+        }
+      }).done(function(res){
+        if (!res || !res.success || !res.data) {
+          renderItems($wrap, []);
           return;
         }
-
-        $.post(transport.ajaxurl, {
-          action: "myls_ajax_search",
-          nonce: transport.nonce,
-          term: term,
-          post_types: postTypes,
-          max: max
-        })
-        .done(function (response) {
-          if (!response || !response.success) {
-            $results.hide().empty();
-            return;
-          }
-          const items = response.data && response.data.items ? response.data.items : [];
-          renderResults($results, items, showType);
-        })
-        .fail(function () {
-          $results.hide().empty();
-        });
-
-      }, debounceMs);
-
-      /* Events */
-      $input.on("input", doSearch);
-
-      $input.on("keydown", function (e) {
-        if (e.key === "Escape") {
-          $results.hide();
-        }
+        renderItems($wrap, res.data.items || []);
+      }).fail(function(){
+        renderItems($wrap, []);
       });
+    }
 
-      // Click outside closes dropdown
-      $(document).on("click", function (e) {
-        if (!$.contains($wrap[0], e.target)) {
-          $results.hide();
-        }
-      });
+    var debounced = debounce(doSearch, debounceMs);
+
+    $input.on('input', function(){
+      debounced();
+    });
+
+    $input.on('focus', function(){
+      // If already typed, re-open results by triggering search
+      if (($input.val() || '').trim().length >= minChars) {
+        debounced();
+      }
+    });
+
+    // Close only this instance when clicking outside
+    $(document).on('mousedown', function(e){
+      if ($(e.target).closest($wrap).length) return;
+      $results.hide().empty();
+    });
+
+    // Escape closes
+    $input.on('keydown', function(e){
+      if (e.key === 'Escape') {
+        $results.hide().empty();
+        $input.blur();
+      }
+    });
+  }
+
+  $(function(){
+    // Multiple instances supported
+    $('.myls-ajax-search').each(function(){
+      attach($(this));
+    });
+
+    // Optional: close all results on navigation events etc.
+    $(document).on('click', 'a', function(){
+      // Don’t force-close if clicking inside results list
+      if ($(this).closest('.myls-ajax-search-results').length) return;
+      closeAll();
     });
   });
 

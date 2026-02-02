@@ -196,7 +196,7 @@ EOT;
 
       <label style="display:flex;align-items:center;gap:8px;margin:0;">
         <input type="checkbox" id="myls_ai_faqs_acf_replace">
-        <strong>Replace existing ACF FAQ Items</strong>
+        <strong>Replace existing MYLS FAQs</strong>
       </label>
 
       <button type="button" class="button button-primary" id="myls_ai_faqs_generate">Generate FAQs (Preview)</button>
@@ -204,8 +204,8 @@ EOT;
       <button type="button" class="button" id="myls_ai_faqs_docx" disabled>Download .docx</button>
       <button type="button" class="button" id="myls_ai_faqs_html" disabled>Download .html</button>
 
-      <button type="button" class="button" id="myls_ai_faqs_insert_acf" disabled>Insert into ACF FAQ Schema</button>
-      <button type="button" class="button" id="myls_ai_faqs_delete_auto" disabled>Delete Auto-Generated FAQs (ACF)</button>
+      <button type="button" class="button" id="myls_ai_faqs_insert_acf" disabled>Insert into MYLS FAQs</button>
+      <button type="button" class="button" id="myls_ai_faqs_delete_auto" disabled>Delete Auto-Generated FAQs (MYLS)</button>
 
       <button type="button" class="button" id="myls_ai_faqs_stop" disabled>Stop</button>
 
@@ -262,8 +262,13 @@ EOT;
         defaultType: "<?php echo esc_js( $default_pt ); ?>",
         action_get_posts: "myls_ai_faqs_get_posts_v1",
         action_generate: "myls_ai_faqs_generate_v1",
-        action_insert_acf: "myls_ai_faqs_insert_acf_v1",
-        action_delete_auto_acf: "myls_ai_faqs_delete_auto_acf_v1"
+        // New (MYLS native)
+        action_insert_myls: "myls_ai_faqs_insert_myls_v1",
+        action_delete_auto_myls: "myls_ai_faqs_delete_auto_myls_v1",
+
+        // Back-compat (older JS expected these keys). Map them to MYLS actions.
+        action_insert_acf: "myls_ai_faqs_insert_myls_v1",
+        action_delete_auto_acf: "myls_ai_faqs_delete_auto_myls_v1"
       };
       </script>
       <script src="<?php echo esc_url( $script_url . '?v=' . rawurlencode($v) ); ?>"></script>

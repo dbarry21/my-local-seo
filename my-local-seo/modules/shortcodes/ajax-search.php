@@ -13,9 +13,13 @@
  * - post_types="page"                 => search pages only
  * - post_types="post,page,service"    => search multiple types
  *
+ * NEW:
+ * - priority="service,video"          => floats those post types to top (in that order)
+ *
  * Ranking:
  *  1) Title-first pass (title-only matches up to max)
  *  2) Fill remainder with default WP search (title/excerpt/content), excluding duplicates
+ *  3) Optional: post_type priority ordering (client-provided), then title
  *
  * Assets expected under plugin root:
  * - /assets/js/myls-ajax-search.js
@@ -38,7 +42,6 @@ if ( ! function_exists('myls_ajax_search_plugin_root_url') ) {
 		// Expected: this file under /modules/shortcodes/ => plugin root is two levels up.
 		$root_dir = dirname(__DIR__, 2);
 
-		// If your main plugin file name differs, add it here.
 		$candidates = [
 			$root_dir . '/my-local-seo.php',
 			$root_dir . '/index.php',
@@ -88,19 +91,16 @@ if ( ! function_exists('myls_ajax_search_parse_post_types') ) {
 		$raw = trim((string) $raw);
 		$raw_lc = strtolower($raw);
 
-		// Default/current
 		if ( $raw === '' || $raw_lc === 'current' ) {
 			return [$fallback_current];
 		}
 
-		// All public post types
 		if ( $raw_lc === 'all' ) {
 			$pts = get_post_types(['public' => true], 'names');
 			unset($pts['attachment']);
 			return array_values($pts);
 		}
 
-		// Comma-separated list
 		$parts = array_filter(array_map('trim', explode(',', $raw)));
 		$types = [];
 
@@ -110,9 +110,31 @@ if ( ! function_exists('myls_ajax_search_parse_post_types') ) {
 		}
 
 		$types = array_values(array_unique($types));
-
-		// If nothing valid, fallback to current
 		return $types ? $types : [$fallback_current];
+	}
+}
+
+/**
+ * Parse priority CSV into ordered map.
+ * Example: "service,video" => ['service'=>0,'video'=>1]
+ * Only keeps valid PUBLIC post types (excluding attachment).
+ */
+if ( ! function_exists('myls_ajax_search_parse_priority_map') ) {
+	function myls_ajax_search_parse_priority_map( string $raw ) : array {
+		$raw = trim((string) $raw);
+		if ( $raw === '' ) return [];
+
+		$parts = array_filter(array_map('trim', explode(',', $raw)));
+		$parts = array_map('sanitize_key', $parts);
+		$parts = myls_ajax_search_filter_allowed_post_types($parts);
+
+		$map = [];
+		$i = 0;
+		foreach ( $parts as $pt ) {
+			$map[$pt] = $i;
+			$i++;
+		}
+		return $map;
 	}
 }
 
@@ -127,7 +149,7 @@ add_action('wp_enqueue_scripts', function () {
 		'myls-ajax-search',
 		$root_url . 'assets/js/myls-ajax-search.js',
 		['jquery'],
-		'1.0.0',
+		'1.1.0',
 		true
 	);
 
@@ -153,7 +175,7 @@ if ( ! function_exists('myls_ajax_search_title_only_search') ) {
 
 		$terms = method_exists($wp_query, 'parse_search_terms')
 			? $wp_query->parse_search_terms($q['s'])
-			: preg_split('/\s+/', trim($q['s']));
+			: preg_split('/\s+/', trim((string)$q['s']));
 
 		$terms = array_filter(array_map('trim', (array) $terms));
 		if ( empty($terms) ) return $search;
@@ -194,6 +216,10 @@ if ( ! function_exists('myls_ajax_search_handler') ) {
 		$raw_post_types = isset($_POST['post_types']) ? sanitize_text_field(wp_unslash($_POST['post_types'])) : '';
 		$types = array_filter(array_map('trim', explode(',', $raw_post_types)));
 		$types = myls_ajax_search_filter_allowed_post_types($types);
+
+		// Priority (optional): CSV like "service,video"
+		$raw_priority = isset($_POST['priority']) ? sanitize_text_field(wp_unslash($_POST['priority'])) : '';
+		$priority_map = myls_ajax_search_parse_priority_map($raw_priority);
 
 		// Safety fallback (avoid accidentally searching "any")
 		if ( empty($types) ) {
@@ -273,6 +299,26 @@ if ( ! function_exists('myls_ajax_search_handler') ) {
 			}
 		}
 
+		/* -----------------------------------------
+		 * 3) Optional: Priority sort by post type, then title
+		 * ----------------------------------------- */
+		if ( ! empty($priority_map) && ! empty($items) ) {
+			usort($items, function($a, $b) use ($priority_map) {
+
+				$at = isset($a['type']) ? (string) $a['type'] : '';
+				$bt = isset($b['type']) ? (string) $b['type'] : '';
+
+				$ap = array_key_exists($at, $priority_map) ? (int) $priority_map[$at] : 999;
+				$bp = array_key_exists($bt, $priority_map) ? (int) $priority_map[$bt] : 999;
+
+				if ( $ap !== $bp ) return $ap <=> $bp;
+
+				$an = isset($a['title']) ? (string) $a['title'] : '';
+				$bn = isset($b['title']) ? (string) $b['title'] : '';
+				return strcasecmp($an, $bn);
+			});
+		}
+
 		wp_send_json_success(['items' => $items]);
 	}
 }
@@ -285,14 +331,30 @@ add_shortcode('myls_ajax_search', function ($atts) {
 	$atts = shortcode_atts([
 		'placeholder' => 'Search...',
 		'post_types'  => 'current', // current | all | post,page,service
+		'priority'    => '',        // NEW: "service,video,page"
 		'max'         => 5,
 		'min_chars'   => 2,
 		'debounce_ms' => 200,
 		'hint'        => 1,
-		'show_type'   => 0, // show post type label in results (JS)
+		'show_type'   => 0,         // show post type label in results (JS)
+
+		// Back-compat aliases (won't break older shortcodes)
+		'post_type'   => '',        // alias for post_types (single)
+		'limit'       => '',        // alias for max
 	], $atts, 'myls_ajax_search');
 
+	// Alias support: post_type="page"
+	if ( $atts['post_type'] !== '' && $atts['post_types'] === 'current' ) {
+		$atts['post_types'] = (string) $atts['post_type'];
+	}
+
+	// Alias support: limit="10"
+	if ( $atts['limit'] !== '' ) {
+		$atts['max'] = (int) $atts['limit'];
+	}
+
 	$placeholder = sanitize_text_field($atts['placeholder']);
+	$priority    = sanitize_text_field((string)$atts['priority']);
 	$max         = max(1, (int) $atts['max']);
 	$min_chars   = max(1, (int) $atts['min_chars']);
 	$debounce_ms = max(0, (int) $atts['debounce_ms']);
@@ -336,6 +398,7 @@ add_shortcode('myls_ajax_search', function ($atts) {
 	<div class="myls-ajax-search"
 	     id="<?php echo esc_attr($id); ?>"
 	     data-post-types="<?php echo $data_post_types; ?>"
+	     data-priority="<?php echo esc_attr($priority); ?>"
 	     data-max="<?php echo esc_attr($max); ?>"
 	     data-min-chars="<?php echo esc_attr($min_chars); ?>"
 	     data-debounce-ms="<?php echo esc_attr($debounce_ms); ?>"

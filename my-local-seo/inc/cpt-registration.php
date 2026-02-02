@@ -211,6 +211,10 @@ add_action( 'updated_option', function( $option, $old, $new ) {
 
 function myls_activate_register_cpts_and_flush() {
 	myls_register_custom_post_types();
+	// Ensure /llms.txt rewrite exists before flushing.
+	if ( function_exists('myls_llms_register_rewrite') ) {
+		myls_llms_register_rewrite();
+	}
 	flush_rewrite_rules();
 }
 function myls_deactivate_flush_rewrites() {
