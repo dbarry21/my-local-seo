@@ -3,7 +3,7 @@
  * Plugin Name:       My Local SEO
  * Plugin URI:        https://mylocalseo.ai/
  * Description:       Modular local SEO toolkit with schema, AI tools, bulk operations, and shortcode utilities.
- * Version: 4.6.7
+* Version: 4.6.12
  * Author:            Dave Barry
  * Author URI:        https://davebarry.io/
  * Text Domain:       my-local-seo
@@ -16,7 +16,7 @@ if ( ! defined('ABSPATH') ) exit;
  * Canonical constants & helpers (single source of truth)
  * ───────────────────────────────────────────────────────────────────────── */
 // Keep in sync with plugin header above.
-if ( ! defined('MYLS_VERSION') )     define('MYLS_VERSION', '4.6.7');
+if ( ! defined('MYLS_VERSION') )     define('MYLS_VERSION','4.6.12');
 if ( ! defined('MYLS_MAIN_FILE') )   define('MYLS_MAIN_FILE', __FILE__);
 if ( ! defined('MYLS_PATH') )        define('MYLS_PATH', plugin_dir_path(MYLS_MAIN_FILE));
 if ( ! defined('MYLS_URL') )         define('MYLS_URL',  plugins_url('', MYLS_MAIN_FILE));
@@ -104,6 +104,7 @@ require_once MYLS_PATH . 'inc/schema/helpers.php';
 require_once MYLS_PATH . 'inc/schema/registry.php';
 require_once MYLS_PATH . 'inc/schema/providers/organization.php';
 require_once MYLS_PATH . 'inc/schema/providers/localbusiness.php';
+require_once MYLS_PATH . 'inc/schema/providers/about-page.php';
 require_once MYLS_PATH . 'inc/schema/providers/build-service-schema.php';
 require_once MYLS_PATH . 'inc/schema/providers/video-archive.php';
 require_once MYLS_PATH . 'inc/schema/providers/video-schema.php';

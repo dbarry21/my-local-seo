@@ -3,7 +3,7 @@ Contributors: davebarry
 Tags: local seo, schema, ai, faq, utilities
 Requires at least: 6.0
 Tested up to: 6.5
-Stable tag: 4.6.7
+Stable tag: 4.6.12
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -19,6 +19,18 @@ This plugin provides a modular admin toolkit for local SEO workflows including s
 2. Activate the plugin through the 'Plugins' menu in WordPress.
 
 == Upgrade Notice ==
+
+= 4.6.12 =
+Adds Schema → About Us subtab with About page selector and optional overrides to output valid AboutPage schema.
+
+= 4.6.11 =
+Adds a search box on AI → FAQs Builder to quickly filter the loaded posts list by title or ID.
+
+= 4.6.10 =
+Fixes AI → FAQs Builder batch processing so each selected post is generated and auto-inserted into MYLS FAQs, with per-post appended preview + improved logging.
+
+= 4.6.8 =
+Updates the Admin Bar “SEO Stuff” menu: adds Schema.org validator and improves Google index check (live status + site: results link).
 
 = 4.6.7 =
 Enhances /llms.txt with a Business details section (Organization/LocalBusiness), and upgrades FAQ links to use stable anchors (#faq-1, #faq-2, ...).

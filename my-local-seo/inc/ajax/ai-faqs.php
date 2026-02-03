@@ -976,6 +976,40 @@ add_action('wp_ajax_myls_ai_faqs_insert_myls_v1', function(){
 });
 
 /* =============================================================================
+ * AJAX: Check whether a post already has MYLS FAQs
+ * Action: myls_ai_faqs_check_existing_myls_v1
+ * Expects:
+ *   - post_id
+ * Returns:
+ *   - has_faqs (bool)
+ *   - count (int)
+ * ============================================================================= */
+add_action('wp_ajax_myls_ai_faqs_check_existing_myls_v1', function(){
+
+  myls_ai_check_nonce();
+
+  $post_id = (int) ($_POST['post_id'] ?? 0);
+  if ( $post_id <= 0 || get_post_status($post_id) === false ) {
+    wp_send_json_error(['marker'=>'faqs','status'=>'error','message'=>'bad_post'], 400);
+  }
+  if ( ! current_user_can('edit_post', $post_id) ) {
+    wp_send_json_error(['marker'=>'faqs','status'=>'error','message'=>'cap_denied'], 403);
+  }
+
+  $items = myls_ai_faqs_myls_get_items($post_id);
+  $items = myls_ai_faqs_myls_normalize_items(is_array($items) ? $items : []);
+  $count = count($items);
+
+  wp_send_json_success([
+    'marker'   => 'faqs',
+    'status'   => 'ok',
+    'post_id'  => $post_id,
+    'has_faqs' => $count > 0,
+    'count'    => $count,
+  ]);
+});
+
+/* =============================================================================
  * AJAX: Delete auto-generated FAQs from MYLS native structure
  * Action: myls_ai_faqs_delete_auto_myls_v1
  * ============================================================================= */

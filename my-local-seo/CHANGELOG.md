@@ -1,5 +1,35 @@
 # My Local SEO — Changelog
 
+
+## 4.6.12 — 2026-02-03
+
+### Schema → About Us
+- Added a new **About Us** schema subtab under **Schema**.
+- Includes an **About page selector** (outputs only on the selected page).
+- Added optional overrides: **Headline/Name**, **Description**, **Primary Image URL**.
+- Outputs **AboutPage + WebSite** JSON-LD via the schema graph (validates with Schema.org).
+
+
+## 4.6.11 — 2026-02-03
+
+### AI → FAQs Builder
+- Added a **Search** input under the Post Type dropdown to filter the loaded posts list (client-side by title or ID).
+
+
+## 4.6.10 — 2026-02-03
+
+### AI → FAQs Builder
+- Fixed version mismatch in plugin header/constants.
+- Fixed batch workflow so **each selected post** can be processed in sequence with **auto-insert into MYLS FAQs**.
+- Preview window now **appends** output per post and starts each section with the **post title + ID**.
+- Added **Skip posts with existing MYLS FAQs** checkbox (pre-checks before generating to avoid wasting AI calls).
+
+
+## 4.6.8 — 2026-02-03
+
+### Admin Bar
+- Updated **SEO Stuff** admin-bar menu: added **Schema.org Validator** link and improved **Google index check** (live status dot + Google site: results link).
+
 ## 4.6.7 — 2026-02-02
 
 ### AI Discovery

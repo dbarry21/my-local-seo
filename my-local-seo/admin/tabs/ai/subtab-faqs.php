@@ -174,6 +174,19 @@ EOT;
             </option>
           <?php endforeach; ?>
         </select>
+
+        <!-- Search filter (client-side) -->
+        <div class="mt-2">
+          <label class="form-label" for="myls_ai_faqs_search">Search</label>
+          <input
+            type="text"
+            id="myls_ai_faqs_search"
+            class="form-control"
+            placeholder="Type to filter posts…"
+            autocomplete="off"
+          />
+          <div class="small text-muted mt-1">Filters the loaded post list (title or ID).</div>
+        </div>
       </div>
 
       <div class="col-md-8">
@@ -195,8 +208,13 @@ EOT;
       </label>
 
       <label style="display:flex;align-items:center;gap:8px;margin:0;">
+        <input type="checkbox" id="myls_ai_faqs_skip_existing" checked>
+        <strong>Skip posts with existing MYLS FAQs</strong>
+      </label>
+
+      <label style="display:flex;align-items:center;gap:8px;margin:0;">
         <input type="checkbox" id="myls_ai_faqs_acf_replace">
-        <strong>Replace existing MYLS FAQs</strong>
+        <strong>Replace existing MYLS FAQs (overwrite)</strong>
       </label>
 
       <button type="button" class="button button-primary" id="myls_ai_faqs_generate">Generate FAQs (Preview)</button>
@@ -262,6 +280,7 @@ EOT;
         defaultType: "<?php echo esc_js( $default_pt ); ?>",
         action_get_posts: "myls_ai_faqs_get_posts_v1",
         action_generate: "myls_ai_faqs_generate_v1",
+        action_check_existing_myls: "myls_ai_faqs_check_existing_myls_v1",
         // New (MYLS native)
         action_insert_myls: "myls_ai_faqs_insert_myls_v1",
         action_delete_auto_myls: "myls_ai_faqs_delete_auto_myls_v1",

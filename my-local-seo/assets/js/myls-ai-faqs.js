@@ -29,6 +29,7 @@
   const $ = (sel) => document.querySelector(sel);
 
   const elPT = $("#myls_ai_faqs_pt");
+  const elSearch = $("#myls_ai_faqs_search");
   const elPosts = $("#myls_ai_faqs_posts");
 
   const btnSelectAll = $("#myls_ai_faqs_select_all");
@@ -37,6 +38,7 @@
 
   // IMPORTANT: Correct ID (matches subtab)
   const cbReplaceExisting = $("#myls_ai_faqs_acf_replace");
+  const cbSkipExisting = $("#myls_ai_faqs_skip_existing");
 
   const btnInsertACF = $("#myls_ai_faqs_insert_acf");
   const btnDeleteAuto = $("#myls_ai_faqs_delete_auto");
@@ -61,6 +63,10 @@
   let STOP = false;
   let processed = 0;
 
+  // Full (unfiltered) post list returned from the server for the current post type.
+  // We filter client-side for speed and to avoid extra AJAX calls.
+  let allPosts = [];
+
   // Last returned download URLs (for enabling buttons)
   let lastDocxUrl = "";
   let lastHtmlUrl = "";
@@ -81,8 +87,8 @@
     if (btnDocx) btnDocx.disabled = isBusy || !lastDocxUrl;
     if (btnHtml) btnHtml.disabled = isBusy || !lastHtmlUrl;
 
-    // ACF helper buttons
-    if (btnInsertACF) btnInsertACF.disabled = isBusy || !lastPostId || !lastHtml;
+    // Insert can run as a batch (generate+insert) as long as something is selected
+    if (btnInsertACF) btnInsertACF.disabled = isBusy || !getSelectedIDs().length;
     if (btnDeleteAuto) btnDeleteAuto.disabled = isBusy || !getSelectedIDs().length;
   }
 
@@ -93,10 +99,71 @@
     elResults.textContent = `[${t}] ${msg}\n` + elResults.textContent;
   }
 
+  function getTitleForPost(postId) {
+    const opt = Array.from(elPosts?.options || []).find((o) => parseInt(o.value, 10) === postId);
+    return opt ? opt.textContent : `#${postId}`;
+  }
+
+  function appendPreviewBlock(postId, title, html, raw) {
+    // Preview: append (do not replace) during batch
+    if (elPreview) {
+      const header = `<p><strong>${escapeHtml(title)} (ID ${postId})</strong></p>`;
+      const block = `<div class="myls-faqs-block">${header}${(html || "").trim() || "<p><em>No output returned.</em></p>"}</div>`;
+      elPreview.insertAdjacentHTML("beforeend", (elPreview.innerHTML ? "<hr/>" : "") + block);
+    }
+
+    if (elOutput) {
+      const h = `\n=== ${title} (ID ${postId}) ===\n`;
+      elOutput.textContent = (elOutput.textContent || "") + h + String((raw || "").trim()) + "\n";
+    }
+  }
+
+  function escapeHtml(str) {
+    return String(str || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
   function getSelectedIDs() {
     return Array.from(elPosts?.selectedOptions || [])
       .map((o) => parseInt(o.value, 10))
       .filter(Boolean);
+  }
+
+  function clearPreviewPanes() {
+    if (elPreview) elPreview.innerHTML = "";
+    if (elOutput) elOutput.textContent = "";
+  }
+
+  function appendPreviewBlock(postId, title, html, raw) {
+    // Preview pane (HTML)
+    if (elPreview) {
+      const wrap = document.createElement("div");
+      wrap.innerHTML = `
+        <hr/>
+        <p><strong>${escapeHtml(title)} (ID ${postId})</strong></p>
+        ${html || "<p><em>No output returned.</em></p>"}
+      `;
+      elPreview.appendChild(wrap);
+    }
+
+    // Raw pane (text)
+    if (elOutput) {
+      const header = `\n\n==============================\n${title} (ID ${postId})\n==============================\n`;
+      elOutput.textContent += header + (raw || "") + "\n";
+    }
+  }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
   }
 
   function allowLinks() {
@@ -188,17 +255,15 @@
 
     try {
       const data = await postAJAX(CFG.action_get_posts, { post_type: pt });
-      const items = Array.isArray(data.posts) ? data.posts : [];
+      allPosts = Array.isArray(data.posts) ? data.posts : [];
 
-      items.forEach((p) => {
-        const opt = document.createElement("option");
-        opt.value = String(p.id);
-        opt.textContent = `${p.title} (#${p.id})`;
-        elPosts.appendChild(opt);
-      });
+      // Reset search each time the post type changes
+      if (elSearch) elSearch.value = "";
 
-      elLoadedHint.textContent = `Loaded ${items.length} post(s).`;
-      log(`Loaded ${items.length} post(s) for post type "${pt}".`);
+      renderPosts(allPosts);
+
+      elLoadedHint.textContent = `Loaded ${allPosts.length} post(s).`;
+      log(`Loaded ${allPosts.length} post(s) for post type "${pt}".`);
 
       // Update ACF delete button state after reload
       setBusy(false, "");
@@ -206,6 +271,46 @@
       elLoadedHint.textContent = "Error loading posts.";
       log(`Error loading posts: ${e.message}`);
     }
+  }
+
+  // -----------------------------
+  // Client-side post list filtering
+  // -----------------------------
+  function renderPosts(items) {
+    if (!elPosts) return;
+
+    // Preserve current selection across re-renders
+    const selected = new Set(getSelectedIDs().map((n) => String(n)));
+    elPosts.innerHTML = "";
+
+    (items || []).forEach((p) => {
+      const opt = document.createElement("option");
+      opt.value = String(p.id);
+      opt.textContent = `${p.title} (#${p.id})`;
+      if (selected.has(opt.value)) opt.selected = true;
+      elPosts.appendChild(opt);
+    });
+
+    // Button states depend on selection
+    setBusy(false, "");
+  }
+
+  function applySearchFilter() {
+    if (!elSearch) return;
+    const q = String(elSearch.value || "").trim().toLowerCase();
+    if (!q) {
+      renderPosts(allPosts);
+      return;
+    }
+
+    const filtered = (allPosts || []).filter((p) => {
+      const title = String(p.title || "").toLowerCase();
+      const id = String(p.id || "");
+      return title.includes(q) || id.includes(q);
+    });
+
+    renderPosts(filtered);
+    if (elLoadedHint) elLoadedHint.textContent = `Showing ${filtered.length} of ${allPosts.length}.`;
   }
 
   // -----------------------------
@@ -232,6 +337,10 @@
     if (btnHtml) btnHtml.disabled = true;
     if (btnInsertACF) btnInsertACF.disabled = true;
 
+    // Clear panes and append results per post
+    if (elPreview) elPreview.innerHTML = "";
+    if (elOutput) elOutput.textContent = "";
+
     setBusy(true, "Generating…");
     log(`Generate queued: ${ids.length} post(s).`);
 
@@ -239,7 +348,8 @@
       if (STOP) break;
 
       try {
-        log(`Generating FAQs for post #${postId}…`);
+        const title = getTitleForPost(postId);
+        log(`Generating FAQs for ${title}…`);
 
         const data = await postAJAX(CFG.action_generate, {
           post_id: postId,
@@ -248,10 +358,9 @@
           template: elPrompt ? elPrompt.value : ""
         });
 
-        // Preview
+        // Preview (append)
         const outHtml = (data.html || "").trim();
-        if (elPreview) elPreview.innerHTML = outHtml || "<p><em>No output returned.</em></p>";
-        if (elOutput) elOutput.textContent = (data.raw || "").trim();
+        appendPreviewBlock(postId, title, outHtml, (data.raw || "").trim());
 
         // Track last output for MYLS insertion
         lastHtml = outHtml;
@@ -261,7 +370,7 @@
         lastDocxUrl = (data.doc_url || "").trim();
         lastHtmlUrl = (data.html_url || "").trim();
 
-        // Update buttons
+        // Update buttons (last file URLs reflect most recent post)
         setBusy(true, (lastDocxUrl || lastHtmlUrl) ? "Generated • Files ready" : "Generated");
 
         processed++;
@@ -291,38 +400,93 @@
   // -----------------------------
   // ACF actions (Insert / Delete Auto)
   // -----------------------------
-  async function insertIntoMYLS() {
-    if (!lastPostId || !lastHtml) {
-      alert("Generate FAQs first so there is output to insert.");
+  async function insertIntoMYLSBatch() {
+    const ids = getSelectedIDs();
+    if (!ids.length) {
+      alert("Select at least one post.");
       return;
     }
 
-    setBusy(true, "Inserting into MYLS FAQs…");
+    STOP = false;
+    processed = 0;
+    if (elCount) elCount.textContent = "0";
 
-    try {
-      const replaceExisting = !!(cbReplaceExisting && cbReplaceExisting.checked);
+    // Clear panes and append results per post
+    if (elPreview) elPreview.innerHTML = "";
+    if (elOutput) elOutput.textContent = "";
 
-      // IMPORTANT: PHP expects replace_existing + html
-      const insertAction = CFG.action_insert_myls || CFG.action_insert_acf; // back-compat
-      if (!insertAction) throw new Error("Missing AJAX action for insert.");
+    setBusy(true, "Generating + inserting…");
+    log(`Auto-insert queued: ${ids.length} post(s).`);
 
-      const data = await postAJAX(insertAction, {
-        post_id: lastPostId,
-        html: lastHtml,
-        replace_existing: replaceExisting ? "1" : "0"
-      });
+    const replaceExisting = !!(cbReplaceExisting && cbReplaceExisting.checked);
+    const skipExisting = !!(cbSkipExisting && cbSkipExisting.checked) && !replaceExisting;
 
-      // PHP returns inserted_count, skipped_count, total_rows
-      const inserted = data.inserted_count ?? 0;
-      const skipped = data.skipped_count ?? 0;
-      const total = data.total_rows ?? 0;
+    const genAction = CFG.action_generate;
+    const insertAction = CFG.action_insert_myls || CFG.action_insert_acf;
+    const checkAction = CFG.action_check_existing_myls;
+    if (!genAction) throw new Error("Missing AJAX action for generate.");
+    if (!insertAction) throw new Error("Missing AJAX action for insert.");
 
-      log(`MYLS insert OK for #${lastPostId}: inserted ${inserted}, skipped ${skipped}, total rows now ${total}.`);
-      setBusy(false, ` items inserted`);
-    } catch (e) {
-      log(`MYLS insert error: ${e.message}`);
-      setBusy(false, "MYLS insert failed.");
+    for (const postId of ids) {
+      if (STOP) break;
+
+      const title = getTitleForPost(postId);
+
+      // Optional: skip if existing MYLS FAQs are present
+      if (skipExisting && checkAction) {
+        try {
+          const chk = await postAJAX(checkAction, { post_id: postId });
+          if (chk && chk.has_faqs) {
+            log(`⏭ Skipped ${title}: existing MYLS FAQs found (${chk.count}).`);
+            processed++;
+            if (elCount) elCount.textContent = String(processed);
+            continue;
+          }
+        } catch (e) {
+          // If check fails, fall through and attempt generate/insert (better than blocking)
+          log(`⚠ Existing-FAQ check failed for ${title}: ${e.message}`);
+        }
+      }
+
+      try {
+        log(`Generating FAQs for ${title}…`);
+
+        const data = await postAJAX(genAction, {
+          post_id: postId,
+          allow_links: allowLinks() ? "1" : "0",
+          template: elPrompt ? elPrompt.value : ""
+        });
+
+        const outHtml = (data.html || "").trim();
+        appendPreviewBlock(postId, title, outHtml, (data.raw || "").trim());
+
+        // Track last output and file URLs (most recent)
+        lastHtml = outHtml;
+        lastPostId = postId;
+        lastDocxUrl = (data.doc_url || "").trim();
+        lastHtmlUrl = (data.html_url || "").trim();
+
+        // Insert into MYLS for this post
+        log(`Inserting into MYLS FAQs for ${title}…`);
+        const ins = await postAJAX(insertAction, {
+          post_id: postId,
+          html: outHtml,
+          replace_existing: replaceExisting ? "1" : "0"
+        });
+
+        const inserted = ins.inserted_count ?? 0;
+        const skipped = ins.skipped_count ?? 0;
+        const total = ins.total_rows ?? 0;
+        log(`✔ ${title}: inserted ${inserted}, skipped ${skipped}, total rows now ${total}.`);
+
+        processed++;
+        if (elCount) elCount.textContent = String(processed);
+      } catch (e) {
+        log(`❌ Auto-insert error for ${title}: ${e.message}`);
+      }
     }
+
+    setBusy(false, STOP ? "Stopped." : "Done.");
   }
 
   async function deleteAutoFromMYLS() {
@@ -373,10 +537,21 @@
     elPT.addEventListener("change", () => loadPostsByType(elPT.value));
   }
 
+  // Live search filter (client-side)
+  if (elSearch) {
+    let t = null;
+    elSearch.addEventListener("input", () => {
+      // tiny debounce so we don't re-render on every keystroke at high speed
+      if (t) window.clearTimeout(t);
+      t = window.setTimeout(applySearchFilter, 80);
+    });
+  }
+
   if (btnSelectAll) {
     btnSelectAll.addEventListener("click", () => {
       Array.from(elPosts?.options || []).forEach((o) => (o.selected = true));
       if (btnDeleteAuto) btnDeleteAuto.disabled = !getSelectedIDs().length;
+      if (btnInsertACF) btnInsertACF.disabled = !getSelectedIDs().length;
     });
   }
 
@@ -384,17 +559,19 @@
     btnClear.addEventListener("click", () => {
       Array.from(elPosts?.options || []).forEach((o) => (o.selected = false));
       if (btnDeleteAuto) btnDeleteAuto.disabled = true;
+      if (btnInsertACF) btnInsertACF.disabled = true;
     });
   }
 
   if (elPosts) {
     elPosts.addEventListener("change", () => {
       if (btnDeleteAuto) btnDeleteAuto.disabled = STOP || !getSelectedIDs().length;
+      if (btnInsertACF) btnInsertACF.disabled = STOP || !getSelectedIDs().length;
     });
   }
 
   if (btnGenerate) btnGenerate.addEventListener("click", generateSelected);
-  if (btnInsertACF) btnInsertACF.addEventListener("click", insertIntoMYLS);
+  if (btnInsertACF) btnInsertACF.addEventListener("click", insertIntoMYLSBatch);
   if (btnDeleteAuto) btnDeleteAuto.addEventListener("click", deleteAutoFromMYLS);
 
   if (btnStop) {
