@@ -47,9 +47,18 @@ if ( ! function_exists('myls_faq_editor_sanitize_items') ) {
     foreach ( $rows as $row ) {
       if ( ! is_array($row) ) continue;
 
+      // Support multiple possible keys from different editors / versions.
       $q = (string) ($row['q'] ?? ($row['question'] ?? ''));
       $a = (string) ($row['a'] ?? ($row['answer'] ?? ''));
-      $del = ! empty($row['delete']);
+
+      // Delete flags can come through as 1/"1"/true/"on" etc.
+      $del_raw = $row['delete'] ?? ($row['del'] ?? ($row['delete_on_save'] ?? ($row['_delete'] ?? 0)));
+      $del = false;
+      if (is_bool($del_raw)) {
+        $del = $del_raw;
+      } else {
+        $del = in_array((string)$del_raw, ['1','true','on','yes'], true);
+      }
 
       $q = trim( wp_strip_all_tags($q) );
       $a = wp_kses_post($a);
@@ -68,6 +77,7 @@ if ( ! function_exists('myls_faq_editor_sanitize_items') ) {
     }
     return $out;
   }
+
 }
 
 if ( ! function_exists('myls_faq_editor_docx_escape') ) {
@@ -361,6 +371,7 @@ add_action('wp_ajax_myls_faq_editor_save_faqs_v1', function(){
 
   $raw = $_POST['items'] ?? [];
   if ( is_string($raw) ) {
+    $raw = wp_unslash($raw);
     $decoded = json_decode($raw, true);
     $raw = is_array($decoded) ? $decoded : [];
   }
@@ -393,6 +404,7 @@ add_action('wp_ajax_myls_faq_editor_save_batch_v1', function(){
 
   $raw = $_POST['posts'] ?? [];
   if ( is_string($raw) ) {
+    $raw = wp_unslash($raw);
     $decoded = json_decode($raw, true);
     $raw = is_array($decoded) ? $decoded : [];
   }
@@ -411,6 +423,7 @@ add_action('wp_ajax_myls_faq_editor_save_batch_v1', function(){
 
     $items = $raw[$pid];
     if ( is_string($items) ) {
+      $items = wp_unslash($items);
       $decoded_items = json_decode($items, true);
       $items = is_array($decoded_items) ? $decoded_items : [];
     }

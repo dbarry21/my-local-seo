@@ -38,11 +38,11 @@ if ( ! function_exists('myls_ai_check_nonce') ) {
 if ( ! function_exists('myls_ai_generate_text') ) {
   function myls_ai_generate_text( string $prompt, array $opts = [] ) : string {
 
-    // Prefer any existing "real" OpenAI plumbing in the plugin
-    if ( function_exists('myls_openai_complete') ) {
-      $out = myls_openai_complete($prompt, $opts);
-      return is_string($out) ? $out : '';
-    }
+    // IMPORTANT:
+    // Do NOT call myls_openai_complete() directly here.
+    // myls_openai_complete() is a FILTER callback with signature ( $out, $args ).
+    // Calling it directly with ($prompt, $opts) returns the prompt unchanged and skips the API call.
+    // Always route through the filter so the correct OpenAI plumbing executes.
 
     // Filter-based fallback (allows you to swap providers)
     $out = apply_filters('myls_ai_complete', '', array_merge([
@@ -202,20 +202,104 @@ if ( ! function_exists('myls_ai_faqs_extract_pairs') ) {
 
     $pairs = [];
 
-    // 1) Combined format
-    $re_one = '#<p[^>]*>\s*(?:<strong>)?\s*Question\s*:\s*(?:</strong>)?\s*(.*?)\s*(?:<strong>)?\s*Answer\s*:\s*(?:</strong>)?\s*(.*?)\s*</p>#i';
-    if (preg_match_all($re_one, $norm, $m1, PREG_SET_ORDER)) {
-      foreach ($m1 as $row) {
-        $q_raw = (string) ($row[1] ?? '');
-        $a_raw = (string) ($row[2] ?? '');
-        $q = trim(wp_strip_all_tags(html_entity_decode($q_raw, ENT_QUOTES | ENT_HTML5)));
-        $a = trim(wp_strip_all_tags(html_entity_decode($a_raw, ENT_QUOTES | ENT_HTML5)));
-        if ($q === '' || $a === '') continue;
-        $pairs[] = [
-          'question' => $q,
-          'answer'   => $a,
-          'hash'     => myls_ai_faqs_hash_row($q, $a),
-        ];
+    /* --------------------------------------------------------------------
+     * NEW FORMAT (v2):
+     * <h3>Question</h3>
+     * <p>...</p>
+     * <ul><li>...</li></ul>
+     * ...
+     * Stops at next <h3> or <h2>Sources</h2>
+     * -------------------------------------------------------------------- */
+    if (stripos($norm, '<h3') !== false) {
+      $doc = new DOMDocument();
+      $prev = libxml_use_internal_errors(true);
+      // Wrap in a body so DOMDocument can parse fragments.
+      $doc->loadHTML('<?xml encoding="utf-8" ?><body>' . $html . '</body>');
+      libxml_clear_errors();
+      libxml_use_internal_errors($prev);
+
+      $body = $doc->getElementsByTagName('body')->item(0);
+      if ($body) {
+        $children = [];
+        foreach ($body->childNodes as $n) {
+          if ($n->nodeType === XML_ELEMENT_NODE) $children[] = $n;
+        }
+
+        $count = count($children);
+        for ($i = 0; $i < $count; $i++) {
+          $node = $children[$i];
+          $tag  = strtolower($node->nodeName);
+
+          // Stop when Sources section begins.
+          if ($tag === 'h2') {
+            $t = trim($node->textContent ?? '');
+            if (strcasecmp($t, 'Sources') === 0) break;
+          }
+
+          if ($tag !== 'h3') continue;
+
+          $q = trim((string)$node->textContent);
+          $q = html_entity_decode($q, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+          $q = trim(wp_strip_all_tags($q));
+          if ($q === '') continue;
+
+          // Collect answer blocks until the next h3 or the Sources h2.
+          $answer_html = '';
+          for ($j = $i + 1; $j < $count; $j++) {
+            $n2 = $children[$j];
+            $t2 = strtolower($n2->nodeName);
+
+            if ($t2 === 'h3') break;
+            if ($t2 === 'h2') {
+              $tt = trim($n2->textContent ?? '');
+              if (strcasecmp($tt, 'Sources') === 0) { $j = $count; break; }
+            }
+
+            // Keep only allowed tags (p/ul/li/strong/em/a) in the stored answer.
+            if (in_array($t2, ['p','ul','li','strong','em','a'], true)) {
+              $answer_html .= $doc->saveHTML($n2);
+            }
+          }
+
+          // Build a plain text variant for hashing.
+          $a_plain = wp_strip_all_tags($answer_html, true);
+          $a_plain = html_entity_decode($a_plain, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+          $a_plain = str_replace(["\xC2\xA0", '&nbsp;'], ' ', (string)$a_plain);
+          $a_plain = preg_replace('/\s+/u', ' ', (string)$a_plain);
+          $a_plain = trim((string)$a_plain);
+
+          if ($a_plain === '') continue;
+
+          $pairs[] = [
+            'question'     => $q,
+            'answer'       => $a_plain,
+            'answer_html'  => $answer_html,
+            'hash'         => myls_ai_faqs_hash_row($q, $a_plain),
+          ];
+        }
+      }
+    }
+
+    /* --------------------------------------------------------------------
+     * LEGACY FORMAT (v1): One-line or two-line <p><strong>Question...</p>
+     * -------------------------------------------------------------------- */
+    if (empty($pairs)) {
+      // 1) Combined format
+      $re_one = '#<p[^>]*>\s*(?:<strong>)?\s*Question\s*:\s*(?:</strong>)?\s*(.*?)\s*(?:<strong>)?\s*Answer\s*:\s*(?:</strong>)?\s*(.*?)\s*</p>#i';
+      if (preg_match_all($re_one, $norm, $m1, PREG_SET_ORDER)) {
+        foreach ($m1 as $row) {
+          $q_raw = (string) ($row[1] ?? '');
+          $a_raw = (string) ($row[2] ?? '');
+          $q = trim(wp_strip_all_tags(html_entity_decode($q_raw, ENT_QUOTES | ENT_HTML5, 'UTF-8')));
+          $a = trim(wp_strip_all_tags(html_entity_decode($a_raw, ENT_QUOTES | ENT_HTML5, 'UTF-8')));
+          if ($q === '' || $a === '') continue;
+          $pairs[] = [
+            'question'    => $q,
+            'answer'      => $a,
+            'answer_html' => '',
+            'hash'        => myls_ai_faqs_hash_row($q, $a),
+          ];
+        }
       }
     }
 
@@ -229,16 +313,17 @@ if ( ! function_exists('myls_ai_faqs_extract_pairs') ) {
         $pending_q = '';
         foreach ((array) ($blocks[0] ?? []) as $p) {
           if ($pending_q === '' && preg_match($re_q, $p, $mq)) {
-            $pending_q = trim(wp_strip_all_tags(html_entity_decode((string) ($mq[1] ?? ''), ENT_QUOTES | ENT_HTML5)));
+            $pending_q = trim(wp_strip_all_tags(html_entity_decode((string) ($mq[1] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8')));
             continue;
           }
           if ($pending_q !== '' && preg_match($re_a, $p, $ma)) {
-            $a = trim(wp_strip_all_tags(html_entity_decode((string) ($ma[1] ?? ''), ENT_QUOTES | ENT_HTML5)));
+            $a = trim(wp_strip_all_tags(html_entity_decode((string) ($ma[1] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8')));
             if ($pending_q !== '' && $a !== '') {
               $pairs[] = [
-                'question' => $pending_q,
-                'answer'   => $a,
-                'hash'     => myls_ai_faqs_hash_row($pending_q, $a),
+                'question'    => $pending_q,
+                'answer'      => $a,
+                'answer_html' => '',
+                'hash'        => myls_ai_faqs_hash_row($pending_q, $a),
               ];
             }
             $pending_q = '';
@@ -720,6 +805,8 @@ add_action('wp_ajax_myls_ai_faqs_generate_v1', function(){
 
   $post_id     = (int) ($_POST['post_id'] ?? 0);
   $allow_links = ! empty($_POST['allow_links']);
+  $variant     = isset($_POST['variant']) ? strtoupper( sanitize_text_field( wp_unslash($_POST['variant']) ) ) : 'LONG';
+  if ( $variant !== 'SHORT' ) $variant = 'LONG';
 
   if ( $post_id <= 0 || get_post_status($post_id) === false ) {
     wp_send_json_error(['status'=>'error','message'=>'bad_post'], 400);
@@ -736,12 +823,24 @@ add_action('wp_ajax_myls_ai_faqs_generate_v1', function(){
   $title = get_the_title($post_id);
   $url   = get_permalink($post_id);
 
-  // Template: prefer request, then option, then built-in safe default
+  // Template: prefer request, then v2 option, then legacy option, then built-in safe default.
+  // v2 supports LONG/SHORT variants + multi-block answers with <h3> + bullets.
   $template = isset($_POST['template']) ? wp_unslash((string)$_POST['template']) : '';
+  if ( trim($template) === '' ) $template = (string) get_option('myls_ai_faqs_prompt_template_v2', '');
   if ( trim($template) === '' ) $template = (string) get_option('myls_ai_faqs_prompt_template', '');
 
   if ( trim($template) === '' ) {
-    $template = "Create FAQs for {{TITLE}} using {{PAGE_TEXT}}. Output clean HTML: <h2>FAQs</h2> then 10 <p><strong>Question:</strong> ... <strong>Answer:</strong> ...</p> and then <h2>Sources</h2> list.";
+    $template = "Create FAQs for {{TITLE}} using {{PAGE_TEXT}}. Output clean HTML: <h2>FAQs</h2> then 10 FAQs with <h3>Question</h3> and multi-paragraph answers plus a <ul> checklist, then <h2>Sources</h2> list.";
+  }
+
+  // If the provided template is the old one-line format, auto-upgrade it for LONG output.
+  // This prevents 'LONG' from still producing single-line Q/A when old templates are saved.
+  $is_legacy_one_line = (stripos($template, 'ONE LINE') !== false) || (stripos($template, '<strong>Question') !== false && stripos($template, '<strong>Answer') !== false);
+  if ( $is_legacy_one_line && $variant === 'LONG' ) {
+    $maybe_v2 = (string) get_option('myls_ai_faqs_prompt_template_v2', '');
+    if ( trim($maybe_v2) !== '' ) {
+      $template = $maybe_v2;
+    }
   }
 
   // Permalink-based page text
@@ -752,8 +851,8 @@ add_action('wp_ajax_myls_ai_faqs_generate_v1', function(){
 
   // Populate prompt vars
   $prompt = str_replace(
-    ['{{TITLE}}','{{URL}}','{{PAGE_TEXT}}','{{ALLOW_LINKS}}'],
-    [$title, $url, $page_text, $allow_links ? 'YES' : 'NO'],
+    ['{{TITLE}}','{{URL}}','{{PAGE_TEXT}}','{{ALLOW_LINKS}}','{{VARIANT}}'],
+    [$title, $url, $page_text, $allow_links ? 'YES' : 'NO', $variant],
     $template
   );
 
@@ -933,20 +1032,33 @@ add_action('wp_ajax_myls_ai_faqs_insert_myls_v1', function(){
 
   foreach ($pairs as $pair) {
     $q = (string) ($pair['question'] ?? '');
-    $a = (string) ($pair['answer'] ?? '');
+    $a_plain = (string) ($pair['answer'] ?? '');
+    $a_html  = (string) ($pair['answer_html'] ?? '');
     $h = (string) ($pair['hash'] ?? '');
 
     $q = trim(wp_strip_all_tags($q));
-    $a = trim(wp_strip_all_tags($a));
+    $a_plain = html_entity_decode($a_plain, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $a_plain = str_replace(["\xC2\xA0", '&nbsp;'], ' ', (string)$a_plain);
+    $a_plain = preg_replace('/\s+/u', ' ', (string)$a_plain);
+    $a_plain = trim(wp_strip_all_tags((string)$a_plain));
 
-    if ($q === '' || $a === '') { $skipped++; continue; }
+    // Prefer HTML answer (preserve bullets/steps) when available.
+    $answer_to_store = '';
+    if ( $a_html !== '' ) {
+      $answer_to_store = wp_kses_post($a_html);
+    } else {
+      // Legacy path: we only have plain text; convert to simple paragraph HTML.
+      $answer_to_store = wp_kses_post( myls_ai_faqs_myls_answer_to_html( (string)$a_plain ) );
+    }
 
-    if ($h === '') $h = myls_ai_faqs_hash_row($q, $a);
+    if ($q === '' || $a_plain === '') { $skipped++; continue; }
+
+    if ($h === '') $h = myls_ai_faqs_hash_row($q, $a_plain);
     if ($h === '' || isset($seen[$h])) { $skipped++; continue; }
 
     $existing[] = [
       'q' => sanitize_text_field($q),
-      'a' => wp_kses_post(myls_ai_faqs_myls_answer_to_html($a)),
+      'a' => $answer_to_store,
     ];
 
     $seen[$h] = true;
@@ -1046,7 +1158,20 @@ add_action('wp_ajax_myls_ai_faqs_delete_auto_myls_v1', function(){
 
   foreach ($items as $row) {
     $q = isset($row['q']) ? (string)$row['q'] : '';
-    $a_plain = isset($row['a']) ? trim(wp_strip_all_tags((string)$row['a'])) : '';
+    $a_plain = isset($row['a']) ? (string)$row['a'] : '';
+
+    // IMPORTANT: Normalize exactly like insert (whitespace + nbsp handling),
+    // otherwise hashes won't match and delete-auto will remove 0 rows.
+    $q = trim(wp_strip_all_tags((string)$q));
+    $q = html_entity_decode((string)$q, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $q = str_replace(["\xC2\xA0", '&nbsp;'], ' ', (string)$q);
+    $q = preg_replace('/\s+/u', ' ', (string)$q);
+    $q = trim((string)$q);
+
+    $a_plain = html_entity_decode((string)$a_plain, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $a_plain = str_replace(["\xC2\xA0", '&nbsp;'], ' ', (string)$a_plain);
+    $a_plain = preg_replace('/\s+/u', ' ', (string)$a_plain);
+    $a_plain = trim(wp_strip_all_tags((string)$a_plain));
 
     $h = (trim($q) !== '' || $a_plain !== '') ? myls_ai_faqs_hash_row($q, $a_plain) : '';
 

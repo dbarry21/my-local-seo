@@ -23,25 +23,46 @@
 
     // Answer is a wp_editor textarea. Even if TinyMCE is active, WP keeps a textarea.
     const ta = qs('textarea[name^="myls_faq["]', row);
-    const av = (ta && ta.value ? ta.value : '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+
+    // Answer is stored as HTML in the underlying textarea.
+    // Treat common editor placeholders as blank so users can intentionally delete rows.
+    // Examples we normalize to whitespace:
+    //  - &nbsp; (often persists even when editor looks empty)
+    //  - non-breaking space char (\u00A0)
+    let av = (ta && ta.value ? ta.value : '');
+    av = av.replace(/&nbsp;/gi, ' ').replace(/\u00A0/g, ' ');
+    av = av.replace(/<[^>]*>/g, ' ');
+    av = av.replace(/\s+/g, ' ').trim();
 
     return (qv === '' && av === '');
   }
 
   function uncheckDelete(row) {
     const del = qs('.myls-faq-del', row);
-    if (del && del.checked) del.checked = false;
+    // Only auto-uncheck boxes that were auto-checked due to emptiness.
+    // If the user intentionally checks delete on a non-empty row, respect it.
+    if (!del || !del.checked) return;
+    const auto = (del.getAttribute('data-auto') || '') === '1';
+    if (auto) del.checked = false;
   }
 
   function wireRow(row) {
     if (!row || row.__mylsWired) return;
     row.__mylsWired = true;
 
-    // If user starts typing anywhere in the row, uncheck delete.
-    row.addEventListener('input', function () {
+    // If user starts typing anywhere in the row, uncheck delete (only if it was auto-checked).
+    row.addEventListener('input', function (e) {
+      // Don't fight the user when they tick the delete box.
+      if (e && e.target && e.target.classList && e.target.classList.contains('myls-faq-del')) return;
       if (!isRowEmpty(row)) uncheckDelete(row);
     });
-    row.addEventListener('change', function () {
+    row.addEventListener('change', function (e) {
+      // Don't immediately uncheck when user checks the delete box.
+      if (e && e.target && e.target.classList && e.target.classList.contains('myls-faq-del')) {
+        // Once the user interacts with the checkbox, it is no longer "auto".
+        try { e.target.removeAttribute('data-auto'); } catch (err) {}
+        return;
+      }
       if (!isRowEmpty(row)) uncheckDelete(row);
     });
 

@@ -33,12 +33,11 @@ if ( ! function_exists('myls_ai_check_nonce') ) {
  * ============================================================================= */
 if ( ! function_exists('myls_ai_generate_text') ) {
   function myls_ai_generate_text( string $prompt, array $opts = [] ) : string {
-
-    // Direct function (if your plugin provides it)
-    if ( function_exists('myls_openai_complete') ) {
-      $out = myls_openai_complete($prompt, $opts);
-      return is_string($out) ? $out : '';
-    }
+    // IMPORTANT:
+    // Do NOT call myls_openai_complete() directly here.
+    // myls_openai_complete() is a FILTER callback with signature ( $out, $args ).
+    // Calling it directly with ($prompt, $opts) returns the prompt unchanged and skips the API call.
+    // Always route through the filter so the correct OpenAI plumbing executes.
 
     // Preferred filter (lets your OpenAI plumbing intercept)
     $out = apply_filters('myls_ai_complete', '', array_merge([

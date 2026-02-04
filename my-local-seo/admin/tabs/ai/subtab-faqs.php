@@ -26,25 +26,37 @@ return [
 
     // ---------------------------------------------------------------------
     // Default prompt (saved in option after first save; never "missing_template")
+    // NOTE: This default is tuned for longer, AI Overview-friendly answers.
     // ---------------------------------------------------------------------
-    $default_prompt = get_option('myls_ai_faqs_prompt_template', '');
+    // v2 prompt key (supports LONG/SHORT variants + AI Overview structure).
+    // We keep v1 for backward compatibility, but auto-migrate if it contains the old one-line format.
+    $default_prompt = get_option('myls_ai_faqs_prompt_template_v2', '');
     if ( ! is_string($default_prompt) || trim($default_prompt) === '' ) {
       $default_prompt = <<<EOT
-You are an expert local SEO + conversion copywriter creating HIGH-QUALITY FAQs for a LOCAL SERVICE PAGE.
+You are an expert local SEO + conversion copywriter creating HIGH-QUALITY, IN-DEPTH FAQs for a LOCAL SERVICE PAGE.
 
 INPUTS:
 - Page Title: {{TITLE}}
 - Permalink URL: {{URL}}
 - Rendered page text (from the permalink): {{PAGE_TEXT}}
 - Allow external source links?: {{ALLOW_LINKS}}
+- Output Variant: {{VARIANT}}  (LONG or SHORT)
+
+INTERNAL GUIDANCE (DO NOT OUTPUT THIS SECTION):
+- Assume the reader is comparing 2–3 local providers and wants clarity, risks, timelines, and what to ask before hiring — not hype.
+- Optimize for AI Overviews: write direct, self-contained answers with clear definitions, scannable structure, and actionable steps.
+- Use “helpful next step” phrasing (implicit CTA) without sounding salesy: e.g., “A good next step is…”, “When you’re ready, ask for…”, “If you’re comparing quotes, request…”.
+- Never claim business-specific facts unless explicitly present in {{PAGE_TEXT}}.
 
 RULES (CRITICAL):
-- Use the page text as the primary source.
-- You MAY use reputable public sources for general, service-level facts (e.g., safety, maintenance guidance, common homeowner concerns).
-- Do NOT invent business-specific facts unless present in the page text (years in business, exact locations served, awards, licenses, pricing, guarantees, veteran-owned, staff).
+- Use {{PAGE_TEXT}} as the PRIMARY source for specifics.
+- You MAY use reputable public sources for general, service-level facts (safety, maintenance, typical timelines, homeowner best practices).
+- Do NOT invent business-specific facts unless explicitly present in the page text (years in business, pricing, exact service areas, guarantees, awards, licenses, ownership claims, “free estimates”, etc.).
+- Keep answers written for HOMEOWNERS considering this service.
+- Avoid fluff, filler, or vague generalities. Prefer concrete guidance.
 - If you use public sources, include a "Sources" list at the end.
 
-OUTPUT (VERY IMPORTANT):
+OUTPUT (STRICT):
 - Return CLEAN HTML ONLY. No markdown. No backticks. No code fences.
 - Allowed tags: <h2>, <h3>, <p>, <ul>, <li>, <strong>, <em>, <a>.
 - NO style/class/data attributes. (No id attributes needed for this FAQ output.)
@@ -52,13 +64,47 @@ OUTPUT (VERY IMPORTANT):
   - If {{ALLOW_LINKS}} = YES, you may include external links ONLY in the Sources list and they MUST have target="_blank".
   - If {{ALLOW_LINKS}} = NO, do not include any external links.
 
+VARIANT RULES:
+- If {{VARIANT}} = LONG:
+  - Create 10–15 FAQs.
+  - Each answer should typically be 90–170 words (when appropriate).
+  - Each answer MUST include at least ONE bulleted list (<ul><li>…</li></ul>).
+  - Include 2–3 short paragraphs before the list when it helps clarity.
+  - Add one implicit-CTA “next step” sentence near the end of the answer (not every time if it feels forced, but most FAQs should have it).
+- If {{VARIANT}} = SHORT:
+  - Create 8–12 FAQs.
+  - Each answer should typically be 45–90 words.
+  - Each answer MUST include either:
+    - a short bulleted list (2–4 bullets), OR
+    - a tight “what to ask / what to check” checklist.
+  - Include an implicit-CTA “next step” sentence in about half the FAQs.
+
+AI OVERVIEW ELIGIBILITY REQUIREMENTS (VERY IMPORTANT):
+- For each answer:
+  - Start with a direct, one-sentence “best answer” that can stand alone.
+  - Follow with short supporting context (1–2 short <p> blocks).
+  - Include a checklist or steps in <ul>.
+  - Avoid jargon; if unavoidable, define it in plain English.
+  - When making a recommendation, frame it as a homeowner safeguard (“to avoid surprises…”, “to reduce risk…”).
+- Prefer specificity that is safe:
+  - Use “often”, “typically”, “in many cases” for general timelines/cost factors unless {{PAGE_TEXT}} provides specifics.
+  - Never give exact pricing unless present in {{PAGE_TEXT}}.
+
 REQUIRED STRUCTURE:
 <h2>FAQs</h2>
 
-Create 10–15 FAQs that are conversion-focused, specific, and helpful for homeowners considering this service.
+For EACH FAQ, use EXACTLY this structure:
 
-FORMAT REQUIREMENT FOR EACH FAQ (ONE LINE EACH):
-<p><strong>Question:</strong> ... <strong>Answer:</strong> ...</p>
+<h3>QUESTION TEXT</h3>
+<p><strong>Answer:</strong> First sentence is the direct best answer. Keep it crisp and complete.</p>
+<p>Short supporting explanation tailored to homeowners considering this service.</p>
+<p>Additional clarity on expectations, common pitfalls, timelines, materials, or prep (as relevant).</p>
+<ul>
+  <li>Actionable step / checklist item</li>
+  <li>Actionable step / checklist item</li>
+  <li>Actionable step / checklist item</li>
+</ul>
+<p><em>Helpful next step:</em> A subtle, non-salesy suggestion for what the homeowner should do next (ask for, check, compare, request, confirm).</p>
 
 After the FAQs, output:
 <h2>Sources</h2>
@@ -74,6 +120,20 @@ EOT;
     }
 
     // ---------------------------------------------------------------------
+    // One-time migration from legacy option key (v1)
+    // ---------------------------------------------------------------------
+    if ( ! is_string($default_prompt) || trim($default_prompt) === '' ) {
+      $legacy = get_option('myls_ai_faqs_prompt_template', '');
+      if ( is_string($legacy) && trim($legacy) !== '' ) {
+        // If legacy prompt enforces one-line Q/A, replace with v2 default.
+        $is_legacy_one_line = (stripos($legacy, 'ONE LINE') !== false) || (stripos($legacy, '<strong>Question') !== false && stripos($legacy, '<strong>Answer') !== false);
+        $migrated = $is_legacy_one_line ? $default_prompt : $legacy;
+        update_option('myls_ai_faqs_prompt_template_v2', $migrated);
+        $default_prompt = $migrated;
+      }
+    }
+
+    // ---------------------------------------------------------------------
     // Save prompt + params
     // ---------------------------------------------------------------------
     if (
@@ -81,16 +141,23 @@ EOT;
       check_admin_referer('myls_ai_faqs_save_nonce', 'myls_ai_faqs_save_nonce')
     ) {
       update_option('myls_ai_faqs_prompt_template', wp_kses_post(wp_unslash($_POST['myls_ai_faqs_prompt_template'] ?? '')));
+      // Save into v2 key as the active template (keeps v1 for compatibility).
+      update_option('myls_ai_faqs_prompt_template_v2', wp_kses_post(wp_unslash($_POST['myls_ai_faqs_prompt_template'] ?? '')));
       update_option('myls_ai_faqs_tokens', max(1, (int) ($_POST['myls_ai_faqs_tokens'] ?? 1200)));
       update_option('myls_ai_faqs_temperature', (float) ($_POST['myls_ai_faqs_temperature'] ?? 0.4));
+      $v = strtoupper( sanitize_text_field( wp_unslash($_POST['myls_ai_faqs_variant_default'] ?? 'LONG') ) );
+      if ( $v !== 'SHORT' ) $v = 'LONG';
+      update_option('myls_ai_faqs_variant_default', $v);
       echo '<div class="updated notice"><p>Saved FAQs prompt template & params.</p></div>';
     }
 
-    $prompt = get_option('myls_ai_faqs_prompt_template', $default_prompt);
+    $prompt = get_option('myls_ai_faqs_prompt_template_v2', $default_prompt);
     if ( ! is_string($prompt) || trim($prompt) === '' ) $prompt = $default_prompt;
 
     $tokens = (int) get_option('myls_ai_faqs_tokens', 1200);
     $temp   = (float) get_option('myls_ai_faqs_temperature', 0.4);
+    $variant_default = strtoupper( (string) get_option('myls_ai_faqs_variant_default', 'LONG') );
+    if ( $variant_default !== 'SHORT' ) $variant_default = 'LONG';
 
     // ---------------------------------------------------------------------
     // Post type selector
@@ -137,7 +204,7 @@ EOT;
         <label class="form-label"><strong>Prompt Template</strong></label>
         <textarea id="myls_ai_faqs_prompt_template" name="myls_ai_faqs_prompt_template" class="widefat" rows="22"><?php echo esc_textarea($prompt); ?></textarea>
         <p class="description">
-          Variables: <code>{{TITLE}}</code>, <code>{{URL}}</code>, <code>{{PAGE_TEXT}}</code>, <code>{{ALLOW_LINKS}}</code>
+          Variables: <code>{{TITLE}}</code>, <code>{{URL}}</code>, <code>{{PAGE_TEXT}}</code>, <code>{{ALLOW_LINKS}}</code>, <code>{{VARIANT}}</code>
         </p>
       </div>
 
@@ -150,6 +217,15 @@ EOT;
           <label class="form-label">Temperature</label>
           <input id="myls_ai_faqs_temperature" type="number" step="0.1" min="0" max="2" name="myls_ai_faqs_temperature" class="regular-text form-control" value="<?php echo esc_attr($temp); ?>" />
         </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">Default Variant</label>
+        <select name="myls_ai_faqs_variant_default" class="form-select" style="max-width:220px;">
+          <option value="LONG" <?php selected('LONG', $variant_default); ?>>LONG (10–15 FAQs • Longer answers)</option>
+          <option value="SHORT" <?php selected('SHORT', $variant_default); ?>>SHORT (8–12 FAQs • Shorter answers)</option>
+        </select>
+        <div class="small text-muted mt-1">Controls the default output style when generating FAQs.</div>
       </div>
 
       <p><button type="submit" name="myls_ai_faqs_save" class="button button-primary">Save Template & Params</button></p>
@@ -202,6 +278,14 @@ EOT;
     </div>
 
     <div class="mt-3 myls-actions">
+      <label style="display:flex;align-items:center;gap:8px;margin:0;">
+        <strong>Variant</strong>
+        <select id="myls_ai_faqs_variant" class="form-select" style="width:auto;min-width:140px;">
+          <option value="LONG">LONG</option>
+          <option value="SHORT">SHORT</option>
+        </select>
+      </label>
+
       <label style="display:flex;align-items:center;gap:8px;margin:0;">
         <input type="checkbox" id="myls_ai_faqs_allow_links">
         <strong>Allow source links (target="_blank")</strong>
@@ -278,6 +362,7 @@ EOT;
         ajaxurl: "<?php echo esc_js( admin_url('admin-ajax.php') ); ?>",
         nonce: "<?php echo esc_js( $nonce ); ?>",
         defaultType: "<?php echo esc_js( $default_pt ); ?>",
+        defaultVariant: "<?php echo esc_js( $variant_default ); ?>",
         action_get_posts: "myls_ai_faqs_get_posts_v1",
         action_generate: "myls_ai_faqs_generate_v1",
         action_check_existing_myls: "myls_ai_faqs_check_existing_myls_v1",

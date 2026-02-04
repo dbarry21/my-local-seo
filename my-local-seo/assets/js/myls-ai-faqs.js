@@ -45,6 +45,7 @@
   const btnStop = $("#myls_ai_faqs_stop");
 
   const cbAllowLinks = $("#myls_ai_faqs_allow_links");
+  const elVariant = $("#myls_ai_faqs_variant");
 
   const btnDocx = $("#myls_ai_faqs_docx");
   const btnHtml = $("#myls_ai_faqs_html");
@@ -168,6 +169,16 @@
 
   function allowLinks() {
     return !!(cbAllowLinks && cbAllowLinks.checked);
+  }
+
+  function currentVariant() {
+    const v = (elVariant && elVariant.value ? String(elVariant.value) : (CFG.defaultVariant || "LONG")).toUpperCase();
+    return v === "SHORT" ? "SHORT" : "LONG";
+  }
+
+  // Initialize variant selector to saved default
+  if (elVariant && CFG.defaultVariant) {
+    elVariant.value = currentVariant();
   }
 
   // -----------------------------
@@ -354,6 +365,7 @@
         const data = await postAJAX(CFG.action_generate, {
           post_id: postId,
           allow_links: allowLinks() ? "1" : "0",
+          variant: currentVariant(),
           // Send current prompt to prevent "missing_template" if option is blank
           template: elPrompt ? elPrompt.value : ""
         });
@@ -454,6 +466,7 @@
         const data = await postAJAX(genAction, {
           post_id: postId,
           allow_links: allowLinks() ? "1" : "0",
+          variant: currentVariant(),
           template: elPrompt ? elPrompt.value : ""
         });
 

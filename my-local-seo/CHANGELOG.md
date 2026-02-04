@@ -1,3 +1,27 @@
+## 4.6.20
+- Fix: AI generation wrapper incorrectly called `myls_openai_complete()` directly (it's a filter callback), which could return the prompt unchanged and result in only 1 FAQ being inserted.
+- Fix: Route AI requests through the `myls_ai_complete` filter so max_tokens/temperature/model settings are honored and LONG/SHORT variants generate properly.
+
+## 4.6.19
+- Fix: Utilities → FAQ Quick Editor file scoping bug that could fatally error on some installs (docx helper functions were accidentally wrapped inside the sanitize_items conditional).
+- Fix: AI → FAQs Builder LONG variant now reliably uses the v2 multi-block prompt template (auto-migrates legacy one-line templates and auto-upgrades at generation time when LONG is selected).
+
+## 4.6.18
+- Fix Utilities → FAQ Quick Editor batch save deletion flag handling and JSON unslashing.
+
+## 4.6.17 — 2026-02-04
+- Fix: MYLS delete-auto now normalizes question/answer text exactly like the insert routine (whitespace + nbsp handling), so stored AI hashes match and rows actually delete.
+
+## 4.6.16 — 2026-02-04
+- Fix: FAQ editor metabox delete checkbox can now be intentionally checked (even on non-empty rows).
+- Fix: AI → FAQs Builder now correctly parses the new multi-block FAQ output (h3 + paragraphs + bullets) and inserts into MYLS FAQs.
+- Fix: Auto-delete of AI-inserted FAQs now uses the same hashing strategy as insert (requires the 4.6.17 normalization patch for whitespace edge cases).
+
+## 4.6.15 — 2026-02-04
+- AI → FAQs Builder: upgraded the default FAQ prompt to produce longer, more complete answers tuned for AI Overviews.
+- Adds LONG/SHORT variants with a Variant selector, and supports the {{VARIANT}} placeholder in prompt templates.
+- Answers now follow a multi-block structure per FAQ (h3 + paragraphs + bullets + “Helpful next step”) for better scannability and completeness.
+
 ## 4.6.14 — 2026-02-03
 - Add Certifications list to Organization schema UI and output as hasCertification on Organization and LocalBusiness.
 - Fix Organization provider to output award and hasCertification.

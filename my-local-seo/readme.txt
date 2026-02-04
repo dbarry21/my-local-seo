@@ -3,7 +3,7 @@ Contributors: davebarry
 Tags: local seo, schema, ai, faq, utilities
 Requires at least: 6.0
 Tested up to: 6.5
-Stable tag: 4.6.14
+Stable tag: 4.6.20
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -19,6 +19,21 @@ This plugin provides a modular admin toolkit for local SEO workflows including s
 2. Activate the plugin through the 'Plugins' menu in WordPress.
 
 == Upgrade Notice ==
+
+= 4.6.19 =
+Fixes a Utilities → FAQ Quick Editor scoping bug that could crash some installs, and ensures the AI → FAQs Builder LONG variant uses the new multi-block prompt (auto-migrates legacy one-line templates).
+
+= 4.6.18 =
+Fixes Utilities → FAQ Quick Editor batch save deletion flag handling.
+
+= 4.6.17 =
+Fixes MYLS delete-auto for AI-inserted FAQs by matching hash normalization to the insert routine (whitespace/nbsp handling).
+
+= 4.6.16 =
+Fixes AI → FAQs Builder insertion/deletion for the new multi-block FAQ HTML format and fixes the editor “Delete on save” checkbox behavior.
+
+= 4.6.15 =
+AI → FAQs Builder now defaults to a longer, AI Overview-friendly FAQ format (multi-block HTML per FAQ: h3 + paragraphs + bullets + “Helpful next step”). Adds LONG/SHORT variant support.
 
 = 4.6.13 =
 Adds Awards support on Organization/LocalBusiness schema output.
@@ -61,6 +76,11 @@ FAQ Quick Editor now supports multi-post batch save and WYSIWYG answers.
 Utilities now includes the FAQ Quick Editor and reorganized FAQ migration tools.
 
 == Changelog ==
+
+= 4.6.15 =
+* AI → FAQs Builder: Upgraded default FAQ prompt to produce longer, more complete homeowner answers.
+* Adds LONG/SHORT variants, AI Overview-tuned structure, and subtle “helpful next step” phrasing.
+* Adds {{VARIANT}} placeholder support and a Variant selector in the builder UI.
 
 = 4.6.7 =
 * /llms.txt: Added Business details section (Organization → LocalBusiness → site defaults)

@@ -147,7 +147,10 @@ function myls_render_faq_metabox( $post ) {
 				);
 
 				echo '<label style="display:inline-block; margin-top:8px;">';
-				echo '<input type="checkbox" class="myls-faq-del" name="myls_faq[' . esc_attr((string)$idx) . '][_delete]" value="1"' . checked($should_default_delete, true, false) . ' /> ';
+				// data-auto="1" means this box was auto-checked because the row is empty.
+				// JS will ONLY auto-uncheck delete for auto-checked boxes (so users can intentionally delete non-empty rows).
+				$auto_attr = $should_default_delete ? ' data-auto="1"' : '';
+				echo '<input type="checkbox" class="myls-faq-del"' . $auto_attr . ' name="myls_faq[' . esc_attr((string)$idx) . '][_delete]" value="1"' . checked($should_default_delete, true, false) . ' /> ';
 				echo 'Delete this FAQ on save';
 				echo '</label>';
 
