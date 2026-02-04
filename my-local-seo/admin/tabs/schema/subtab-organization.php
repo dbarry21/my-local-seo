@@ -55,6 +55,15 @@ $spec = [
 		$socials  = (array) get_option('myls_org_social_profiles', (array) get_option('ssseo_organization_social_profiles', []));
 		if ( empty($socials) ) { $socials = ['']; }
 
+		$awards  = (array) get_option('myls_org_awards', []);
+		$awards  = array_values(array_filter(array_map('sanitize_text_field', $awards)));
+		if ( empty($awards) ) { $awards = ['']; }
+
+
+		$certs  = (array) get_option('myls_org_certifications', []);
+		$certs  = array_values(array_filter(array_map('sanitize_text_field', $certs)));
+		if ( empty($certs) ) { $certs = ['']; }
+
 		$sel_pages = array_map('absint', (array) get_option('myls_org_pages', (array) get_option('ssseo_organization_schema_pages', [])));
 
 		// Assignable: Pages + Service Areas
@@ -233,6 +242,49 @@ $spec = [
 					</div>
 				</div>
 
+				
+					<div class="row" style="margin-top:16px;">
+						<div class="col-12">
+							<label class="form-label">Awards (one per line)</label>
+							<div class="text-muted" style="margin:-6px 0 10px 0; font-size: 12px;">
+								These are output on Organization / LocalBusiness schema as <code>award</code> strings (Schema.org-valid).
+							</div>
+
+							<div id="myls-org-awards">
+								<?php foreach ( $awards as $i => $a_txt ) : ?>
+									<div class="d-flex" style="gap:.5rem; margin-bottom:.5rem;">
+										<input type="text" name="myls_org_awards[]" value="<?php echo esc_attr($a_txt); ?>" placeholder="e.g. Best of Tampa Bay 2024">
+										<button class="myls-btn myls-btn-outline myls-remove-award" type="button">Remove</button>
+									</div>
+								<?php endforeach; ?>
+							</div>
+
+							<button class="myls-btn myls-btn-outline" type="button" id="myls-org-add-award">+ Add Award</button>
+						</div>
+					</div>
+
+					<div class="row" style="margin-top:16px;">
+						<div class="col-12">
+							<label class="form-label">Certifications (one per line)</label>
+							<div class="text-muted" style="margin:-6px 0 10px 0; font-size: 12px;">
+								These are output on Organization / LocalBusiness schema as <code>hasCertification</code> (Schema.org-valid).
+							</div>
+
+							<div id="myls-org-certs">
+								<?php foreach ( $certs as $i => $c_txt ) : ?>
+									<div class="d-flex" style="gap:.5rem; margin-bottom:.5rem;">
+										<input type="text" name="myls_org_certifications[]" value="<?php echo esc_attr($c_txt); ?>" placeholder="e.g. GAF Master Elite Contractor">
+										<button class="myls-btn myls-btn-outline myls-remove-cert" type="button">Remove</button>
+									</div>
+								<?php endforeach; ?>
+							</div>
+
+							<button class="myls-btn myls-btn-outline" type="button" id="myls-org-add-cert">+ Add Certification</button>
+
+						</div>
+					</div>
+
+
 				<!-- (No submit button here; the main tab provides Save Settings) -->
 			</div>
 
@@ -300,7 +352,45 @@ $spec = [
 			const btn = e.target.closest('.myls-remove-social');
 			if (btn) { btn.parentElement.remove(); }
 		  });
-		})();
+		})(); 
+
+		// Awards rows
+		(function(){
+		  const wrap = document.getElementById('myls-org-awards');
+		  document.getElementById('myls-org-add-award')?.addEventListener('click', function(){
+			const row = document.createElement('div');
+			row.className = 'd-flex';
+			row.style.gap = '.5rem';
+			row.style.marginBottom = '.5rem';
+			row.innerHTML = '<input type="text" name="myls_org_awards[]" placeholder="e.g. Best of Tampa Bay 2024">'
+						  + '<button class="myls-btn myls-btn-outline myls-remove-award" type="button">Remove</button>';
+			wrap.appendChild(row);
+		  });
+		  wrap?.addEventListener('click', function(e){
+			const btn = e.target.closest('.myls-remove-award');
+			if (btn) { btn.parentElement.remove(); }
+		  });
+		
+
+		// Certifications rows
+		(function(){
+		  const wrap = document.getElementById('myls-org-certs');
+		  document.getElementById('myls-org-add-cert')?.addEventListener('click', function(){
+			const row = document.createElement('div');
+			row.className = 'd-flex';
+			row.style.gap = '.5rem';
+			row.style.marginBottom = '.5rem';
+			row.innerHTML = '<input type="text" name="myls_org_certifications[]" placeholder="e.g. GAF Master Elite Contractor">'
+						  + '<button class="myls-btn myls-btn-outline myls-remove-cert" type="button">Remove</button>';
+			wrap.appendChild(row);
+		  });
+		  wrap?.addEventListener('click', function(e){
+			const btn = e.target.closest('.myls-remove-cert');
+			if (btn) { btn.parentElement.remove(); }
+		  });
+		})(); 
+
+})(); 
 
 		// Chooser toolbar
 		(function(){
@@ -345,6 +435,20 @@ $spec = [
 			? array_map('esc_url_raw', $_POST['myls_org_social_profiles']) : [];
 		$raw_socials = array_values(array_filter($raw_socials));
 		update_option('myls_org_social_profiles', $raw_socials);
+
+
+		// Awards
+		$raw_awards = (isset($_POST['myls_org_awards']) && is_array($_POST['myls_org_awards']))
+			? array_map('sanitize_text_field', $_POST['myls_org_awards']) : [];
+		$raw_awards = array_values(array_filter($raw_awards));
+		update_option('myls_org_awards', $raw_awards);
+
+		// Certifications
+		$raw_certs = (isset($_POST['myls_org_certifications']) && is_array($_POST['myls_org_certifications']))
+			? array_map('sanitize_text_field', $_POST['myls_org_certifications']) : [];
+		$raw_certs = array_values(array_filter($raw_certs));
+		update_option('myls_org_certifications', $raw_certs);
+		
 
 		// Assignments
 		$pages = (isset($_POST['myls_org_pages']) && is_array($_POST['myls_org_pages']))

@@ -1,4 +1,15 @@
+## 4.6.14 — 2026-02-03
+- Add Certifications list to Organization schema UI and output as hasCertification on Organization and LocalBusiness.
+- Fix Organization provider to output award and hasCertification.
+
 # My Local SEO — Changelog
+
+
+## 4.6.13 — 2026-02-03
+
+### Schema → Organization
+- Added **Awards** list to the Organization tab.
+- Outputs awards on **Organization** and **LocalBusiness** schema as Schema.org-valid `award` strings.
 
 
 ## 4.6.12 — 2026-02-03

@@ -52,6 +52,14 @@ add_filter('myls_schema_graph', function(array $graph) {
 	if ( ! is_array($socials) ) $socials = [];
 	$socials = array_values( array_filter( array_map('trim', $socials) ) );
 
+	$awards = get_option('myls_org_awards', []);
+	if ( ! is_array($awards) ) $awards = [];
+	$awards = array_values( array_filter( array_map('sanitize_text_field', $awards) ) );
+
+	$certs = get_option('myls_org_certifications', []);
+	if ( ! is_array($certs) ) $certs = [];
+	$certs = array_values( array_filter( array_map('sanitize_text_field', $certs) ) );
+
 	// --- Build address (only if any field is present) ---
 	$address = array_filter([
 		'@type'           => 'PostalAddress',
@@ -90,6 +98,8 @@ add_filter('myls_schema_graph', function(array $graph) {
 	if ( $logo )         $node['logo']        = $logo;
 	if ( $image_url )    $node['image']       = esc_url_raw($image_url);
 	if ( $socials )      $node['sameAs']      = array_map('esc_url_raw', $socials);
+	if ( $awards )       $node['award']       = $awards;
+	if ( $certs )        $node['hasCertification'] = array_map(function($c){ return ['@type'=>'Certification','name'=>$c]; }, $certs);
 
 	// Optional geo (allowed via Place link)
 	if ( $lat !== '' && $lng !== '' && is_numeric($lat) && is_numeric($lng) ) {

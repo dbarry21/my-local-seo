@@ -30,6 +30,14 @@ if ( ! function_exists('myls_lb_build_schema_from_location') ) {
 	function myls_lb_build_schema_from_location( array $loc, WP_Post $post ) : array {
 		$org_name = get_option( 'myls_org_name', get_bloginfo( 'name' ) );
 
+		$awards = get_option('myls_org_awards', []);
+		if ( ! is_array($awards) ) $awards = [];
+		$awards = array_values(array_filter(array_map('sanitize_text_field', $awards)));
+
+		$certs = get_option('myls_org_certifications', []);
+		if ( ! is_array($certs) ) $certs = [];
+		$certs = array_values(array_filter(array_map('sanitize_text_field', $certs)));
+
 		// Resolve only these two (in order): Business Image URL -> Org Logo
 		$loc_img  = trim( (string) ( $loc['image_url'] ?? '' ) );
 		$logo_id  = (int) get_option( 'myls_org_logo_id', 0 );
@@ -64,6 +72,8 @@ if ( ! function_exists('myls_lb_build_schema_from_location') ) {
 			'name'       => sanitize_text_field( $loc['name'] ?? $org_name ),
 			'telephone'  => sanitize_text_field( $loc['phone'] ?? '' ),
 			'priceRange' => sanitize_text_field( $loc['price'] ?? '' ),
+			'award'      => ( $awards ? $awards : null ),
+			'hasCertification' => ( $certs ? array_map(function($c){ return ['@type'=>'Certification','name'=>$c]; }, $certs) : null ),
 			'address'  => array_filter( [
 				'@type'           => 'PostalAddress',
 				'streetAddress'   => sanitize_text_field( $loc['street'] ?? '' ),

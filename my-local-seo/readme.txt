@@ -3,7 +3,7 @@ Contributors: davebarry
 Tags: local seo, schema, ai, faq, utilities
 Requires at least: 6.0
 Tested up to: 6.5
-Stable tag: 4.6.12
+Stable tag: 4.6.14
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -19,6 +19,10 @@ This plugin provides a modular admin toolkit for local SEO workflows including s
 2. Activate the plugin through the 'Plugins' menu in WordPress.
 
 == Upgrade Notice ==
+
+= 4.6.13 =
+Adds Awards support on Organization/LocalBusiness schema output.
+
 
 = 4.6.12 =
 Adds Schema → About Us subtab with About page selector and optional overrides to output valid AboutPage schema.
