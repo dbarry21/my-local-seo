@@ -116,6 +116,96 @@ if ( ! function_exists('myls_ycl_queue_schema') ) {
 /* ==============================================================
  * PER-PAGE ItemList JSON-LD builder
  * ============================================================== */
+
+/**
+ * Best-effort uploadDate resolver for ItemList VideoObjects.
+ *
+ * Why this exists:
+ * - Different helpers historically return different keys for the same concept:
+ *     - `date`
+ *     - `publishedAt`
+ *     - `uploadDate`
+ * - When we build the per-page ItemList schema, we want `uploadDate` to be
+ *   present whenever we can reliably determine it.
+ *
+ * Priority order:
+ *  1) Item payload keys: date / publishedAt / uploadDate
+ *  2) Local post meta (if a local permalink exists):
+ *       - _myls_video_upload_date_iso
+ *       - _myls_youtube_published_at
+ *       - WP post publish date
+ *  3) YouTube API fallback (videos.list -> snippet.publishedAt), cached.
+ *  4) Empty string (caller will omit field)
+ */
+if ( ! function_exists('myls_ycl_resolve_upload_date') ) {
+	function myls_ycl_resolve_upload_date( array $it ) : string {
+		// 1) Direct keys from helper payload
+		foreach ( array('date','publishedAt','uploadDate') as $k ) {
+			if ( ! empty($it[$k]) && is_string($it[$k]) ) {
+				return sanitize_text_field($it[$k]);
+			}
+		}
+
+		$vid   = ! empty($it['videoId']) ? sanitize_text_field((string)$it['videoId']) : '';
+		$perma = ! empty($it['permalink']) ? esc_url_raw((string)$it['permalink']) : '';
+		$post_id = 0;
+		if ( $perma ) {
+			$post_id = (int) url_to_postid( $perma );
+		}
+
+		// 2) Local post meta fallbacks
+		if ( $post_id > 0 ) {
+			$meta_iso = trim( (string) get_post_meta($post_id, '_myls_video_upload_date_iso', true) );
+			if ( $meta_iso !== '' ) return sanitize_text_field($meta_iso);
+
+			$yt_published = trim( (string) get_post_meta($post_id, '_myls_youtube_published_at', true) );
+			if ( $yt_published !== '' ) return sanitize_text_field($yt_published);
+
+			$pub = get_the_date('c', $post_id);
+			if ( $pub ) return sanitize_text_field($pub);
+		}
+
+		// 3) YouTube API fallback (cached) if we have a video ID
+		if ( $vid !== '' ) {
+			$cache_key = 'myls_ycl_yt_pub_' . $vid;
+			$cached = get_transient($cache_key);
+			if ( is_string($cached) && $cached !== '' ) {
+				return sanitize_text_field($cached);
+			}
+
+			// API key: prefer option, fallback to legacy theme_mod
+			$api_key = (string) get_option('myls_youtube_api_key', '');
+			if ( $api_key === '' ) {
+				$api_key = (string) get_theme_mod('ssseo_youtube_api_key', '');
+			}
+
+			if ( $api_key !== '' ) {
+				$resp = wp_remote_get( add_query_arg([
+					'part' => 'snippet',
+					'id'   => $vid,
+					'key'  => $api_key,
+				], 'https://www.googleapis.com/youtube/v3/videos'), [
+					'timeout' => 10,
+				] );
+				if ( ! is_wp_error($resp) && 200 === (int) wp_remote_retrieve_response_code($resp) ) {
+					$data = json_decode( wp_remote_retrieve_body($resp), true );
+					if ( ! empty($data['items'][0]['snippet']['publishedAt']) ) {
+						$publishedAt = sanitize_text_field( (string) $data['items'][0]['snippet']['publishedAt'] );
+						// Cache for 30 days (filterable)
+						set_transient( $cache_key, $publishedAt, apply_filters('myls_ycl_upload_date_cache_ttl', 30 * DAY_IN_SECONDS) );
+						// If we later find a local post, it will pick this up via transient; optionally persist.
+						if ( $post_id > 0 ) {
+							update_post_meta($post_id, '_myls_youtube_published_at', $publishedAt);
+						}
+						return $publishedAt;
+					}
+				}
+			}
+		}
+
+		return '';
+	}
+}
 if ( ! function_exists('myls_ycl_build_itemlist_schema') ) {
 	function myls_ycl_build_itemlist_schema( $items, $ctx = array() ) {
 		$page_url  = ( isset($ctx['page_url']) && $ctx['page_url'] !== '' )
@@ -131,24 +221,15 @@ if ( ! function_exists('myls_ycl_build_itemlist_schema') ) {
 		$logo_id  = (int) get_option('myls_org_logo_id', 0);
 		$logo_url = $logo_id ? wp_get_attachment_image_url($logo_id, 'full') : '';
 
-		$schema = array(
-			'@context'        => 'https://schema.org',
+		// NOTE: schema.org validators will flag publisher/dateModified on ItemList.
+		// Best-practice: wrap the list in a CollectionPage and move those properties to the page entity.
+		$itemList = array(
 			'@type'           => 'ItemList',
 			'@id'             => esc_url_raw($list_id),
 			'name'            => $title,
 			'description'     => 'Browse videos on ' . $site_name,
-			'publisher'       => array_filter(array(
-				'@type' => 'Organization',
-				'name'  => sanitize_text_field($org_name),
-				'url'   => esc_url_raw($org_url),
-				'logo'  => $logo_url ? array(
-					'@type' => 'ImageObject',
-					'url'   => esc_url_raw($logo_url),
-				) : null,
-			)),
 			'numberOfItems'   => is_array($items) ? count($items) : 0,
 			'itemListOrder'   => 'https://schema.org/ItemListOrderDescending',
-			'dateModified'    => current_time('c'),
 			'itemListElement' => array(),
 		);
 
@@ -158,7 +239,8 @@ if ( ! function_exists('myls_ycl_build_itemlist_schema') ) {
 				$rawName = isset($it['title'])   ? (string) $it['title'] : 'Video';
 				$name    = myls_ycl_clean_title( $rawName );
 				$thumb   = isset($it['thumb'])   ? esc_url_raw($it['thumb']) : '';
-				$dateISO = isset($it['date'])    ? sanitize_text_field($it['date'])  : '';
+				// uploadDate: normalize helper key differences and add safe fallbacks
+				$dateISO = myls_ycl_resolve_upload_date( is_array($it) ? $it : array() );
 
 				$local  = isset($it['permalink']) ? esc_url_raw($it['permalink']) : '';
 				$watch  = $vid ? ('https://www.youtube.com/watch?v=' . rawurlencode($vid)) : '';
@@ -197,7 +279,7 @@ if ( ! function_exists('myls_ycl_build_itemlist_schema') ) {
 					$videoObj['embedUrl'] = $embed;
 				}
 
-				$schema['itemListElement'][] = array(
+				$itemList['itemListElement'][] = array(
 					'@type'    => 'ListItem',
 					'position' => (int) $i + 1,
 					'item'     => $videoObj,
@@ -205,7 +287,28 @@ if ( ! function_exists('myls_ycl_build_itemlist_schema') ) {
 			}
 		}
 
-		return apply_filters('myls_ycl_itemlist_schema', $schema, $items, $ctx);
+		$page_id = trailingslashit($page_url) . '#webpage';
+		$pageSchema = array(
+			'@context'      => 'https://schema.org',
+			'@type'         => 'CollectionPage',
+			'@id'           => esc_url_raw($page_id),
+			'url'           => esc_url_raw($page_url),
+			'name'          => $title,
+			'description'   => 'Browse videos on ' . $site_name,
+			'dateModified'  => current_time('c'),
+			'publisher'     => array_filter(array(
+				'@type' => 'Organization',
+				'name'  => sanitize_text_field($org_name),
+				'url'   => esc_url_raw($org_url),
+				'logo'  => $logo_url ? array(
+					'@type' => 'ImageObject',
+					'url'   => esc_url_raw($logo_url),
+				) : null,
+			)),
+			'mainEntity'    => $itemList,
+		);
+
+		return apply_filters('myls_ycl_itemlist_schema', $pageSchema, $items, $ctx);
 	}
 }
 

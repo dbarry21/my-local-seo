@@ -61,6 +61,8 @@ if ( ! function_exists('myls_lb_build_schema_from_location') ) {
 			}
 		}
 
+		$org_url = get_option( 'myls_org_url', home_url('/') );
+
 		return array_filter( [
 			'@context' => 'https://schema.org',
 			'@type'    => 'LocalBusiness',
@@ -89,10 +91,13 @@ if ( ! function_exists('myls_lb_build_schema_from_location') ) {
 			] ) : null,
 			'openingHoursSpecification' => $hours ?: null,
 
-			// Keep publisher/logo if you already output it elsewhere (ok to keep)
-			'publisher'=> array_filter( [
+
+			// schema.org: LocalBusiness does NOT support `publisher`.
+			// Use parentOrganization to link the location to the primary Organization entity.
+			'parentOrganization' => array_filter( [
 				'@type' => 'Organization',
 				'name'  => $org_name,
+				'url'   => esc_url_raw( $org_url ),
 				'logo'  => $logo_url ? [
 					'@type' => 'ImageObject',
 					'url'   => esc_url( $logo_url ),

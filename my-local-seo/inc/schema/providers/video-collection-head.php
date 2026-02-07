@@ -16,6 +16,10 @@ function myls_ycl_itemlists_into_head() {
 	if (is_admin() || is_feed() || !is_singular()) return;
 	if (get_option('myls_schema_video_enabled','0') !== '1') return;
 
+	// Shortcode-only mode (default): prevent duplicate ItemList schema.
+	// This keeps schema.org validation clean and avoids competing ItemLists on the same page.
+	if (get_option('myls_video_schema_shortcode_only', '1') === '1') return;
+
 	global $post;
 	if (!($post instanceof WP_Post)) return;
 
@@ -116,23 +120,14 @@ function myls_ycl_itemlists_into_head() {
 
 		$list_id = trailingslashit($page_url) . '#yclist-' . $instance_idx;
 
+		// NOTE: schema.org validators will flag publisher/dateModified on ItemList.
+		// Best-practice: wrap the list in a CollectionPage and move those properties to the page entity.
 		$itemList = [
-			'@context'        => 'https://schema.org',
 			'@type'           => 'ItemList',
 			'@id'             => esc_url($list_id),
 			'name'            => sanitize_text_field(get_bloginfo('name') . ' – Latest Videos'),
 			'description'     => 'Video list rendered on this page.',
-			'publisher'       => array_filter([
-				'@type' => 'Organization',
-				'name'  => sanitize_text_field($org_name),
-				'url'   => esc_url_raw($org_url),
-				'logo'  => $logo_url ? [
-					'@type' => 'ImageObject',
-					'url'   => esc_url_raw($logo_url),
-				] : null,
-			]),
 			'numberOfItems'   => count($schema_list),
-			'dateModified'    => current_time('c'),
 			'itemListElement' => [],
 		];
 
@@ -154,10 +149,30 @@ function myls_ycl_itemlists_into_head() {
 			];
 		}
 
+		$pageSchema = [
+			'@context'     => 'https://schema.org',
+			'@type'        => 'CollectionPage',
+			'@id'          => esc_url( trailingslashit($page_url) . '#webpage-yclist-' . $instance_idx ),
+			'url'          => esc_url_raw($page_url),
+			'name'         => sanitize_text_field(get_bloginfo('name') . ' – Latest Videos'),
+			'description'  => 'Video list rendered on this page.',
+			'dateModified' => current_time('c'),
+			'publisher'    => array_filter([
+				'@type' => 'Organization',
+				'name'  => sanitize_text_field($org_name),
+				'url'   => esc_url_raw($org_url),
+				'logo'  => $logo_url ? [
+					'@type' => 'ImageObject',
+					'url'   => esc_url_raw($logo_url),
+				] : null,
+			]),
+			'mainEntity'   => $itemList,
+		];
+
 		// Output in head
-		echo "\n<!-- BEGIN Video ItemList JSON-LD (yclist-{$instance_idx}) -->\n";
-		echo '<script type="application/ld+json">' . "\n" . wp_json_encode($itemList, JSON_UNESCAPED_SLASHES|JSON_PRETTY_PRINT) . "\n</script>\n";
-		echo "<!-- END Video ItemList JSON-LD (yclist-{$instance_idx}) -->\n";
+		echo "\n<!-- BEGIN Video CollectionPage+ItemList JSON-LD (yclist-{$instance_idx}) -->\n";
+		echo '<script type="application/ld+json">' . "\n" . wp_json_encode($pageSchema, JSON_UNESCAPED_SLASHES|JSON_PRETTY_PRINT) . "\n</script>\n";
+		echo "<!-- END Video CollectionPage+ItemList JSON-LD (yclist-{$instance_idx}) -->\n";
 	}
 }
 

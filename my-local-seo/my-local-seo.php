@@ -3,7 +3,7 @@
  * Plugin Name:       My Local SEO
  * Plugin URI:        https://mylocalseo.ai/
  * Description:       Modular local SEO toolkit with schema, AI tools, bulk operations, and shortcode utilities.
-* Version: 4.6.21
+ * Version: 4.6.26
  * Author:            Dave Barry
  * Author URI:        https://davebarry.io/
  * Text Domain:       my-local-seo
@@ -16,7 +16,7 @@ if ( ! defined('ABSPATH') ) exit;
  * Canonical constants & helpers (single source of truth)
  * ───────────────────────────────────────────────────────────────────────── */
 // Keep in sync with plugin header above.
-if ( ! defined('MYLS_VERSION') )     define('MYLS_VERSION','4.6.20');
+if ( ! defined('MYLS_VERSION') )     define('MYLS_VERSION','4.6.26');
 if ( ! defined('MYLS_MAIN_FILE') )   define('MYLS_MAIN_FILE', __FILE__);
 if ( ! defined('MYLS_PATH') )        define('MYLS_PATH', plugin_dir_path(MYLS_MAIN_FILE));
 if ( ! defined('MYLS_URL') )         define('MYLS_URL',  plugins_url('', MYLS_MAIN_FILE));
@@ -219,7 +219,8 @@ CSS;
 });
 
 add_action('wp_enqueue_scripts', function() {
-    wp_enqueue_style('myls-accordion', MYLS_URL . '/assets/css/myls-accordion.css', [], MYLS_VERSION);
+    // Use the centralized asset URL helper (prevents missing/double slashes).
+    wp_enqueue_style('myls-accordion', myls_asset_url('assets/css/myls-accordion.css'), [], MYLS_VERSION);
 });
 
 

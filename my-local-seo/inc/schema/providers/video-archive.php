@@ -95,21 +95,15 @@ function myls_insert_video_archive_itemlist_schema() {
 
 	$pub = myls_get_publisher_for_schema();
 
+	// NOTE: schema.org validators will flag publisher/dateModified on ItemList.
+	// Best-practice: wrap the list in a CollectionPage and move those properties to the page entity.
 	$itemList = [
-		'@context'        => 'https://schema.org',
 		'@type'           => 'ItemList',
 		'@id'             => esc_url($list_id),
 		'name'            => get_bloginfo('name') . ' – Video Gallery',
 		'description'     => 'Browse all video posts on ' . get_bloginfo('name'),
-		'publisher'       => array_filter([
-			'@type' => 'Organization',
-			'name'  => $pub['name'],
-			'logo'  => $pub['logo_url'] ? ['@type'=>'ImageObject','url'=>$pub['logo_url']] : null,
-			'url'   => $pub['url'],
-		]),
 		'numberOfItems'   => count($videos),
 		'itemListOrder'   => 'https://schema.org/ItemListOrderDescending',
-		'dateModified'    => current_time('c'),
 		'itemListElement' => [],
 	];
 
@@ -141,11 +135,28 @@ function myls_insert_video_archive_itemlist_schema() {
 		];
 	}
 
-	echo "\n<!-- BEGIN Video ItemList JSON-LD (my-local-seo) -->\n";
+	$pageSchema = [
+		'@context'     => 'https://schema.org',
+		'@type'        => 'CollectionPage',
+		'@id'          => esc_url( trailingslashit($archive_url) . '#webpage' ),
+		'url'          => esc_url($archive_url),
+		'name'         => get_bloginfo('name') . ' – Video Gallery',
+		'description'  => 'Browse all video posts on ' . get_bloginfo('name'),
+		'dateModified' => current_time('c'),
+		'publisher'    => array_filter([
+			'@type' => 'Organization',
+			'name'  => $pub['name'],
+			'logo'  => $pub['logo_url'] ? ['@type'=>'ImageObject','url'=>$pub['logo_url']] : null,
+			'url'   => $pub['url'],
+		]),
+		'mainEntity'   => $itemList,
+	];
+
+	echo "\n<!-- BEGIN Video CollectionPage+ItemList JSON-LD (my-local-seo) -->\n";
 	echo '<script type="application/ld+json">' . "\n";
-	echo wp_json_encode($itemList, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . "\n";
+	echo wp_json_encode($pageSchema, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . "\n";
 	echo "</script>\n";
-	echo "<!-- END Video ItemList JSON-LD (my-local-seo) -->\n";
+	echo "<!-- END Video CollectionPage+ItemList JSON-LD (my-local-seo) -->\n";
 }
 
 /**
