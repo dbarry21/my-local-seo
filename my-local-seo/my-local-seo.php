@@ -3,7 +3,7 @@
  * Plugin Name:       My Local SEO
  * Plugin URI:        https://mylocalseo.ai/
  * Description:       Modular local SEO toolkit with schema, AI tools, bulk operations, and shortcode utilities.
-* Version: 4.6.20
+* Version: 4.6.21
  * Author:            Dave Barry
  * Author URI:        https://davebarry.io/
  * Text Domain:       my-local-seo
@@ -219,7 +219,7 @@ CSS;
 });
 
 add_action('wp_enqueue_scripts', function() {
-    wp_enqueue_style('myls-accordion', MYLS_URL . 'assets/css/myls-accordion.css', [], MYLS_VERSION);
+    wp_enqueue_style('myls-accordion', MYLS_URL . '/assets/css/myls-accordion.css', [], MYLS_VERSION);
 });
 
 
