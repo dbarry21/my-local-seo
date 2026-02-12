@@ -3,7 +3,7 @@
  * Plugin Name:       My Local SEO
  * Plugin URI:        https://mylocalseo.ai/
  * Description:       Modular local SEO toolkit with schema, AI tools, bulk operations, and shortcode utilities.
- * Version: 4.6.26
+ * Version: 4.6.30
  * Author:            Dave Barry
  * Author URI:        https://davebarry.io/
  * Text Domain:       my-local-seo
@@ -233,13 +233,6 @@ add_action('plugins_loaded', function () {
 }, 20);
 
 
-
-
-
-
-
-
-
 /** Meta history */
 require_once MYLS_PATH . 'inc/myls-meta-history-logger.php';
 require_once MYLS_PATH . 'inc/myls-meta-history-endpoints.php';
@@ -248,3 +241,91 @@ if ( is_admin() ) {
 	require_once MYLS_PATH . 'admin/api-integration-tests.php';
 	require_once MYLS_PATH . 'modules/meta/meta-history.php';
 }
+
+/**
+ * MYLS FAQ Accordion – standalone collapse + hard stop other handlers
+ * Prevents "re-opening" caused by additional click handlers.
+ */
+add_action('wp_enqueue_scripts', function () {
+
+	$handle = 'myls-faq-standalone-accordion';
+
+	if ( ! wp_script_is( $handle, 'registered' ) ) {
+		wp_register_script( $handle, '', [], '1.0.1', true );
+	}
+
+	wp_enqueue_script( $handle );
+
+	$js = <<<JS
+(function () {
+
+  function closeSiblings(root, keepPanel) {
+    root.querySelectorAll('.accordion-collapse.show').forEach(function(p){
+      if (p === keepPanel) return;
+      p.classList.remove('show');
+
+      var id = p.getAttribute('id');
+      if (!id) return;
+
+      var b = root.querySelector('.accordion-button[data-bs-target="#' + CSS.escape(id) + '"]');
+      if (b) {
+        b.classList.add('collapsed');
+        b.setAttribute('aria-expanded', 'false');
+      }
+    });
+  }
+
+  // Disable Bootstrap data-api toggling if it exists on the page.
+  function neutralizeBootstrapDataApi(root) {
+    root.querySelectorAll('.accordion-button[data-bs-toggle="collapse"]').forEach(function(btn){
+      btn.removeAttribute('data-bs-toggle'); // stops bootstrap delegation from acting on it
+    });
+  }
+
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('.ssseo-accordion .accordion-button');
+    if (!btn) return;
+
+    // HARD STOP: prevents Elementor/other handlers from also toggling.
+    e.preventDefault();
+    e.stopPropagation();
+    if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+
+    // Prevent rapid double-click / duplicate event dispatch
+    if (btn.__mylsLock) return;
+    btn.__mylsLock = true;
+    setTimeout(function(){ btn.__mylsLock = false; }, 50);
+
+    var root = btn.closest('.ssseo-accordion');
+    if (!root) return;
+
+    neutralizeBootstrapDataApi(root);
+
+    var target = btn.getAttribute('data-bs-target');
+    if (!target || target.charAt(0) !== '#') return;
+
+    var panel = root.querySelector(target);
+    if (!panel) return;
+
+    var willOpen = !panel.classList.contains('show');
+
+    // Mimic Bootstrap accordion behavior (only one open) if data-bs-parent is present
+    var parent = panel.getAttribute('data-bs-parent');
+    if (parent && willOpen) {
+      closeSiblings(root, panel);
+    }
+
+    panel.classList.toggle('show', willOpen);
+
+    // Update caret state + aria state
+    btn.classList.toggle('collapsed', !willOpen);
+    btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+
+  }, true); // capture=true is important
+
+})();
+JS;
+
+	wp_add_inline_script( $handle, $js );
+}, 50);
+
