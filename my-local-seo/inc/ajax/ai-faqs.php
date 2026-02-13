@@ -849,16 +849,46 @@ add_action('wp_ajax_myls_ai_faqs_generate_v1', function(){
     $page_text = preg_replace('/\s+/u',' ', trim( wp_strip_all_tags( (string) $p->post_content ) ));
   }
 
+  // Get city/state from post meta (try multiple possible meta keys)
+  $city_state = '';
+  
+  // Try various common meta keys for city
+  $city = get_post_meta($post_id, '_myls_city', true);
+  if ( ! $city ) $city = get_post_meta($post_id, 'city', true);
+  if ( ! $city ) $city = get_post_meta($post_id, '_city', true);
+  
+  // Try various common meta keys for state
+  $state = get_post_meta($post_id, '_myls_state', true);
+  if ( ! $state ) $state = get_post_meta($post_id, 'state', true);
+  if ( ! $state ) $state = get_post_meta($post_id, '_state', true);
+  
+  // Build city_state string
+  if ( $city && $state ) {
+    $city_state = trim($city) . ', ' . trim($state);
+  } elseif ( $city ) {
+    $city_state = trim($city);
+  } elseif ( $state ) {
+    $city_state = trim($state);
+  }
+  
+  // Allow filtering for custom post meta structures
+  $city_state = apply_filters('myls_ai_faqs_city_state', $city_state, $post_id);
+
+  // Get contact URL from option (with fallback)
+  $contact_page_id = (int) get_option('myls_contact_page_id', 0);
+  $contact_url = $contact_page_id > 0 ? get_permalink($contact_page_id) : home_url('/contact-us/');
+  $contact_url = esc_url_raw( $contact_url );
+
   // Populate prompt vars
   $prompt = str_replace(
-    ['{{TITLE}}','{{URL}}','{{PAGE_TEXT}}','{{ALLOW_LINKS}}','{{VARIANT}}'],
-    [$title, $url, $page_text, $allow_links ? 'YES' : 'NO', $variant],
+    ['{{TITLE}}','{{URL}}','{{PAGE_TEXT}}','{{ALLOW_LINKS}}','{{VARIANT}}','{{CITY_STATE}}','{{CONTACT_URL}}'],
+    [$title, $url, $page_text, $allow_links ? 'YES' : 'NO', $variant, $city_state, $contact_url],
     $template
   );
 
   // Params (fallback to options)
-  $tokens = max(1, (int) ($_POST['tokens'] ?? (int) get_option('myls_ai_faqs_tokens', 1200)));
-  $temp   = (float) ($_POST['temperature'] ?? (float) get_option('myls_ai_faqs_temperature', 0.4));
+  $tokens = max(1, (int) ($_POST['tokens'] ?? (int) get_option('myls_ai_faqs_tokens', 10000)));
+  $temp   = (float) ($_POST['temperature'] ?? (float) get_option('myls_ai_faqs_temperature', 0.5));
   $model  = isset($_POST['model']) && is_string($_POST['model']) ? trim($_POST['model']) : '';
 
   $ai = myls_ai_generate_text($prompt, [
@@ -877,6 +907,7 @@ add_action('wp_ajax_myls_ai_faqs_generate_v1', function(){
     'h3'     => [],
     'p'      => [],
     'ul'     => [],
+    'ol'     => [],
     'li'     => [],
     'strong' => [],
     'em'     => [],
@@ -1018,13 +1049,19 @@ add_action('wp_ajax_myls_ai_faqs_insert_myls_v1', function(){
     wp_send_json_error(['marker'=>'faqs','status'=>'error','message'=>'missing_faqs_for_myls'], 400);
   }
 
+  // When replacing, start from a clean slate.
   $existing = $replace ? [] : myls_ai_faqs_myls_get_items($post_id);
   $existing = myls_ai_faqs_myls_normalize_items($existing);
 
   $seen = myls_ai_faqs_myls_hash_existing($existing);
 
   $auto_key = myls_ai_faqs_myls_auto_meta_key();
-  $auto_hashes = get_post_meta($post_id, $auto_key, true);
+
+  // IMPORTANT:
+  // If we are overwriting existing FAQs, we also want to overwrite the
+  // auto-hash marker set. Otherwise the marker list can accumulate stale
+  // hashes and make delete-auto confusing.
+  $auto_hashes = $replace ? [] : get_post_meta($post_id, $auto_key, true);
   if ( ! is_array($auto_hashes) ) $auto_hashes = [];
 
   $inserted = 0;

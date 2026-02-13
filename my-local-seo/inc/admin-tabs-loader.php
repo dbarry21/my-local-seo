@@ -124,9 +124,17 @@ if ( ! defined('MYLS_TABS_LOADER_READY') ) {
 				$url    = add_query_arg( ['page' => $page_slug, 'tab' => $id], admin_url( 'admin.php' ) );
 				$active = ( $t['id'] === $current_id ) ? ' nav-tab-active' : '';
 
-				$icon   = ! empty( $t['icon'] )
-					? '<span class="dashicons ' . esc_attr( $t['icon'] ) . '" style="vertical-align:middle;margin-right:6px;"></span>'
-					: '';
+				// Support both dashicons and Bootstrap Icons
+				$icon = '';
+				if ( ! empty( $t['icon'] ) ) {
+					if ( strpos( $t['icon'], 'dashicons-' ) === 0 ) {
+						// WordPress dashicons
+						$icon = '<span class="dashicons ' . esc_attr( $t['icon'] ) . '"></span>';
+					} elseif ( strpos( $t['icon'], 'bi-' ) === 0 ) {
+						// Bootstrap Icons
+						$icon = '<i class="bi ' . esc_attr( $t['icon'] ) . '"></i>';
+					}
+				}
 
 				$item = sprintf(
 					'<a href="%s" class="nav-tab%s">%s%s</a>',
@@ -214,17 +222,29 @@ if ( ! defined('MYLS_TABS_LOADER_READY') ) {
 				admin_url('admin.php')
 			);
 
-			// Nav tabs (WP admin style)
-			echo '<h2 class="nav-tab-wrapper" style="margin-bottom:12px;">';
+			// Nav tabs (WP admin style with icon support)
+			echo '<h2 class="nav-tab-wrapper myls-subtabs" style="margin-bottom:12px;">';
 			foreach ($ordered as $spec) {
 				$id    = $spec['id'];
 				$label = $spec['label'] ?? $id;
 				$url   = add_query_arg('subtab', $id, $base);
-				$cls   = 'nav-tab' . ($id === $active ? ' nav-tab-active' : '');
+				$cls   = 'nav-tab myls-subtab' . ($id === $active ? ' nav-tab-active active' : '');
+				
+				// Support both dashicons and Bootstrap Icons
+				$icon = '';
+				if ( ! empty( $spec['icon'] ) ) {
+					if ( strpos( $spec['icon'], 'dashicons-' ) === 0 ) {
+						$icon = '<span class="dashicons ' . esc_attr( $spec['icon'] ) . '"></span>';
+					} elseif ( strpos( $spec['icon'], 'bi-' ) === 0 ) {
+						$icon = '<i class="bi ' . esc_attr( $spec['icon'] ) . '"></i>';
+					}
+				}
+				
 				printf(
-					'<a class="%s" href="%s">%s</a>',
+					'<a class="%s" href="%s">%s%s</a>',
 					esc_attr($cls),
 					esc_url($url),
+					$icon,
 					esc_html($label)
 				);
 			}

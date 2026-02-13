@@ -3,7 +3,7 @@ Contributors: davebarry
 Tags: local seo, schema, ai, faq, utilities
 Requires at least: 6.0
 Tested up to: 6.5
-Stable tag: 4.6.26
+Stable tag: 4.6.32
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -19,6 +19,12 @@ This plugin provides a modular admin toolkit for local SEO workflows including s
 2. Activate the plugin through the 'Plugins' menu in WordPress.
 
 == Upgrade Notice ==
+
+= 4.6.32 =
+CRITICAL FIX: Increases default max_tokens from 1200 to 4000 so AI FAQ Generator produces full 10-15 FAQs instead of stopping after 1-2. Also adds context-specific token handling.
+
+= 4.6.31 =
+Fixes AI FAQ Generator to properly follow prompt templates with {{CITY_STATE}} and {{CONTACT_URL}} variables, ensures variant defaults are respected, and improves city/state detection from post meta.
 
 = 4.6.19 =
 Fixes a Utilities → FAQ Quick Editor scoping bug that could crash some installs, and ensures the AI → FAQs Builder LONG variant uses the new multi-block prompt (auto-migrates legacy one-line templates).
@@ -76,6 +82,19 @@ FAQ Quick Editor now supports multi-post batch save and WYSIWYG answers.
 Utilities now includes the FAQ Quick Editor and reorganized FAQ migration tools.
 
 == Changelog ==
+
+= 4.6.32 =
+* CRITICAL FIX: Increased default max_tokens from 1200 to 4000 - was causing FAQ generator to only produce 1-2 FAQs instead of 10-15
+* Fixed: Added context-specific token handling in OpenAI integration for 'faqs_generate' context
+* Improved: Added helpful UI guidance about token requirements (4000+ for LONG, 2500+ for SHORT)
+* Improved: Better system prompt for FAQ generation context
+
+= 4.6.31 =
+* Fixed: AI FAQ Generator now properly replaces {{CITY_STATE}} and {{CONTACT_URL}} template variables
+* Fixed: City/state detection improved with multiple fallback meta keys (_myls_city, city, _city, etc.)
+* Fixed: Temperature default now consistently uses 0.5 from saved options
+* Fixed: Added <ol> tag support for ordered lists in generated HTML
+* Improved: Added filter hook 'myls_ai_faqs_city_state' for custom city/state detection logic
 
 = 4.6.15 =
 * AI → FAQs Builder: Upgraded default FAQ prompt to produce longer, more complete homeowner answers.

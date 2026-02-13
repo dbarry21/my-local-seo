@@ -70,19 +70,9 @@ if ( ! function_exists('myls_plugin_base_url') ) {
 }
 
 /**
- * Load Bootstrap Icons for UI parity
+ * Bootstrap Icons are now loaded globally via inc/assets.php
+ * (Removed duplicate loading from here to avoid conflicts)
  */
-if ( ! function_exists('myls_enqueue_ai_icons') ) {
-	add_action('admin_enqueue_scripts', function( $hook ){
-		if ( empty($_GET['page']) || $_GET['page'] !== 'my-local-seo' ) return;
-		wp_enqueue_style(
-			'myls-bootstrap-icons',
-			'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css',
-			array(),
-			'1.11.3'
-		);
-	});
-}
 
 /**
  * Register the "AI" tab
@@ -92,7 +82,7 @@ myls_register_admin_tab([
 	'title' => 'AI',
 	'order' => 40,
 	'cap'   => 'manage_options',
-	'icon'  => 'dashicons-art',
+	'icon'  => 'bi-robot',
 	'cb'    => function () {
 		$subtabs = [];
 		foreach (glob(__DIR__ . '/ai/subtab-*.php') as $file) {

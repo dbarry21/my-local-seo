@@ -4,6 +4,7 @@ if ( ! defined('ABSPATH') ) exit;
 return [
   'id'    => 'about-area',
   'label' => 'About the Area',
+  'icon'  => 'bi-map',
   'order' => 30,
   'render'=> function () {
 

@@ -3,6 +3,7 @@
 return [
   'id'    => 'excerpt',
   'label' => 'Excerpts',
+  'icon'  => 'bi-file-text',
   'order' => 20,
   'render'=> function () {
 

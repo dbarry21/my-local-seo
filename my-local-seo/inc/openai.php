@@ -106,6 +106,10 @@ if ( ! function_exists('myls_openai_complete') ) {
 			$model      = $model ?: 'gpt-4o';      // bigger model
 			$max_tokens = $max_tokens ?: 1600;     // enough room for sectioned HTML
 			$system     = 'You write clean, structured, sectioned HTML for local area guides. No markdown, no code fences.';
+		} elseif ( $context === 'faqs_generate' ) {
+			$model      = $model ?: 'gpt-4o';      // bigger model for FAQs
+			$max_tokens = $max_tokens ?: 10000;    // enough for 10-15 LONG FAQs with detailed multi-block answers, lists, and sources
+			$system     = 'You are an expert local SEO copywriter. Generate clean, structured HTML for FAQ content. No markdown, no code fences.';
 		} else {
 			$model      = $model ?: 'gpt-4o-mini';
 			$max_tokens = $max_tokens ?: 300;

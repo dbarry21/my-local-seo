@@ -17,6 +17,7 @@ if ( ! defined('ABSPATH') ) exit;
 return [
   'id'    => 'geo',
   'label' => 'SEO → GEO (Rewrite Draft Builder)',
+  'icon'  => 'bi-geo-alt',
   'order' => 40,
   'render'=> function () {
 

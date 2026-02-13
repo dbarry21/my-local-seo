@@ -11,9 +11,12 @@
  * - Optional external source links (target="_blank")
  * - Provides preview + download .html + download .docx
  *
- * Notes:
- * - Subtabs are auto-discovered by admin/tabs/tab-ai.php via admin/tabs/ai/subtab-*.php
- * - This subtab prints its config and loads its JS in admin_print_footer_scripts
+ * NEW:
+ * - Contact Page selector saved in option myls_contact_page_id (stores page ID)
+ * - Smart default detection: /contact-us/ then /contact/
+ * - Exposes resolved contactUrl + contactPageId to JS config
+ * - Updated default prompt supports: {{CITY_STATE}}, {{CONTACT_URL}}, UL/OL mix, and internal CTA link
+ * - Default variant LONG
  */
 
 if ( ! defined('ABSPATH') ) exit;
@@ -21,90 +24,123 @@ if ( ! defined('ABSPATH') ) exit;
 return [
   'id'    => 'faqs',
   'label' => 'FAQs (Builder)',
+  'icon'  => 'bi-question-circle',
   'order' => 50,
   'render'=> function () {
 
     // ---------------------------------------------------------------------
-    // Default prompt (saved in option after first save; never "missing_template")
-    // NOTE: This default is tuned for longer, AI Overview-friendly answers.
+    // Contact Page option (store page ID, resolve permalink dynamically)
     // ---------------------------------------------------------------------
-    // v2 prompt key (supports LONG/SHORT variants + AI Overview structure).
-    // We keep v1 for backward compatibility, but auto-migrate if it contains the old one-line format.
+    $contact_page_id = (int) get_option('myls_contact_page_id', 0);
+
+    // Smart default detection (only if not set yet)
+    if ( $contact_page_id <= 0 ) {
+      $p = get_page_by_path('contact-us');
+      if ( ! $p ) $p = get_page_by_path('contact');
+
+      if ( $p && ! empty($p->ID) ) {
+        $contact_page_id = (int) $p->ID;
+        update_option('myls_contact_page_id', $contact_page_id);
+      }
+    }
+
+    // Resolve contact URL (fallback to /contact-us/)
+    $contact_url = $contact_page_id > 0 ? get_permalink($contact_page_id) : home_url('/contact-us/');
+    $contact_url = esc_url_raw( $contact_url );
+
+    // ---------------------------------------------------------------------
+    // Default prompt (v2)
+    // ---------------------------------------------------------------------
     $default_prompt = get_option('myls_ai_faqs_prompt_template_v2', '');
     if ( ! is_string($default_prompt) || trim($default_prompt) === '' ) {
+
+      // Default prompt is tuned for LONG, AI Overview structure, UL/OL mix,
+      // city_state prominence, and an internal Contact link on every FAQ.
       $default_prompt = <<<EOT
-You are an expert local SEO + conversion copywriter creating HIGH-QUALITY, IN-DEPTH FAQs for a LOCAL SERVICE PAGE.
+You are an expert local SEO + conversion copywriter creating HIGH-QUALITY, STRUCTURED FAQs for a LOCAL SERVICE PAGE in {{CITY_STATE}}.
 
 INPUTS:
 - Page Title: {{TITLE}}
 - Permalink URL: {{URL}}
-- Rendered page text (from the permalink): {{PAGE_TEXT}}
+- Rendered page text: {{PAGE_TEXT}}
+- City/State: {{CITY_STATE}}
+- Contact Page URL: {{CONTACT_URL}}
 - Allow external source links?: {{ALLOW_LINKS}}
-- Output Variant: {{VARIANT}}  (LONG or SHORT)
+- Output Variant: {{VARIANT}} (LONG or SHORT)
 
-INTERNAL GUIDANCE (DO NOT OUTPUT THIS SECTION):
-- Assume the reader is comparing 2–3 local providers and wants clarity, risks, timelines, and what to ask before hiring — not hype.
-- Optimize for AI Overviews: write direct, self-contained answers with clear definitions, scannable structure, and actionable steps.
-- Use “helpful next step” phrasing (implicit CTA) without sounding salesy: e.g., “A good next step is…”, “When you’re ready, ask for…”, “If you’re comparing quotes, request…”.
-- Never claim business-specific facts unless explicitly present in {{PAGE_TEXT}}.
+INTERNAL GUIDANCE (DO NOT OUTPUT):
+- Write for homeowners in {{CITY_STATE}} comparing 2–3 local providers.
+- Naturally incorporate {{CITY_STATE}} in questions and answers where contextually appropriate.
+- Mention {{CITY_STATE}} in at least 60–70% of FAQs. Do not keyword-stuff.
+- Optimize for AI Overviews: direct answers, scannable structure, and actionable lists.
+- Never invent business-specific claims unless explicitly present in {{PAGE_TEXT}}.
 
 RULES (CRITICAL):
-- Use {{PAGE_TEXT}} as the PRIMARY source for specifics.
-- You MAY use reputable public sources for general, service-level facts (safety, maintenance, typical timelines, homeowner best practices).
-- Do NOT invent business-specific facts unless explicitly present in the page text (years in business, pricing, exact service areas, guarantees, awards, licenses, ownership claims, “free estimates”, etc.).
-- Keep answers written for HOMEOWNERS considering this service.
-- Avoid fluff, filler, or vague generalities. Prefer concrete guidance.
-- If you use public sources, include a "Sources" list at the end.
+- Use {{PAGE_TEXT}} as PRIMARY source for specifics.
+- You MAY use reputable public sources for general service knowledge (not business-specific).
+- Do NOT fabricate pricing, guarantees, service areas beyond what is stated in {{PAGE_TEXT}}, years in business, awards, licenses, or ownership claims.
+- Avoid fluff. Be precise and practical.
+- If public sources are used, include a "Sources" section at the end.
 
 OUTPUT (STRICT):
 - Return CLEAN HTML ONLY. No markdown. No backticks. No code fences.
-- Allowed tags: <h2>, <h3>, <p>, <ul>, <li>, <strong>, <em>, <a>.
-- NO style/class/data attributes. (No id attributes needed for this FAQ output.)
-- Links:
+- Allowed tags: <h2>, <h3>, <p>, <ul>, <ol>, <li>, <strong>, <em>, <a>.
+- NO style/class/data attributes.
+- External links:
   - If {{ALLOW_LINKS}} = YES, you may include external links ONLY in the Sources list and they MUST have target="_blank".
   - If {{ALLOW_LINKS}} = NO, do not include any external links.
+- Internal link rule (ALWAYS ALLOWED):
+  - Every FAQ MUST end with a Helpful next step sentence that includes this internal link exactly once:
+    <a href="{{CONTACT_URL}}">Contact us</a>
+  - The Contact link must NOT include target="_blank".
+
+LIST STRUCTURE REQUIREMENTS (VERY IMPORTANT):
+- EVERY FAQ MUST include exactly ONE list block (either <ul> OR <ol>, not both).
+- Use BOTH unordered (<ul>) and ordered (<ol>) lists throughout the document.
+- At least 30–40% of FAQs MUST use ordered lists (<ol>) for step-by-step sequences or checklists.
+- Use unordered lists (<ul>) for warning signs, benefits, comparison criteria, and risk factors.
+- Each list must contain 3–5 meaningful items (no filler).
 
 VARIANT RULES:
-- If {{VARIANT}} = LONG:
-  - Create 10–15 FAQs.
-  - Each answer should typically be 90–170 words (when appropriate).
-  - Each answer MUST include at least ONE bulleted list (<ul><li>…</li></ul>).
-  - Include 2–3 short paragraphs before the list when it helps clarity.
-  - Add one implicit-CTA “next step” sentence near the end of the answer (not every time if it feels forced, but most FAQs should have it).
-- If {{VARIANT}} = SHORT:
-  - Create 8–12 FAQs.
-  - Each answer should typically be 45–90 words.
-  - Each answer MUST include either:
-    - a short bulleted list (2–4 bullets), OR
-    - a tight “what to ask / what to check” checklist.
-  - Include an implicit-CTA “next step” sentence in about half the FAQs.
 
-AI OVERVIEW ELIGIBILITY REQUIREMENTS (VERY IMPORTANT):
-- For each answer:
-  - Start with a direct, one-sentence “best answer” that can stand alone.
-  - Follow with short supporting context (1–2 short <p> blocks).
-  - Include a checklist or steps in <ul>.
-  - Avoid jargon; if unavoidable, define it in plain English.
-  - When making a recommendation, frame it as a homeowner safeguard (“to avoid surprises…”, “to reduce risk…”).
-- Prefer specificity that is safe:
-  - Use “often”, “typically”, “in many cases” for general timelines/cost factors unless {{PAGE_TEXT}} provides specifics.
-  - Never give exact pricing unless present in {{PAGE_TEXT}}.
+IF {{VARIANT}} = LONG:
+- Create 10–15 FAQs.
+- Each answer should typically be 110–180 words.
+- Structure:
+  1) One direct standalone sentence (mention {{CITY_STATE}} when it fits).
+  2) 1–2 short supporting paragraphs.
+  3) One list (<ul> OR <ol>).
+  4) Helpful next step sentence that includes the Contact link.
+
+IF {{VARIANT}} = SHORT:
+- Create 8–12 FAQs.
+- Each answer should typically be 60–100 words.
+- Every FAQ MUST include a list.
+- Alternate list types naturally between <ul> and <ol>.
+- Include {{CITY_STATE}} naturally in at least half of the answers.
+- End each FAQ with the required Helpful next step including the Contact link.
+
+AI OVERVIEW ELIGIBILITY:
+- The first sentence must stand alone and answer the question.
+- Define any technical terms simply.
+- Frame recommendations as homeowner safeguards (to reduce risk / avoid surprises).
+- Avoid exact pricing unless present in {{PAGE_TEXT}}.
+- Use location context safely (permits, climate, weather, scheduling) when appropriate for {{CITY_STATE}}.
 
 REQUIRED STRUCTURE:
+
 <h2>FAQs</h2>
 
 For EACH FAQ, use EXACTLY this structure:
 
 <h3>QUESTION TEXT</h3>
-<p><strong>Answer:</strong> First sentence is the direct best answer. Keep it crisp and complete.</p>
-<p>Short supporting explanation tailored to homeowners considering this service.</p>
-<p>Additional clarity on expectations, common pitfalls, timelines, materials, or prep (as relevant).</p>
-<ul>
-  <li>Actionable step / checklist item</li>
-  <li>Actionable step / checklist item</li>
-  <li>Actionable step / checklist item</li>
-</ul>
-<p><em>Helpful next step:</em> A subtle, non-salesy suggestion for what the homeowner should do next (ask for, check, compare, request, confirm).</p>
+<p><strong>Answer:</strong> Direct standalone sentence.</p>
+<p>Supporting explanation tailored to homeowners in {{CITY_STATE}}.</p>
+<p>Additional clarity if helpful.</p>
+
+[Insert either <ul> OR <ol> here — not both]
+
+<p><em>Helpful next step:</em> Include a subtle next step and include <a href="{{CONTACT_URL}}">Contact us</a> for help in {{CITY_STATE}}.</p>
 
 After the FAQs, output:
 <h2>Sources</h2>
@@ -125,7 +161,6 @@ EOT;
     if ( ! is_string($default_prompt) || trim($default_prompt) === '' ) {
       $legacy = get_option('myls_ai_faqs_prompt_template', '');
       if ( is_string($legacy) && trim($legacy) !== '' ) {
-        // If legacy prompt enforces one-line Q/A, replace with v2 default.
         $is_legacy_one_line = (stripos($legacy, 'ONE LINE') !== false) || (stripos($legacy, '<strong>Question') !== false && stripos($legacy, '<strong>Answer') !== false);
         $migrated = $is_legacy_one_line ? $default_prompt : $legacy;
         update_option('myls_ai_faqs_prompt_template_v2', $migrated);
@@ -134,28 +169,43 @@ EOT;
     }
 
     // ---------------------------------------------------------------------
-    // Save prompt + params
+    // Save prompt + params + contact page
     // ---------------------------------------------------------------------
     if (
       isset($_POST['myls_ai_faqs_save']) &&
       check_admin_referer('myls_ai_faqs_save_nonce', 'myls_ai_faqs_save_nonce')
     ) {
-      update_option('myls_ai_faqs_prompt_template', wp_kses_post(wp_unslash($_POST['myls_ai_faqs_prompt_template'] ?? '')));
-      // Save into v2 key as the active template (keeps v1 for compatibility).
-      update_option('myls_ai_faqs_prompt_template_v2', wp_kses_post(wp_unslash($_POST['myls_ai_faqs_prompt_template'] ?? '')));
+      $posted_prompt = wp_kses_post( wp_unslash($_POST['myls_ai_faqs_prompt_template'] ?? '') );
+
+      update_option('myls_ai_faqs_prompt_template', $posted_prompt);
+      update_option('myls_ai_faqs_prompt_template_v2', $posted_prompt);
+
       update_option('myls_ai_faqs_tokens', max(1, (int) ($_POST['myls_ai_faqs_tokens'] ?? 1200)));
-      update_option('myls_ai_faqs_temperature', (float) ($_POST['myls_ai_faqs_temperature'] ?? 0.4));
+      update_option('myls_ai_faqs_temperature', (float) ($_POST['myls_ai_faqs_temperature'] ?? 0.5));
+
       $v = strtoupper( sanitize_text_field( wp_unslash($_POST['myls_ai_faqs_variant_default'] ?? 'LONG') ) );
       if ( $v !== 'SHORT' ) $v = 'LONG';
       update_option('myls_ai_faqs_variant_default', $v);
-      echo '<div class="updated notice"><p>Saved FAQs prompt template & params.</p></div>';
+
+      // ✅ Contact page ID save
+      $posted_contact_id = isset($_POST['myls_contact_page_id']) ? (int) $_POST['myls_contact_page_id'] : 0;
+      update_option('myls_contact_page_id', max(0, $posted_contact_id));
+
+      echo '<div class="updated notice"><p>Saved FAQs prompt template, params, and Contact Page.</p></div>';
+
+      // Refresh local vars after save
+      $contact_page_id = (int) get_option('myls_contact_page_id', 0);
+      $contact_url     = $contact_page_id > 0 ? get_permalink($contact_page_id) : home_url('/contact-us/');
+      $contact_url     = esc_url_raw( $contact_url );
     }
 
     $prompt = get_option('myls_ai_faqs_prompt_template_v2', $default_prompt);
     if ( ! is_string($prompt) || trim($prompt) === '' ) $prompt = $default_prompt;
 
-    $tokens = (int) get_option('myls_ai_faqs_tokens', 1200);
-    $temp   = (float) get_option('myls_ai_faqs_temperature', 0.4);
+    $tokens = (int) get_option('myls_ai_faqs_tokens', 4000);
+    $temp   = (float) get_option('myls_ai_faqs_temperature', 0.5);
+
+    // ✅ Default to LONG (as requested)
     $variant_default = strtoupper( (string) get_option('myls_ai_faqs_variant_default', 'LONG') );
     if ( $variant_default !== 'SHORT' ) $variant_default = 'LONG';
 
@@ -169,42 +219,49 @@ EOT;
     $nonce = wp_create_nonce('myls_ai_ops');
     ?>
 
-<style>
-  /* Selectable panes with local Ctrl+A selection (JS handles Ctrl+A) */
-  .myls-selectbox{
-    position:relative;
-    border:1px solid #ccc;
-    border-radius:10px;
-    background:#fff;
-    padding:12px;
-    overflow:auto;
-    user-select:text;
-    -webkit-user-select:text;
-  }
-  .myls-selectbox.is-focused{
-    outline:2px solid rgba(0,0,0,0.35);
-    outline-offset:2px;
-  }
-  .myls-geo-spinner{display:none;align-items:center;gap:8px}
-  .myls-geo-spinner .dashicons{animation:myls-geo-spin 0.9s linear infinite}
-  @keyframes myls-geo-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-  .myls-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-</style>
+<!-- Inline styles removed - now using admin.css component classes -->
 
-<div class="myls-two-col" style="display:grid;grid-template-columns:1fr 1.5fr;gap:20px;">
-
-  <!-- LEFT: Prompt -->
-  <div style="border:1px solid #000;padding:16px;border-radius:12px;">
-    <h2 class="h4" style="margin-top:0;">FAQs Prompt Template</h2>
+<div class="myls-two-col">
+  <!-- LEFT: Prompt Configuration -->
+  <div class="myls-card">
+    <div class="myls-card-header">
+      <h2 class="myls-card-title">
+        <i class="bi bi-chat-left-text"></i>
+        FAQs Prompt Template
+      </h2>
+    </div>
 
     <form method="post">
       <?php wp_nonce_field('myls_ai_faqs_save_nonce','myls_ai_faqs_save_nonce'); ?>
 
       <div class="mb-3">
+        <label class="form-label"><strong>Contact Page</strong></label>
+        <?php
+          wp_dropdown_pages([
+            'name'              => 'myls_contact_page_id',
+            'selected'          => $contact_page_id,
+            'show_option_none'  => '-- Select Contact Page --',
+            'option_none_value' => 0,
+          ]);
+        ?>
+        <div class="small text-muted mt-1">
+          Resolved URL: <code><?php echo esc_html( $contact_url ?: home_url('/contact-us/') ); ?></code>
+          <br/>This value is injected into prompts as <code>{{CONTACT_URL}}</code>.
+        </div>
+      </div>
+
+      <div class="mb-3">
         <label class="form-label"><strong>Prompt Template</strong></label>
         <textarea id="myls_ai_faqs_prompt_template" name="myls_ai_faqs_prompt_template" class="widefat" rows="22"><?php echo esc_textarea($prompt); ?></textarea>
         <p class="description">
-          Variables: <code>{{TITLE}}</code>, <code>{{URL}}</code>, <code>{{PAGE_TEXT}}</code>, <code>{{ALLOW_LINKS}}</code>, <code>{{VARIANT}}</code>
+          Variables:
+          <code>{{TITLE}}</code>,
+          <code>{{URL}}</code>,
+          <code>{{PAGE_TEXT}}</code>,
+          <code>{{ALLOW_LINKS}}</code>,
+          <code>{{VARIANT}}</code>,
+          <code>{{CITY_STATE}}</code>,
+          <code>{{CONTACT_URL}}</code>
         </p>
       </div>
 
@@ -212,10 +269,12 @@ EOT;
         <div class="col-6 mb-3">
           <label class="form-label">Max Tokens</label>
           <input id="myls_ai_faqs_tokens" type="number" min="1" name="myls_ai_faqs_tokens" class="regular-text form-control" value="<?php echo esc_attr($tokens); ?>" />
+          <div class="small text-muted mt-1">Recommended: 10000-12000 for LONG variant (10-15 detailed FAQs), 5000-6000 for SHORT variant.</div>
         </div>
         <div class="col-6 mb-3">
           <label class="form-label">Temperature</label>
           <input id="myls_ai_faqs_temperature" type="number" step="0.1" min="0" max="2" name="myls_ai_faqs_temperature" class="regular-text form-control" value="<?php echo esc_attr($temp); ?>" />
+          <div class="small text-muted mt-1">For structured HTML, 0.5–0.6 is usually the sweet spot.</div>
         </div>
       </div>
 
@@ -225,22 +284,28 @@ EOT;
           <option value="LONG" <?php selected('LONG', $variant_default); ?>>LONG (10–15 FAQs • Longer answers)</option>
           <option value="SHORT" <?php selected('SHORT', $variant_default); ?>>SHORT (8–12 FAQs • Shorter answers)</option>
         </select>
-        <div class="small text-muted mt-1">Controls the default output style when generating FAQs.</div>
+        <div class="small text-muted mt-1">Default is LONG (recommended) for richer answers and AI Overview formatting.</div>
       </div>
 
       <p><button type="submit" name="myls_ai_faqs_save" class="button button-primary">Save Template & Params</button></p>
     </form>
   </div>
 
-  <!-- RIGHT: Selector + Preview -->
-  <div style="border:1px solid #000;padding:16px;border-radius:12px;">
-
-    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-      <h2 class="h4" style="margin:0;">Select Posts</h2>
-      <div class="small text-muted">Processed: <span id="myls_ai_faqs_count">0</span></div>
+  <!-- RIGHT: Post Selection & Generation -->
+  <div class="myls-card">
+    <div class="myls-card-header">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <h2 class="myls-card-title">
+          <i class="bi bi-list-check"></i>
+          Select Posts
+        </h2>
+        <div class="myls-badge myls-badge-primary">
+          Processed: <span id="myls_ai_faqs_count">0</span>
+        </div>
+      </div>
     </div>
 
-    <div class="row g-3 align-items-end mt-1">
+    <div class="row g-3 align-items-end">
       <div class="col-md-4">
         <label class="form-label">Post Type</label>
         <select id="myls_ai_faqs_pt" class="form-select">
@@ -251,7 +316,6 @@ EOT;
           <?php endforeach; ?>
         </select>
 
-        <!-- Search filter (client-side) -->
         <div class="mt-2">
           <label class="form-label" for="myls_ai_faqs_search">Search</label>
           <input
@@ -301,37 +365,57 @@ EOT;
         <strong>Replace existing MYLS FAQs (overwrite)</strong>
       </label>
 
-      <button type="button" class="button button-primary" id="myls_ai_faqs_generate">Generate FAQs (Preview)</button>
+      <button type="button" class="button button-primary" id="myls_ai_faqs_generate">
+        <i class="bi bi-stars"></i> Generate FAQs (Preview)
+      </button>
 
-      <button type="button" class="button" id="myls_ai_faqs_docx" disabled>Download .docx</button>
-      <button type="button" class="button" id="myls_ai_faqs_html" disabled>Download .html</button>
+      <button type="button" class="button" id="myls_ai_faqs_docx" disabled>
+        <i class="bi bi-file-earmark-word"></i> Download .docx
+      </button>
+      <button type="button" class="button" id="myls_ai_faqs_html" disabled>
+        <i class="bi bi-filetype-html"></i> Download .html
+      </button>
 
-      <button type="button" class="button" id="myls_ai_faqs_insert_acf" disabled>Insert into MYLS FAQs</button>
-      <button type="button" class="button" id="myls_ai_faqs_delete_auto" disabled>Delete Auto-Generated FAQs (MYLS)</button>
+      <button type="button" class="button" id="myls_ai_faqs_insert_acf" disabled>
+        <i class="bi bi-plus-circle"></i> Insert into MYLS FAQs
+      </button>
+      <button type="button" class="button" id="myls_ai_faqs_delete_auto" disabled>
+        <i class="bi bi-trash"></i> Delete Auto-Generated FAQs (MYLS)
+      </button>
 
-      <button type="button" class="button" id="myls_ai_faqs_stop" disabled>Stop</button>
+      <button type="button" class="button" id="myls_ai_faqs_stop" disabled>
+        <i class="bi bi-stop-circle"></i> Stop
+      </button>
 
-      <span class="myls-geo-spinner" id="myls_ai_faqs_spinner">
+      <span class="myls-spinner" id="myls_ai_faqs_spinner">
         <span class="dashicons dashicons-update"></span>
-        <span class="small text-muted">Processing…</span>
+        <span class="myls-text-small">Processing…</span>
       </span>
 
-      <span id="myls_ai_faqs_status" class="small text-muted"></span>
+      <span id="myls_ai_faqs_status" class="myls-text-muted"></span>
     </div>
 
-    <hr/>
+    <hr class="myls-divider"/>
 
-    <h3 class="h5">Preview (FAQs HTML)</h3>
-    <div id="myls_ai_faqs_preview" class="myls-selectbox" style="min-height:180px;max-height:420px;"></div>
-
-    <div class="mt-3">
-      <h3 class="h5">Raw Output</h3>
-      <pre id="myls_ai_faqs_output" class="myls-selectbox" style="white-space:pre-wrap;background:#f8f9fa;border:1px solid #ddd;min-height:140px;max-height:260px;margin:0;"></pre>
+    <div class="mb-3">
+      <h3 class="h5 mb-2">
+        <i class="bi bi-eye"></i> Preview (FAQs HTML)
+      </h3>
+      <div id="myls_ai_faqs_preview" class="myls-preview-box"></div>
     </div>
 
-    <div class="mt-3">
-      <h3 class="h5">Results Log</h3>
-      <pre id="myls_ai_faqs_results" class="myls-selectbox" style="white-space:pre-wrap;background:#f8f9fa;border:1px solid #ddd;min-height:120px;max-height:220px;margin:0;"></pre>
+    <div class="mb-3">
+      <h3 class="h5 mb-2">
+        <i class="bi bi-code"></i> Raw Output
+      </h3>
+      <pre id="myls_ai_faqs_output" class="myls-preview-box" style="white-space:pre-wrap;"></pre>
+    </div>
+
+    <div class="mb-3">
+      <h3 class="h5 mb-2">
+        <i class="bi bi-list-ul"></i> Results Log
+      </h3>
+      <pre id="myls_ai_faqs_results" class="myls-preview-box" style="white-space:pre-wrap;"></pre>
     </div>
 
   </div>
@@ -340,22 +424,17 @@ EOT;
 <?php
     /**
      * Print config + load JS
-     * IMPORTANT: We guard this so it only binds once.
      */
-    add_action('admin_print_footer_scripts', function() use ($default_pt, $nonce) {
+    add_action('admin_print_footer_scripts', function() use ($default_pt, $nonce, $variant_default, $contact_page_id, $contact_url) {
 
       static $did = false;
       if ($did) return;
       $did = true;
 
-      // Only on our plugin screen.
       if ( empty($_GET['page']) || sanitize_key($_GET['page']) !== 'my-local-seo' ) return;
 
       $script_url = rtrim(MYLS_URL, '/') . '/assets/js/myls-ai-faqs.js';
-
-      // Dev-friendly cache bust; replace with MYLS_VERSION if you have it.
       $v = (defined('MYLS_VERSION') && MYLS_VERSION) ? MYLS_VERSION : (string) time();
-
       ?>
       <script>
       window.MYLS_AI_FAQS = {
@@ -363,14 +442,20 @@ EOT;
         nonce: "<?php echo esc_js( $nonce ); ?>",
         defaultType: "<?php echo esc_js( $default_pt ); ?>",
         defaultVariant: "<?php echo esc_js( $variant_default ); ?>",
+
+        // Contact settings (NEW)
+        contactPageId: "<?php echo esc_js( (string) (int) $contact_page_id ); ?>",
+        contactUrl: "<?php echo esc_js( (string) $contact_url ); ?>",
+
         action_get_posts: "myls_ai_faqs_get_posts_v1",
         action_generate: "myls_ai_faqs_generate_v1",
         action_check_existing_myls: "myls_ai_faqs_check_existing_myls_v1",
-        // New (MYLS native)
+
+        // MYLS native
         action_insert_myls: "myls_ai_faqs_insert_myls_v1",
         action_delete_auto_myls: "myls_ai_faqs_delete_auto_myls_v1",
 
-        // Back-compat (older JS expected these keys). Map them to MYLS actions.
+        // Back-compat map
         action_insert_acf: "myls_ai_faqs_insert_myls_v1",
         action_delete_auto_acf: "myls_ai_faqs_delete_auto_myls_v1"
       };

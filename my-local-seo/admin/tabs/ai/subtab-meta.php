@@ -3,6 +3,7 @@
 return [
 	'id'    => 'meta',
 	'label' => 'Meta Titles & Descriptions',
+	'icon'  => 'bi-tag',
 	'order' => 10,
 	'render'=> function () {
 
