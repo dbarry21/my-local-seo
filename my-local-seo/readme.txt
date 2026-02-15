@@ -1,9 +1,9 @@
 === My Local SEO ===
 Contributors: davebarry
-Tags: local seo, schema, ai, faq, utilities
+Tags: local seo, schema, ai, faq, utilities, person schema, linkedin
 Requires at least: 6.0
-Tested up to: 6.5
-Stable tag: 4.6.32
+Tested up to: 6.7
+Stable tag: 4.15.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -13,12 +13,29 @@ My Local SEO is a modular local SEO toolkit with schema, AI tools, bulk operatio
 
 This plugin provides a modular admin toolkit for local SEO workflows including schema generation, AI content tools, bulk operations, and shortcode utilities.
 
+**Key Features:**
+* Person Schema with E-E-A-T optimization (multi-person, Wikidata/Wikipedia expertise linking)
+* LinkedIn Import — AI-powered profile extraction from pasted content
+* Fillable PDF export for person profiles
+* Organization & LocalBusiness schema with awards and certifications
+* AI-powered content generation (meta descriptions, excerpts, FAQs, about areas, geo content)
+* /llms.txt for AI discovery
+* FAQ accordion with schema markup
+* Google Maps integration for service areas
+* Divi Builder module support
+
 == Installation ==
 
 1. Upload the `my-local-seo` folder to the `/wp-content/plugins/` directory.
 2. Activate the plugin through the 'Plugins' menu in WordPress.
 
 == Upgrade Notice ==
+
+= 4.15.0 =
+Major Person Schema update: LinkedIn AI Import (paste profile content for auto-extraction), fillable PDF export, person labels with live accordion headers. Requires OpenAI API key for LinkedIn import feature.
+
+= 4.12.0 =
+New Person Schema subtab with full multi-person support, E-E-A-T optimization, Wikidata/Wikipedia expertise linking, credentials, education, memberships, and per-person page assignment.
 
 = 4.6.32 =
 CRITICAL FIX: Increases default max_tokens from 1200 to 4000 so AI FAQ Generator produces full 10-15 FAQs instead of stopping after 1-2. Also adds context-specific token handling.
@@ -82,6 +99,23 @@ FAQ Quick Editor now supports multi-post batch save and WYSIWYG answers.
 Utilities now includes the FAQ Quick Editor and reorganized FAQ migration tools.
 
 == Changelog ==
+
+= 4.15.0 =
+* NEW: LinkedIn Import — paste profile content (text or HTML source), AI extracts structured person data
+* NEW: Person Label — display-only label for each person accordion header (not in schema output)
+* NEW: Fillable PDF Export — branded fillable form with text fields, checkboxes, multi-column grids
+* PDF uses pdf-lib (client-side, CDN lazy-loaded) with proper form field appearances
+* LinkedIn import supports both plain text paste and advanced HTML source paste
+* AI extracts: name, title, bio, education, credentials, expertise (with Wikidata/Wikipedia), memberships, awards, languages
+* Added inc/ajax/ai-person-linkedin.php AJAX endpoint
+* Version bumped across plugin header and constants
+
+= 4.12.0 =
+* NEW: Person Schema subtab — full multi-person support with accordion UI
+* Per-person: identity, bio, social profiles, expertise (knowsAbout with Wikidata), credentials, education, memberships, awards, languages
+* Per-person page assignment and enable/disable toggle
+* JSON-LD output on assigned pages, worksFor linked to Organization schema
+* Pro Tips sidebar with E-E-A-T best practices
 
 = 4.6.32 =
 * CRITICAL FIX: Increased default max_tokens from 1200 to 4000 - was causing FAQ generator to only produce 1-2 FAQs instead of 10-15

@@ -1,3 +1,62 @@
+# My Local SEO — Changelog
+
+## 4.15.0 — 2026-02-15
+
+### Schema → Person
+- **NEW: LinkedIn Import** — AI-powered profile extraction from pasted LinkedIn content.
+  - Paste visible text (Ctrl+A → Ctrl+C from the profile page) for quick import.
+  - Advanced toggle: paste raw HTML page source for richer structured data extraction (JSON-LD, OG tags, noscript content).
+  - AI extracts: name, job title, bio, education, credentials, expertise topics (with Wikidata/Wikipedia linking), memberships, awards, languages, and social profile URLs.
+  - Target selector to populate any existing person card.
+  - Uses the plugin's existing OpenAI integration — no additional API keys needed.
+  - New AJAX endpoint: `wp_ajax_myls_person_import_linkedin` (file: `inc/ajax/ai-person-linkedin.php`).
+- **NEW: Person Label** — display-only label field at the top of each person accordion (e.g. "Owner", "Dr. Smith").
+  - Live-updates the accordion header as you type.
+  - Stored in database but NOT included in schema output.
+  - Accordion header now shows: Label (primary) + "Full Name · Job Title · X page(s)" (meta line).
+- **NEW: Export to Fillable PDF** — generates a branded, fillable PDF form from any person profile.
+  - Client-side generation via pdf-lib (lazy-loaded from CDN on first click).
+  - Fillable text fields for all identity, bio, social, and URL fields.
+  - Fillable checkbox for schema enabled/disabled status.
+  - Composite sections (expertise, credentials, education, memberships) render as multi-column fillable grids (3 rows each).
+  - Repeater sections (sameAs, awards, languages) render as numbered fillable rows (5 rows each).
+  - Multi-line fillable textarea for bio/description.
+  - Branded purple header bar with profile label badge.
+  - Footer on every page with plugin name, generation date, and page numbers.
+  - Page assignments excluded from PDF output.
+  - Pre-populates with current form data — empty fields remain fillable blanks.
+  - Downloads as `person-profile-{name}.pdf`.
+
+### Internal
+- Added `inc/ajax/ai-person-linkedin.php` — AJAX handler with HTML content extraction and AI-powered structured parsing.
+- `myls_linkedin_extract_from_html()` — extracts OG tags, meta description, JSON-LD, noscript content, and visible text from pasted LinkedIn HTML.
+- `myls_linkedin_sanitize_profile()` — sanitizes all AI-returned fields with WordPress sanitization functions.
+- PDF export logic inlined in the Person subtab `<script>` block for reliable loading (no external JS dependency).
+- Version bumped to 4.15.0 across plugin header and MYLS_VERSION constant.
+
+---
+
+## 4.12.0 — 2026-02-14
+
+### Schema → Person
+- **NEW: Person Schema Subtab** — full multi-person support with per-person page assignment.
+  - Multi-person accordion UI with add/clone/remove functionality.
+  - Per-person fields: name, job title, honorific prefix, bio, email, phone, photo, profile URL.
+  - Social profiles (sameAs) repeater — LinkedIn, Facebook, X/Twitter, YouTube, Wikipedia, Wikidata, Crunchbase.
+  - Areas of Expertise (knowsAbout) — composite repeater with Wikidata Q-ID and Wikipedia URL linking for AI citation.
+  - Credentials & Licenses (hasCredential) — composite repeater with credential name, abbreviation, issuing org, issuer URL.
+  - Education (alumniOf) — composite repeater with institution name and URL.
+  - Memberships (memberOf) — composite repeater with organization name and URL.
+  - Awards and Languages simple repeaters.
+  - Per-person page assignment with checkbox list (pages, posts, services, service areas).
+  - Per-person enable/disable toggle with visual Active/Disabled badge in accordion header.
+  - Stored as `myls_person_profiles` option array.
+  - JSON-LD output on assigned pages via schema graph.
+  - worksFor automatically linked to Organization schema.
+  - Pro Tips sidebar with E-E-A-T best practices.
+
+---
+
 ## 4.6.32
 - **CRITICAL FIX**: Increased default max_tokens from 1200 to 4000 - was causing FAQ generator to only produce 1-2 FAQs instead of the intended 10-15
 - Fixed: Added context-specific token handling in OpenAI integration (`myls_openai_complete`) for 'faqs_generate' context with 4000 token fallback
