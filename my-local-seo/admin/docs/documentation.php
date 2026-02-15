@@ -71,13 +71,14 @@ function mlseo_render_full_docs_page() {
 	$active_tab = isset($_GET['tab']) ? sanitize_text_field($_GET['tab']) : 'overview';
 
 	$tabs = [
+		'quickstart' => '🚀 Quick Start',
 		'overview'   => 'Overview',
 		'tabs'       => 'Tabs & Subtabs',
 		'shortcodes' => 'Shortcodes',
+		'sc_interactive' => 'Shortcodes (Interactive)',
 		'tutorials'  => 'Tutorials',
 		'release'    => 'Release Notes',
 		'autodocs'   => 'API Reference',
-		'sc_auto'    => 'Shortcodes (Auto)',
 	];
 
 	?>
@@ -96,6 +97,13 @@ function mlseo_render_full_docs_page() {
 		<div style="background:#fff;padding:1em;border:1px solid #ccd0d4;border-radius:10px;margin-top:1em;">
 
 			<?php
+			// Quick Start Guide
+			if ( $active_tab === 'quickstart' ) {
+				include plugin_dir_path(__FILE__) . 'quick-start.php';
+				echo '</div></div>';
+				return;
+			}
+
 			// Auto-generated API reference (Phase 2)
 			if ( $active_tab === 'autodocs' ) {
 				include plugin_dir_path(__FILE__) . 'autodocs.php';
@@ -103,9 +111,10 @@ function mlseo_render_full_docs_page() {
 				return;
 			}
 
-			// Auto-generated shortcode reference + export (Phase 3)
-			if ( $active_tab === 'sc_auto' ) {
-				include plugin_dir_path(__FILE__) . 'shortcodes-auto.php';
+			// Interactive shortcodes documentation
+			if ( $active_tab === 'sc_interactive' ) {
+				include plugin_dir_path(__FILE__) . 'shortcode-data.php';
+				include plugin_dir_path(__FILE__) . 'shortcodes-interactive.php';
 				echo '</div></div>';
 				return;
 			}
