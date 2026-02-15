@@ -283,6 +283,7 @@ if ( ! function_exists('myls_llms_generate_content') ) {
 		if ( $contact_url ) {
 			$lines[] = '- [Contact](' . esc_url_raw($contact_url) . '): Primary contact page.';
 		}
+		$lines[] = '- [LLM Info](' . esc_url_raw( home_url('/llm-info') ) . '): Detailed business information for AI assistants (HTML).';
 		$lines[] = '- [Sitemap](' . esc_url_raw($sitemap) . '): XML sitemap (if enabled).';
 		$lines[] = '- [Robots](' . esc_url_raw($robots) . '): robots.txt directives.';
 
