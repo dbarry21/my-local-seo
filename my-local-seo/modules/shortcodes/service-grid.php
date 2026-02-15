@@ -61,6 +61,7 @@ if ( ! function_exists('ssseo_service_grid_shortcode_v2') ) {
       'show_excerpt'   => '1',  // <-- changed default to 1
       'excerpt_words'  => '20',
       'subtext'        => 'tagline', // NEW: 'tagline'|'excerpt' - what to show below title
+      'show_tagline'   => '1',  // NEW: show tagline between image and title (default: on)
 
       // Layout/style toggles (CSS-driven, no inline styles)
       'image_crop'     => '0',  // 1|0 : add class that crops images via CSS
@@ -161,6 +162,14 @@ if ( ! function_exists('ssseo_service_grid_shortcode_v2') ) {
           echo '<a href="' . esc_url( $permalink ) . '" class="myls-sg-img-link">';
           echo '<img src="' . esc_url( $thumb_url ) . '" alt="' . esc_attr( $title ) . '" class="img-fluid mb-3 rounded myls-sg-img" loading="lazy" decoding="async">';
           echo '</a>';
+        }
+
+        // Display tagline between image and title (if enabled and exists)
+        if ( $a['show_tagline'] === '1' ) {
+          $tagline = get_post_meta( $post_id, '_myls_service_tagline', true );
+          if ( ! empty( $tagline ) ) {
+            echo '<p class="mb-2 myls-sg-tagline-top">' . esc_html( $tagline ) . '</p>';
+          }
         }
 
         echo '<h4 class="mb-2 myls-sg-title"><a href="' . esc_url( $permalink ) . '">' . esc_html( $title ) . '</a></h4>';

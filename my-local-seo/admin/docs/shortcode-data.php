@@ -224,6 +224,115 @@ function mlseo_compile_shortcode_documentation() {
         ],
 
         [
+            'name' => 'service_posts',
+            'category' => 'services',
+            'description' => 'Display service posts in bordered cards with centered images, taglines below title, and buttons. Bootstrap version matching original design.',
+            'basic_usage' => '[service_posts]',
+            'attributes' => [
+                'columns' => [
+                    'default' => '3',
+                    'description' => 'Number of columns: 2, 3, 4, 5, or 6'
+                ],
+                'limit' => [
+                    'default' => '6',
+                    'description' => 'Maximum number of posts to display'
+                ],
+                'heading' => [
+                    'default' => '',
+                    'description' => 'Optional heading above the grid'
+                ],
+                'show_tagline' => [
+                    'default' => '1',
+                    'description' => '1 = show tagline, 0 = hide'
+                ],
+                'button_text' => [
+                    'default' => 'Request Service NOW!',
+                    'description' => 'Text for the button (empty = no button)'
+                ],
+                'post_type' => [
+                    'default' => 'service',
+                    'description' => 'Post type to query'
+                ],
+                'parent_id' => [
+                    'default' => '0',
+                    'description' => 'Filter by parent post ID (0 = all)'
+                ],
+                'orderby' => [
+                    'default' => 'menu_order',
+                    'description' => 'Order by: menu_order, title, date, etc.'
+                ],
+                'order' => [
+                    'default' => 'ASC',
+                    'description' => 'Sort order: ASC or DESC'
+                ],
+                'show_icon' => [
+                    'default' => '1',
+                    'description' => 'Show service icon: 1 or 0'
+                ],
+                'show_image' => [
+                    'default' => '1',
+                    'description' => 'Show service image: 1 or 0'
+                ]
+            ],
+            'examples' => [
+                ['label' => 'Default 3 columns', 'code' => '[service_posts]'],
+                ['label' => '4 columns, 8 posts', 'code' => '[service_posts columns="4" limit="8"]'],
+                ['label' => '2 columns with heading', 'code' => '[service_posts columns="2" heading="Our Services"]'],
+                ['label' => 'Custom button text', 'code' => '[service_posts button_text="Learn More"]'],
+                ['label' => 'Hide taglines', 'code' => '[service_posts show_tagline="0"]'],
+                ['label' => '5 columns grid', 'code' => '[service_posts columns="5" limit="10"]']
+            ],
+            'tips' => [
+                'Each service appears in its own bordered card',
+                'Images/icons are automatically centered',
+                'Taglines appear below title (not linked)',
+                'Button appears at bottom of each card',
+                'Heat/AC services get different colored left borders',
+                'Fully responsive - cards stack on mobile'
+            ]
+        ],
+
+        [
+            'name' => 'divi_service_posts',
+            'category' => 'services',
+            'description' => 'Original Divi theme shortcode preserved for backward compatibility. Uses Divi column classes.',
+            'basic_usage' => '[divi_service_posts]',
+            'attributes' => [
+                'columns' => [
+                    'default' => '3',
+                    'description' => 'Number of columns: 2, 3, 4, 5, or 6'
+                ],
+                'limit' => [
+                    'default' => '6',
+                    'description' => 'Maximum number of posts to display'
+                ],
+                'heading' => [
+                    'default' => 'Your AC and Heating Services',
+                    'description' => 'Heading above the grid'
+                ],
+                'post_type' => [
+                    'default' => 'service',
+                    'description' => 'Post type to query'
+                ],
+                'parent_id' => [
+                    'default' => '0',
+                    'description' => 'Filter by parent post ID'
+                ]
+            ],
+            'examples' => [
+                ['label' => 'Default layout', 'code' => '[divi_service_posts]'],
+                ['label' => '4 columns', 'code' => '[divi_service_posts columns="4" limit="8"]'],
+                ['label' => 'Custom heading', 'code' => '[divi_service_posts heading="HVAC Services"]']
+            ],
+            'tips' => [
+                'Preserved for backward compatibility with Divi theme',
+                'Uses original Divi column classes',
+                'Requires Divi theme styles to display correctly',
+                'Consider using [service_posts] for Bootstrap version'
+            ]
+        ],
+
+        [
             'name' => 'service_area_grid',
             'category' => 'services',
             'description' => 'Displays a grid of service area pages with customizable layout and styling.',
