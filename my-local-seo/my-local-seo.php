@@ -3,7 +3,7 @@
  * Plugin Name:       My Local SEO
  * Plugin URI:        https://mylocalseo.ai/
  * Description:       Modular local SEO toolkit with schema, AI tools, bulk operations, and shortcode utilities.
- * Version: 4.7.3
+ * Version: 4.9.1
  * Author:            Dave Barry
  * Author URI:        https://davebarry.io/
  * Text Domain:       my-local-seo
@@ -16,7 +16,7 @@ if ( ! defined('ABSPATH') ) exit;
  * Canonical constants & helpers (single source of truth)
  * ───────────────────────────────────────────────────────────────────────── */
 // Keep in sync with plugin header above.
-if ( ! defined('MYLS_VERSION') )     define('MYLS_VERSION','4.6.32');
+if ( ! defined('MYLS_VERSION') )     define('MYLS_VERSION','4.9.1');
 if ( ! defined('MYLS_MAIN_FILE') )   define('MYLS_MAIN_FILE', __FILE__);
 if ( ! defined('MYLS_PATH') )        define('MYLS_PATH', plugin_dir_path(MYLS_MAIN_FILE));
 if ( ! defined('MYLS_URL') )         define('MYLS_URL',  plugins_url('', MYLS_MAIN_FILE));
@@ -83,9 +83,11 @@ require_once MYLS_PATH . 'inc/service-area-city-state.php';
 /** Serve /llms.txt (AI discovery file) */
 require_once MYLS_PATH . 'inc/llms-txt.php';
 
-/** Native MYLS meta boxes (FAQ + City/State + Google Maps) */
+/** Native MYLS meta boxes (FAQ + City/State + Google Maps + AI FAQ Generator + Service Tagline) */
 require_once MYLS_PATH . 'inc/metaboxes/myls-faq-citystate.php';
 require_once MYLS_PATH . 'inc/metaboxes/google-maps-metabox.php';
+require_once MYLS_PATH . 'inc/metaboxes/ai-faq-generator.php';
+require_once MYLS_PATH . 'inc/metaboxes/service-tagline.php';
 
 /** Admin AJAX + admin bar */
 require_once MYLS_PATH . 'inc/admin-ajax.php';
@@ -125,6 +127,7 @@ require_once MYLS_PATH . 'inc/ajax/ai-geo.php';
 require_once MYLS_PATH . 'inc/ajax/ai-faqs.php';
 require_once MYLS_PATH . 'inc/openai.php';
 require_once MYLS_PATH . 'inc/ajax/ai-excerpts.php';
+require_once MYLS_PATH . 'inc/ajax/ai-taglines.php';
 
 /** Google Maps bulk generation AJAX */
 require_once MYLS_PATH . 'inc/ajax/google-maps.php';

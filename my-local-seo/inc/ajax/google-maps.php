@@ -1,14 +1,62 @@
 <?php
 /**
- * My Local SEO - Google Maps AJAX Handlers
+ * My Local SEO - Google Maps AJAX Handlers (Enhanced)
  * Path: inc/ajax/google-maps.php
  * 
+ * Version: 2.0
  * Handles:
  * 1. myls_sa_all_published - Get all published Service Area posts
  * 2. myls_bulk_generate_maps - Generate Google Static Maps as featured images
+ * 3. Supports zoom parameter and ACF field fallback
  */
 
 if (!defined('ABSPATH')) exit;
+
+/**
+ * Get city and state from post - MYLS fields first, ACF fallback
+ * Reusable helper function
+ */
+if (!function_exists('myls_get_city_state_values')) {
+    function myls_get_city_state_values($post_id) {
+        $result = [
+            'city' => '',
+            'state' => '',
+            'source' => 'none'
+        ];
+        
+        // Try MYLS native field first: _myls_city_state (format: "City, State")
+        $myls_city_state = get_post_meta($post_id, '_myls_city_state', true);
+        
+        if (!empty($myls_city_state) && is_string($myls_city_state)) {
+            // Parse "City, State" format
+            $parts = array_map('trim', explode(',', $myls_city_state));
+            if (count($parts) >= 2) {
+                $result['city'] = $parts[0];
+                $result['state'] = $parts[1];
+                $result['source'] = 'myls';
+                return $result;
+            }
+        }
+        
+        // Fallback to ACF field 'city_state' in 'Service Area' field group
+        if (function_exists('get_field')) {
+            $city_state = get_field('city_state', $post_id);
+            
+            if (!empty($city_state) && is_string($city_state)) {
+                // Parse "City, State" format
+                $parts = array_map('trim', explode(',', $city_state));
+                if (count($parts) >= 2) {
+                    $result['city'] = $parts[0];
+                    $result['state'] = $parts[1];
+                    $result['source'] = 'acf';
+                    return $result;
+                }
+            }
+        }
+        
+        return $result;
+    }
+}
 
 /**
  * AJAX: Get all published Service Area posts
@@ -101,18 +149,19 @@ add_action('wp_ajax_myls_bulk_generate_maps', function() {
             continue;
         }
         
-        // Get city and state from post meta
-        $city = get_post_meta($post_id, 'city', true);
-        $state = get_post_meta($post_id, 'state', true);
+        // Get city and state with fallback
+        $location = myls_get_city_state_values($post_id);
+        $city = $location['city'];
+        $state = $location['state'];
         
         if (empty($city) || empty($state)) {
-            $log[] = "#{$post_id} ({$title}): Error - Missing city or state meta";
+            $log[] = "#{$post_id} ({$title}): Error - Missing city or state (checked MYLS and ACF fields)";
             $err_ids[] = $post_id;
             continue;
         }
         
-        // Generate the map
-        $result = myls_generate_static_map($post_id, $city, $state, $api_key);
+        // Generate the map with default zoom 12 for bulk operations
+        $result = myls_generate_static_map($post_id, $city, $state, $api_key, 12);
         
         if ($result['success']) {
             $log[] = "#{$post_id} ({$title}): ✓ Map generated successfully";
@@ -139,17 +188,18 @@ add_action('wp_ajax_myls_bulk_generate_maps', function() {
  * @param string $city City name
  * @param string $state State name
  * @param string $api_key Google Maps API key
+ * @param int $zoom Zoom level (1-20, default 12)
  * @return array {success: bool, message: string, attachment_id?: int}
  */
-function myls_generate_static_map($post_id, $city, $state, $api_key) {
-    // Build the location string
-    $location = urlencode("{$city}, {$state}");
+function myls_generate_static_map($post_id, $city, $state, $api_key, $zoom = 12) {
+    // Validate and clamp zoom level
+    $zoom = max(1, min(20, intval($zoom)));
     
     // Build the Static Maps API URL
     // Using 600x400 as a good featured image size
     $map_url = "https://maps.googleapis.com/maps/api/staticmap?" . http_build_query([
         'center'  => "{$city}, {$state}",
-        'zoom'    => 12,
+        'zoom'    => $zoom,
         'size'    => '600x400',
         'maptype' => 'roadmap',
         'markers' => "color:red|{$city}, {$state}",
@@ -196,7 +246,7 @@ function myls_generate_static_map($post_id, $city, $state, $api_key) {
     
     // Prepare upload
     $upload_dir = wp_upload_dir();
-    $filename = sanitize_file_name("map-{$city}-{$state}.png");
+    $filename = sanitize_file_name("map-{$city}-{$state}-z{$zoom}.png");
     $file_path = $upload_dir['path'] . '/' . $filename;
     
     // Save the file
@@ -211,7 +261,7 @@ function myls_generate_static_map($post_id, $city, $state, $api_key) {
     // Create attachment
     $attachment = [
         'post_mime_type' => 'image/png',
-        'post_title'     => "Map: {$city}, {$state}",
+        'post_title'     => "Map: {$city}, {$state} (Zoom {$zoom})",
         'post_content'   => '',
         'post_status'    => 'inherit'
     ];

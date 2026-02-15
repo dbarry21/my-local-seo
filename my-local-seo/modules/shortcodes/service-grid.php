@@ -7,16 +7,26 @@
  * - Optional excerpt support (on by default in this refactor)
  * - Optional fixed image height w/ object-fit cover
  * - Optional "featured first card" layout (bigger first card)
- * - Optional force 2-column layout
+ * - Flexible column count control (2, 3, 4, or 6 columns on desktop)
  *
  * Usage:
- *   [service_grid]                                       // defaults (centered, excerpts on)
- *   [service_grid show_excerpt="0"]                      // disable excerpt
+ *   [service_grid]                                       // defaults (4 columns, taglines)
+ *   [service_grid columns="3"]                           // 3-column layout on desktop
+ *   [service_grid columns="2"]                           // 2-column layout on desktop
+ *   [service_grid columns="6"]                           // 6-column layout on desktop
+ *   [service_grid subtext="excerpt"]                     // use excerpts instead of taglines
+ *   [service_grid subtext="tagline"]                     // use taglines (default)
+ *   [service_grid show_excerpt="0"]                      // hide subtext entirely
  *   [service_grid excerpt_words="18"]                    // change excerpt length
  *   [service_grid center="0"]                            // disable row centering
  *   [service_grid image_crop="1" image_height="220"]     // uniform image crop
- *   [service_grid featured_first="1"]                    // first item larger
- *   [service_grid two_col="1"]                           // force 2-column layout
+ *   [service_grid featured_first="1"]                    // first item larger (6 cols on desktop)
+ *   
+ * Column Options:
+ *   columns="2"  // 2 per row on desktop (col-lg-6)
+ *   columns="3"  // 3 per row on desktop (col-lg-4)
+ *   columns="4"  // 4 per row on desktop (col-lg-3) - DEFAULT
+ *   columns="6"  // 6 per row on desktop (col-lg-2)
  */
 
 if ( ! defined('ABSPATH') ) exit;
@@ -50,12 +60,16 @@ if ( ! function_exists('ssseo_service_grid_shortcode_v2') ) {
       // Excerpt (NOW ON BY DEFAULT)
       'show_excerpt'   => '1',  // <-- changed default to 1
       'excerpt_words'  => '20',
+      'subtext'        => 'tagline', // NEW: 'tagline'|'excerpt' - what to show below title
 
-      // New: layout/style toggles (CSS-driven, no inline styles)
+      // Layout/style toggles (CSS-driven, no inline styles)
       'image_crop'     => '0',  // 1|0 : add class that crops images via CSS
       'image_height'   => '220',// used as CSS variable (--myls-img-h) in px
       'featured_first' => '0',  // 1|0 : first card spans wider columns (markup-level)
-      'two_col'        => '0',  // 1|0 : forces 2-col layout classes for all items
+      
+      // Column count control (NEW - replaces two_col)
+      'columns'        => '4',  // 2|3|4|6 : number of columns on desktop (lg breakpoint)
+      'two_col'        => '0',  // DEPRECATED: kept for backward compatibility, use columns="2" instead
     ], $atts, 'service_grid' );
 
     // Normalize row classes if centering disabled
@@ -79,7 +93,25 @@ if ( ! function_exists('ssseo_service_grid_shortcode_v2') ) {
     $wrap_classes = ['myls-service-grid'];
     if ( $a['image_crop'] === '1' ) $wrap_classes[] = 'myls-sg-crop';
     if ( $a['featured_first'] === '1' ) $wrap_classes[] = 'myls-sg-featured-first';
-    if ( $a['two_col'] === '1' ) $wrap_classes[] = 'myls-sg-two-col';
+    
+    // Backward compatibility: two_col="1" sets columns to 2
+    if ( $a['two_col'] === '1' ) {
+      $a['columns'] = '2';
+    }
+    
+    // Validate and normalize columns value
+    $columns = intval( $a['columns'] );
+    $valid_columns = [2, 3, 4, 6]; // Bootstrap 12-column grid divisors
+    if ( ! in_array( $columns, $valid_columns, true ) ) {
+      $columns = 4; // default fallback
+    }
+    
+    // Calculate Bootstrap column class for lg breakpoint
+    // Bootstrap uses 12-column grid: 12/columns = col-lg-X
+    $col_lg_num = 12 / $columns;
+    
+    // Add column-specific class to wrapper for targeting
+    $wrap_classes[] = 'myls-sg-cols-' . $columns;
 
     $img_h = max( 80, (int) $a['image_height'] ); // safety min
 
@@ -112,15 +144,13 @@ if ( ! function_exists('ssseo_service_grid_shortcode_v2') ) {
         $permalink = get_permalink();
         $thumb_url = get_the_post_thumbnail_url( $post_id, $a['image_size'] );
 
-        // Determine column class per-item (supports featured first + two_col override)
-        $col_class = trim((string) $a['col_class']);
-
-        if ( $a['two_col'] === '1' ) {
-          $col_class = 'col-md-6 mb-4';
-        }
-
+        // Determine column class per-item
+        // Default: responsive sizing based on columns attribute
+        $col_class = 'col-md-6 col-lg-' . $col_lg_num . ' mb-4';
+        
+        // Override for featured first card (if enabled)
         if ( $a['featured_first'] === '1' && $i === 1 ) {
-          // First card spans wider: 2/3 width on lg, half on md
+          // First card spans wider: half width on md, full 6 columns on lg
           $col_class = 'col-md-6 col-lg-6 mb-4';
         }
 
@@ -135,21 +165,37 @@ if ( ! function_exists('ssseo_service_grid_shortcode_v2') ) {
 
         echo '<h4 class="mb-2 myls-sg-title"><a href="' . esc_url( $permalink ) . '">' . esc_html( $title ) . '</a></h4>';
 
-        // Excerpt (on by default)
+        // Subtext: Tagline or Excerpt
         if ( $a['show_excerpt'] === '1' ) {
-          $excerpt = get_the_excerpt( $post_id );
+          $subtext = '';
+          
+          // Use tagline if available and subtext mode is tagline
+          if ( $a['subtext'] === 'tagline' ) {
+            $tagline = get_post_meta( $post_id, '_myls_service_tagline', true );
+            if ( ! empty( $tagline ) ) {
+              $subtext = $tagline;
+            }
+          }
+          
+          // Fallback to excerpt if no tagline or if subtext mode is excerpt
+          if ( empty( $subtext ) ) {
+            $excerpt = get_the_excerpt( $post_id );
 
-          // If empty excerpt, fallback to trimmed content
-          if ( ! $excerpt ) {
-            $excerpt = wp_trim_words(
-              wp_strip_all_tags( strip_shortcodes( get_post_field( 'post_content', $post_id ) ) ),
-              max( 1, intval( $a['excerpt_words'] ) )
-            );
+            // If empty excerpt, fallback to trimmed content
+            if ( ! $excerpt ) {
+              $excerpt = wp_trim_words(
+                wp_strip_all_tags( strip_shortcodes( get_post_field( 'post_content', $post_id ) ) ),
+                max( 1, intval( $a['excerpt_words'] ) )
+              );
+            }
+            
+            $subtext = $excerpt;
           }
 
           // Output only if we have content
-          if ( $excerpt ) {
-            echo '<p class="mb-2 myls-sg-excerpt">' . esc_html( $excerpt ) . '</p>';
+          if ( $subtext ) {
+            $class = $a['subtext'] === 'tagline' ? 'myls-sg-tagline' : 'myls-sg-excerpt';
+            echo '<p class="mb-2 ' . esc_attr( $class ) . '">' . esc_html( $subtext ) . '</p>';
           }
         }
 
