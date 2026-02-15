@@ -743,6 +743,60 @@ body {
     </div>
     <?php endif; ?>
 
+    <!-- Key People -->
+    <?php
+    $people = get_option('myls_person_profiles', []);
+    $people = is_array($people) ? array_filter($people, function($p) { return !empty($p['name']) && ($p['enabled'] ?? '1') === '1'; }) : [];
+    ?>
+    <?php if ( ! empty($people) ) : ?>
+    <div class="section">
+        <h2 class="section-title">Key People (<?php echo count($people); ?>)</h2>
+        <?php foreach ( $people as $person ) : ?>
+        <div class="card" style="margin-bottom:12px;">
+            <dl class="info-grid">
+                <dt>Name</dt>
+                <dd><?php echo esc_html( ($person['honorific_prefix'] ?? '') ? $person['honorific_prefix'] . ' ' . $person['name'] : $person['name'] ); ?></dd>
+
+                <?php if ( ! empty($person['job_title']) ) : ?>
+                    <dt>Title</dt>
+                    <dd><?php echo esc_html($person['job_title']); ?></dd>
+                <?php endif; ?>
+
+                <?php if ( ! empty($person['description']) ) : ?>
+                    <dt>Bio</dt>
+                    <dd><?php echo esc_html($person['description']); ?></dd>
+                <?php endif; ?>
+
+                <?php
+                $expertise = array_filter(array_map(function($k){ return trim($k['name'] ?? ''); }, (array)($person['knows_about'] ?? [])));
+                if ( ! empty($expertise) ) : ?>
+                    <dt>Expertise</dt>
+                    <dd><?php echo esc_html(implode(', ', $expertise)); ?></dd>
+                <?php endif; ?>
+
+                <?php
+                $creds = array_filter(array_map(function($c){
+                    $n = trim($c['name'] ?? '');
+                    $a = trim($c['abbr'] ?? '');
+                    return $a ? "$n ($a)" : $n;
+                }, (array)($person['credentials'] ?? [])));
+                if ( ! empty($creds) ) : ?>
+                    <dt>Credentials</dt>
+                    <dd><?php echo esc_html(implode(', ', $creds)); ?></dd>
+                <?php endif; ?>
+
+                <?php
+                $edu = array_filter(array_map(function($a){ return trim($a['name'] ?? ''); }, (array)($person['alumni'] ?? [])));
+                if ( ! empty($edu) ) : ?>
+                    <dt>Education</dt>
+                    <dd><?php echo esc_html(implode(', ', $edu)); ?></dd>
+                <?php endif; ?>
+            </dl>
+        </div>
+        <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
+
     <!-- Social Profiles -->
     <?php if ( ! empty($socials) ) : ?>
     <div class="section">
