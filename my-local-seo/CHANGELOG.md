@@ -1,5 +1,73 @@
 # My Local SEO — Changelog
 
+## 4.15.5 — 2026-02-16
+
+### Schema → FAQ (Critical Fix)
+- **FIX: FAQPage JSON-LD now outputs correctly** — Previous versions attempted to hook `wp_head`
+  from inside the shortcode, but shortcodes execute during `the_content` (after `wp_head` has
+  already fired), so schema was never output. Replaced with a dedicated schema provider at
+  `inc/schema/providers/service-faq-page.php` that hooks `myls_schema_graph` and runs during
+  `wp_head` via `registry.php` (priority 90).
+- **FAQPage schema validates** — outputs `@type: FAQPage` with `@id`, `url`, `name`, and
+  `mainEntity` array of `Question`/`Answer` pairs. All FAQ items are deduplicated (case-insensitive).
+  Validates at schema.org and Google Rich Results Test.
+- **LocalBusiness schema auto-assigned** — the generated Service FAQ Page is automatically assigned
+  to LocalBusiness location #1 (via `_myls_lb_assigned` / `_myls_lb_loc_index` post meta), so
+  both FAQPage and LocalBusiness JSON-LD appear in `<head>` on the same page.
+- **No duplicate schema** — `providers/faq.php` guard skips the Service FAQ Page (provider handles
+  its own FAQPage node); shortcode no longer attempts schema output.
+- Shortcode `schema` attribute removed (no longer needed; provider handles it).
+
+### Files
+- **NEW:** `inc/schema/providers/service-faq-page.php` — dedicated FAQPage schema provider.
+- **Changed:** `modules/shortcodes/service-faq-page.php` — HTML rendering only, schema removed.
+- **Changed:** `inc/ajax/generate-service-faq-page.php` — auto-assigns LocalBusiness meta on page create/update.
+- **Changed:** `my-local-seo.php` — includes new provider.
+
+## 4.15.4 — 2026-02-16
+
+### Schema → FAQ
+- **FAQPage JSON-LD Schema** — the generated Service FAQ Page now outputs a valid `FAQPage` JSON-LD
+  `<script type="application/ld+json">` block in `<head>` containing all aggregated, deduplicated FAQ items.
+  Validates against Google's Rich Results Test / Schema.org spec. Includes `@context`, `@type`, `name`, `url`,
+  and `mainEntity` array of `Question`/`Answer` pairs.
+- **Deduplication** — duplicate questions across services are automatically removed (case-insensitive,
+  first occurrence wins). Stats card now shows raw count, deduped count, and duplicates removed.
+- **Page Slug field** — configurable slug/permalink for the generated page (default: `service-faqs`).
+  Live preview of the full URL updates as you type.
+- **Schema conflict guard** — `providers/faq.php` now explicitly skips the Service FAQ Page
+  (shortcode handles its own FAQPage schema), preventing duplicate JSON-LD output.
+- Admin card description updated to mention JSON-LD output and dedup behavior.
+- AJAX response now returns `page_slug`, `dupes_removed` count, and updates the slug field with
+  the actual saved slug (WordPress may sanitize/suffix it).
+
+### Shortcodes
+- **`[service_faq_page]`** — added `schema="1|0"` attribute to control JSON-LD output.
+  Added `myls_collect_post_faqs()` and `myls_dedupe_faqs()` helper functions.
+
+## 4.15.3 — 2026-02-16
+
+### Schema → FAQ
+- **NEW: Generate Service FAQ Page** — card added to the FAQ subtab under Schema.
+  - Creates (or updates) a WordPress page that aggregates FAQs from all published Service posts.
+  - Uses the dynamic `[service_faq_page]` shortcode — page always reflects current FAQ data without regeneration.
+  - Configurable page title (default: "Service FAQs") and status (Published / Draft).
+  - Shows live FAQ stats: total services, services with FAQs, total FAQ items.
+  - View/Edit page links appear once the page exists.
+  - AJAX-powered generation with spinner and success/error feedback.
+  - New AJAX endpoint: `wp_ajax_myls_generate_service_faq_page` (file: `inc/ajax/generate-service-faq-page.php`).
+
+### Shortcodes
+- **NEW: `[service_faq_page]`** — renders all Service post FAQs on a single page.
+  - H3 heading per service, Bootstrap 5 accordion for each service's FAQs.
+  - Services ordered by menu_order (ASC) by default.
+  - Shows "No FAQs available" message for services without FAQ items.
+  - Supports per-instance color overrides: `btn_bg`, `btn_color`, `heading_color`.
+  - Supports `orderby`, `order`, `show_empty`, `empty_message` attributes.
+  - Reuses plugin's existing accordion CSS (`myls-accordion.min.css`).
+  - Falls back to legacy ACF repeater fields when native MYLS FAQ meta is empty.
+  - File: `modules/shortcodes/service-faq-page.php`.
+
 ## 4.15.0 — 2026-02-15
 
 ### Schema → Person

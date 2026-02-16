@@ -52,6 +52,50 @@ if ( ! function_exists('myls_about_strip_code_fences') ) {
     return str_replace("```", "", $s);
   }
 }
+
+/**
+ * Convert leftover Markdown formatting to HTML.
+ * AI models sometimes return **bold** or *italic* even when told to use HTML.
+ */
+if ( ! function_exists('myls_about_markdown_to_html') ) {
+  function myls_about_markdown_to_html( string $s ) : string {
+    // **bold** or __bold__  →  <strong>bold</strong>
+    $s = preg_replace('/\*\*(.+?)\*\*/s', '<strong>$1</strong>', $s);
+    $s = preg_replace('/__(.+?)__/s', '<strong>$1</strong>', $s);
+
+    // *italic* or _italic_  →  <em>italic</em>  (but not inside URLs or HTML attrs)
+    // Only match single * not preceded/followed by space (avoids list markers)
+    $s = preg_replace('/(?<!\w)\*(?!\s)(.+?)(?<!\s)\*(?!\w)/s', '<em>$1</em>', $s);
+
+    // ### Heading 3  →  <h3>Heading 3</h3>
+    $s = preg_replace('/^###\s*(.+)$/m', '<h3>$1</h3>', $s);
+
+    // Markdown list items at start of line: - item or * item  →  <li>item</li>
+    // (only if not already inside HTML tags)
+    $s = preg_replace('/^[\-\*]\s+(.+)$/m', '<li>$1</li>', $s);
+
+    // Wrap consecutive <li> blocks in <ul> if not already wrapped
+    $s = preg_replace_callback('/(<li>.*?<\/li>\s*)+/s', function($m) {
+      $block = trim($m[0]);
+      // Don't double-wrap
+      if (strpos($block, '<ul>') !== false) return $block;
+      return '<ul>' . $block . '</ul>';
+    }, $s);
+
+    return $s;
+  }
+}
+
+/**
+ * Full AI response cleanup: strip fences, convert markdown to HTML.
+ */
+if ( ! function_exists('myls_about_clean_ai_response') ) {
+  function myls_about_clean_ai_response( string $s ) : string {
+    $s = myls_about_strip_code_fences( $s );
+    $s = myls_about_markdown_to_html( $s );
+    return $s;
+  }
+}
 if ( ! function_exists('myls_about_has_h3') ) {
   function myls_about_has_h3( string $s ) : bool {
     return (bool) preg_match('/<h3[^>]*>/i', $s);
@@ -177,7 +221,7 @@ EOT;
     wp_send_json_error(['marker'=>'about_v2','status'=>'error','message'=>'ai_failed','error'=>$html_1->get_error_message()], 500);
   }
 
-  $html_1 = myls_about_strip_code_fences( (string)$html_1 );
+  $html_1 = myls_about_clean_ai_response( (string)$html_1 );
 
   // Check length & structure
   $ok_len  = myls_about_word_count($html_1) >= 380;   // tolerate a bit under 400
@@ -218,7 +262,7 @@ EOT;
       wp_send_json_error(['marker'=>'about_v2','status'=>'error','message'=>'ai_failed_retry','error'=>$html_2->get_error_message()], 500);
     }
 
-    $html_2 = myls_about_strip_code_fences( (string)$html_2 );
+    $html_2 = myls_about_clean_ai_response( (string)$html_2 );
 
     // choose the better one
     $cand = myls_about_word_count($html_2) >= myls_about_word_count($html_1) ? $html_2 : $html_1;

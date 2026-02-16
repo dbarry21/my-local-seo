@@ -111,6 +111,12 @@ add_filter('myls_schema_graph', function( array $graph ) {
 		return $graph;
 	}
 
+	// Skip if this is the Service FAQ Page (shortcode outputs its own FAQPage schema).
+	$svc_faq_page_id = (int) get_option( 'myls_service_faq_page_id', 0 );
+	if ( $svc_faq_page_id > 0 && $svc_faq_page_id === (int) get_queried_object_id() ) {
+		return $graph;
+	}
+
 	$post_id = (int) get_queried_object_id();
 	if ( $post_id <= 0 ) return $graph;
 

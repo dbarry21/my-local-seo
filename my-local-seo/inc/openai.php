@@ -105,7 +105,7 @@ if ( ! function_exists('myls_openai_complete') ) {
 		if ( $context === 'about_the_area' ) {
 			$model      = $model ?: 'gpt-4o';      // bigger model
 			$max_tokens = $max_tokens ?: 1600;     // enough room for sectioned HTML
-			$system     = 'You write clean, structured, sectioned HTML for local area guides. No markdown, no code fences.';
+			$system     = 'You write clean, structured, sectioned HTML for local area guides. Use HTML tags like <strong>, <em>, <h3>, <p>, <ul>, <li>. NEVER use markdown syntax such as ** or __ for bold, * for italic, or ### for headings. Output raw HTML only, no code fences.';
 		} elseif ( $context === 'faqs_generate' ) {
 			$model      = $model ?: 'gpt-4o';      // bigger model for FAQs
 			$max_tokens = $max_tokens ?: 10000;    // enough for 10-15 LONG FAQs with detailed multi-block answers, lists, and sources

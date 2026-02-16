@@ -3,7 +3,7 @@
  * Plugin Name:       My Local SEO
  * Plugin URI:        https://mylocalseo.ai/
  * Description:       Modular local SEO toolkit with schema, AI tools, bulk operations, and shortcode utilities.
- * Version: 4.15.0
+ * Version: 4.15.5
  * Author:            Dave Barry
  * Author URI:        https://davebarry.io/
  * Text Domain:       my-local-seo
@@ -16,7 +16,7 @@ if ( ! defined('ABSPATH') ) exit;
  * Canonical constants & helpers (single source of truth)
  * ───────────────────────────────────────────────────────────────────────── */
 // Keep in sync with plugin header above.
-if ( ! defined('MYLS_VERSION') )     define('MYLS_VERSION','4.15.0');
+if ( ! defined('MYLS_VERSION') )     define('MYLS_VERSION','4.15.5');
 if ( ! defined('MYLS_MAIN_FILE') )   define('MYLS_MAIN_FILE', __FILE__);
 if ( ! defined('MYLS_PATH') )        define('MYLS_PATH', plugin_dir_path(MYLS_MAIN_FILE));
 if ( ! defined('MYLS_URL') )         define('MYLS_URL',  plugins_url('', MYLS_MAIN_FILE));
@@ -121,6 +121,7 @@ require_once MYLS_PATH . 'inc/schema/providers/video-schema.php';
 require_once MYLS_PATH . 'admin/api-integration-tests.php';
 require_once MYLS_PATH . 'inc/schema/providers/video-collection-head.php';
 require_once MYLS_PATH . 'inc/schema/providers/faq.php';
+require_once MYLS_PATH . 'inc/schema/providers/service-faq-page.php';
 require_once MYLS_PATH . 'inc/schema/providers/blog-posting.php';
 require_once MYLS_PATH . 'inc/schema/localbusiness-sync.php';
 
@@ -136,6 +137,9 @@ require_once MYLS_PATH . 'inc/openai.php';
 require_once MYLS_PATH . 'inc/ajax/ai-excerpts.php';
 require_once MYLS_PATH . 'inc/ajax/ai-person-linkedin.php';
 require_once MYLS_PATH . 'inc/ajax/ai-taglines.php';
+
+/** Service FAQ Page generator AJAX */
+require_once MYLS_PATH . 'inc/ajax/generate-service-faq-page.php';
 
 /** Google Maps bulk generation AJAX */
 require_once MYLS_PATH . 'inc/ajax/google-maps.php';
@@ -363,3 +367,19 @@ add_filter( 'elementor/frontend/the_content', function( $content ) {
 add_filter( 'elementor/widget/text-editor/parse_text', function( $text ) {
 	return do_shortcode( $text );
 }, 11 );
+
+/**
+ * 3) Divi — process shortcodes in all module output (titles, text, etc.).
+ *    Uses a recursion guard to prevent infinite loops since Divi modules
+ *    are themselves shortcodes and do_shortcode() would re-trigger this filter.
+ *    Divi sometimes passes an array (e.g. contact form items), so skip those.
+ */
+add_filter( 'et_module_shortcode_output', function( $output ) {
+	if ( ! is_string( $output ) ) return $output;
+	static $running = false;
+	if ( $running ) return $output;
+	$running = true;
+	$output  = do_shortcode( $output );
+	$running = false;
+	return $output;
+}, 10 );

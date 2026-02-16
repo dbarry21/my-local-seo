@@ -301,6 +301,10 @@ add_action('wp_ajax_myls_ai_about_generate', function(){
 
 	// Sanitize
 	$allowed = wp_kses_allowed_html('post');
+	// Clean up markdown artifacts from AI response
+	if ( function_exists('myls_about_clean_ai_response') ) {
+		$html = myls_about_clean_ai_response( $html );
+	}
 	$clean   = wp_kses( wp_unslash($html), $allowed );
 
 	/* ---------- Robust ACF save (name → key → raw-meta+link) ---------- */
