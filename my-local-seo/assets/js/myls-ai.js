@@ -462,11 +462,133 @@
   }
 
   /* -------------------------------------------------------------
+   * HTML Excerpts subtab (Column 3 on Excerpts tab)
+   * ------------------------------------------------------------- */
+  function initHtmlExcerptsSubtab(){
+
+    const $hexResetPrompt = $('#myls_ai_hex_reset_prompt');
+    const $hexSavePrompt  = $('#myls_ai_hex_save_prompt');
+    const $hexPrompt      = $('#myls_ai_hex_prompt');
+    const $hexGen         = $('#myls_ai_hex_gen');
+    const $hexResults     = $('#myls_ai_hex_results');
+
+    // Not on Excerpts subtab or column 3 not present
+    if (!$hexPrompt.length || !$hexGen.length || !$hexResults.length) return;
+
+    const ajaxurl = getAjaxUrl();
+    const nonce   = getNonce($('#myls_ai_ex_nonce'));
+
+    function hexLog(msg){
+      try { console.log('[MYLS HTML Excerpts]', msg); } catch(e){}
+      try {
+        const now = new Date().toLocaleTimeString();
+        $hexResults.append('[' + now + '] ' + msg + '\n');
+        $hexResults.scrollTop($hexResults[0].scrollHeight);
+      } catch(e){}
+    }
+
+    // Reuse the shared post selector from column 1
+    function hexSelectedIds(){
+      const ids = [];
+      $('#myls_ai_ex_posts').find('option:selected').each(function(){
+        const v = parseInt($(this).val(), 10);
+        if (v) ids.push(v);
+      });
+      return ids;
+    }
+
+    // Reset prompt
+    $hexResetPrompt.on('click', function(){
+      var def = $(this).data('default') || '';
+      $hexPrompt.val(def);
+    });
+
+    // Save prompt
+    $hexSavePrompt.on('click', function(){
+      if (!ajaxurl || !nonce) { hexLog('ERROR: ajaxurl or nonce missing.'); return; }
+
+      $hexResults.text('');
+      hexLog('Saving HTML excerpt prompt template...');
+
+      ajaxPostJSON(ajaxurl, {
+        action: 'myls_ai_html_excerpt_save_prompt',
+        nonce: nonce,
+        prompt: ($hexPrompt.val() || '')
+      }).done(function(res){
+        if (!res || !res.success) {
+          hexLog('Save failed.');
+          if (res && res.data && res.data.message) hexLog(String(res.data.message));
+          return;
+        }
+        hexLog('Saved.');
+      }).fail(function(){
+        hexLog('AJAX error saving prompt.');
+      });
+    });
+
+    // Generate bulk
+    $hexGen.on('click', function(e){
+      e.preventDefault();
+      if (!ajaxurl || !nonce) { hexLog('ERROR: ajaxurl or nonce missing.'); return; }
+
+      var ids = hexSelectedIds();
+      if (!ids.length) { $hexResults.text(''); hexLog('Select at least one post (left column).'); return; }
+
+      var overwrite = $('#myls_ai_ex_overwrite').is(':checked') ? 1 : 0;
+      var dryrun    = $('#myls_ai_ex_dryrun').is(':checked') ? 1 : 0;
+
+      $hexResults.text('');
+      var oldTxt = $hexGen.text();
+      $hexGen.prop('disabled', true).text('Processing...');
+      hexLog('Generating HTML excerpts for ' + ids.length + ' post(s)...');
+
+      ajaxPostJSON(ajaxurl, {
+        action: 'myls_ai_html_excerpt_generate_bulk',
+        nonce: nonce,
+        post_ids: ids,
+        overwrite: overwrite,
+        dryrun: dryrun
+      }).done(function(res){
+        if (!res || !res.success) {
+          hexLog('Generation failed.');
+          if (res && res.data && res.data.message) hexLog(String(res.data.message));
+          return;
+        }
+
+        var rows = (res.data && Array.isArray(res.data.results)) ? res.data.results : [];
+        hexLog('Done. Results: ' + rows.length + '. Dry-run: ' + (dryrun ? 'YES' : 'NO'));
+
+        rows.forEach(function(r){
+          if (r.skipped) {
+            hexLog('#' + r.id + ' SKIPPED — ' + (r.reason || ''));
+            return;
+          }
+          if (!r.ok) {
+            hexLog('#' + r.id + ' ERROR — ' + (r.error || 'Unknown'));
+            return;
+          }
+          var savedTxt = r.saved ? 'SAVED' : (r.dryrun ? 'PREVIEW' : 'OK');
+          hexLog('#' + r.id + ' ' + (r.title || '') + ' — ' + savedTxt);
+          hexLog('  ' + (r.html_excerpt || ''));
+        });
+      }).fail(function(xhr){
+        hexLog('AJAX error generating HTML excerpts.');
+        try {
+          if (xhr && xhr.responseText) hexLog(String(xhr.responseText).slice(0, 300));
+        } catch(e){}
+      }).always(function(){
+        $hexGen.prop('disabled', false).text(oldTxt);
+      });
+    });
+  }
+
+  /* -------------------------------------------------------------
    * Boot once DOM is ready (critical for subtabs)
    * ------------------------------------------------------------- */
   $(document).ready(function(){
     initMetaSubtab();
     initExcerptsSubtab();
+    initHtmlExcerptsSubtab();
   });
 
 })(jQuery);

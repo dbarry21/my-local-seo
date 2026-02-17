@@ -26,6 +26,31 @@ if ( ! defined('ABSPATH') ) exit;
  */
 // inc/schema/providers/localbusiness.php
 
+if ( ! function_exists('myls_lb_build_member_of') ) {
+	/**
+	 * Build memberOf array from saved memberships option.
+	 * Returns array of Organization objects or null.
+	 */
+	function myls_lb_build_member_of() : ?array {
+		$memberships = get_option('myls_org_memberships', []);
+		if ( ! is_array($memberships) || empty($memberships) ) return null;
+
+		$out = [];
+		foreach ( $memberships as $m ) {
+			if ( ! is_array($m) || empty($m['name']) ) continue;
+			$org = [
+				'@type' => 'Organization',
+				'name'  => sanitize_text_field( $m['name'] ),
+			];
+			if ( ! empty($m['url']) )         $org['url']         = esc_url_raw( $m['url'] );
+			if ( ! empty($m['logo_url']) )    $org['logo']        = esc_url_raw( $m['logo_url'] );
+			if ( ! empty($m['description']) ) $org['description'] = sanitize_text_field( $m['description'] );
+			$out[] = $org;
+		}
+		return ! empty($out) ? $out : null;
+	}
+}
+
 if ( ! function_exists('myls_lb_build_schema_from_location') ) {
 	function myls_lb_build_schema_from_location( array $loc, WP_Post $post ) : array {
 		$org_name = get_option( 'myls_org_name', get_bloginfo( 'name' ) );
@@ -76,6 +101,7 @@ if ( ! function_exists('myls_lb_build_schema_from_location') ) {
 			'priceRange' => sanitize_text_field( $loc['price'] ?? '' ),
 			'award'      => ( $awards ? $awards : null ),
 			'hasCertification' => ( $certs ? array_map(function($c){ return ['@type'=>'Certification','name'=>$c]; }, $certs) : null ),
+			'memberOf' => myls_lb_build_member_of(),
 			'address'  => array_filter( [
 				'@type'           => 'PostalAddress',
 				'streetAddress'   => sanitize_text_field( $loc['street'] ?? '' ),

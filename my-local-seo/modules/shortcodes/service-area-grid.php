@@ -1,7 +1,19 @@
 <?php
 /**
  * Module: Service Area Grid (map + excerpt, alternating)
- * Shortcode: [service_area_grid include_drafts="0" button_text="Schedule Estimate"]
+ * Shortcode: [service_area_grid include_drafts="0" button_text="Schedule Estimate" show_page_title="1"]
+ *
+ * Attributes:
+ *  show_page_title  "1"|"0"  Show/hide the current page's title as an H2 above the grid (default: 1)
+ *  show_title       "1"|"0"  Show/hide each service area's title (default: 1)
+ *  button_text      string   CTA button text per row (empty = no button)
+ *  include_drafts   "0"|"1"  Include draft posts in the grid
+ *  posts_per_page   int      Number of posts (-1 = all)
+ *  parent_id        int      Filter by parent post ID
+ *  orderby          string   WP_Query orderby tokens
+ *  order            string   ASC|DESC
+ *  map_ratio        string   Map aspect ratio (default: 16x9)
+ *  class            string   Extra CSS class on container
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
@@ -12,15 +24,16 @@ if ( ! shortcode_exists('myls_map_embed') && ! shortcode_exists('ssseo_map_embed
 
 add_shortcode('service_area_grid', function( $atts ) {
 	$a = shortcode_atts([
-		'posts_per_page' => -1,
-		'parent_id'      => '',
-		'orderby'        => 'menu_order title',
-		'order'          => 'ASC',
-		'class'          => '',
-		'show_title'     => '1',
-		'map_ratio'      => '16x9',
-		'include_drafts' => '0',
-		'button_text'    => '', // NEW ATTRIBUTE
+		'posts_per_page'  => -1,
+		'parent_id'       => '',
+		'orderby'         => 'menu_order title',
+		'order'           => 'ASC',
+		'class'           => '',
+		'show_title'      => '1',
+		'show_page_title' => '1',
+		'map_ratio'       => '16x9',
+		'include_drafts'  => '0',
+		'button_text'     => '',
 	], $atts, 'service_area_grid' );
 
 	$want_drafts = in_array( strtolower( (string) $a['include_drafts'] ), ['1','true','yes'], true );
@@ -61,6 +74,16 @@ add_shortcode('service_area_grid', function( $atts ) {
 
 	ob_start(); ?>
 	<div class="container ssseo-service-area-grid <?php echo esc_attr($a['class']); ?>">
+		<?php
+		// Show the current page title as H2 above the grid
+		$show_page_title = in_array( strtolower( (string) $a['show_page_title'] ), ['1','true','yes'], true );
+		if ( $show_page_title ) :
+			$page_title = get_the_title( get_queried_object_id() );
+			if ( $page_title ) : ?>
+				<h2 class="ssseo-service-area-grid-title mb-4"><?php echo esc_html( $page_title ); ?></h2>
+			<?php endif;
+		endif;
+		?>
 		<?php $i = 0;
 		while ( $q->have_posts() ) : $q->the_post();
 			$post_id = get_the_ID();
@@ -94,7 +117,9 @@ add_shortcode('service_area_grid', function( $atts ) {
 					<?php echo $map_html; ?>
 				</div>
 				<div class="col-md-6 <?php echo esc_attr($text_col_classes); ?>">
-					<?php if ( $a['show_title'] === '1' ) : ?>
+					<?php
+					$show_title = in_array( strtolower( (string) $a['show_title'] ), ['1','true','yes'], true );
+					if ( $show_title ) : ?>
 						<h3 class="h4 mb-3"><?php echo $title_html; ?></h3>
 					<?php endif; ?>
 

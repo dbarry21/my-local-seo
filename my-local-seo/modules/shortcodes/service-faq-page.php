@@ -135,9 +135,19 @@ JS;
 		}, 100 );
 
 		// ── Shortcode attributes ──
+		// Default title pulls from the current post/page title.
+		$default_title = '';
+		$current_post  = get_queried_object();
+		if ( $current_post instanceof WP_Post ) {
+			$default_title = get_the_title( $current_post->ID );
+		}
+		if ( $default_title === '' ) {
+			$default_title = 'Service FAQs';
+		}
+
 		$atts = shortcode_atts(
 			[
-				'title'         => 'Service FAQs',
+				'title'         => $default_title,
 				'btn_bg'        => '',
 				'btn_color'     => '',
 				'heading_color' => '',

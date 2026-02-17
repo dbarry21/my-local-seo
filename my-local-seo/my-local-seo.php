@@ -3,7 +3,7 @@
  * Plugin Name:       My Local SEO
  * Plugin URI:        https://mylocalseo.ai/
  * Description:       Modular local SEO toolkit with schema, AI tools, bulk operations, and shortcode utilities.
- * Version: 4.15.5
+ * Version: 5.0.0
  * Author:            Dave Barry
  * Author URI:        https://davebarry.io/
  * Text Domain:       my-local-seo
@@ -16,7 +16,7 @@ if ( ! defined('ABSPATH') ) exit;
  * Canonical constants & helpers (single source of truth)
  * ───────────────────────────────────────────────────────────────────────── */
 // Keep in sync with plugin header above.
-if ( ! defined('MYLS_VERSION') )     define('MYLS_VERSION','4.15.5');
+if ( ! defined('MYLS_VERSION') )     define('MYLS_VERSION','5.0.0');
 if ( ! defined('MYLS_MAIN_FILE') )   define('MYLS_MAIN_FILE', __FILE__);
 if ( ! defined('MYLS_PATH') )        define('MYLS_PATH', plugin_dir_path(MYLS_MAIN_FILE));
 if ( ! defined('MYLS_URL') )         define('MYLS_URL',  plugins_url('', MYLS_MAIN_FILE));
@@ -89,11 +89,12 @@ require_once MYLS_PATH . 'inc/llm-info.php';
 /** Empty Anchor Fix — output buffer to add aria-labels to empty links (SEMRush audit) */
 require_once MYLS_PATH . 'inc/empty-anchor-fix.php';
 
-/** Native MYLS meta boxes (FAQ + City/State + Google Maps + AI FAQ Generator + Service Tagline) */
+/** Native MYLS meta boxes (FAQ + City/State + Google Maps + AI FAQ Generator + Service Tagline + HTML Excerpt) */
 require_once MYLS_PATH . 'inc/metaboxes/myls-faq-citystate.php';
 require_once MYLS_PATH . 'inc/metaboxes/google-maps-metabox.php';
 require_once MYLS_PATH . 'inc/metaboxes/ai-faq-generator.php';
 require_once MYLS_PATH . 'inc/metaboxes/service-tagline.php';
+require_once MYLS_PATH . 'inc/metaboxes/html-excerpt.php';
 
 /** Admin AJAX + admin bar */
 require_once MYLS_PATH . 'inc/admin-ajax.php';
@@ -122,6 +123,7 @@ require_once MYLS_PATH . 'admin/api-integration-tests.php';
 require_once MYLS_PATH . 'inc/schema/providers/video-collection-head.php';
 require_once MYLS_PATH . 'inc/schema/providers/faq.php';
 require_once MYLS_PATH . 'inc/schema/providers/service-faq-page.php';
+require_once MYLS_PATH . 'inc/schema/providers/memberships-page.php';
 require_once MYLS_PATH . 'inc/schema/providers/blog-posting.php';
 require_once MYLS_PATH . 'inc/schema/localbusiness-sync.php';
 
@@ -135,11 +137,13 @@ require_once MYLS_PATH . 'inc/ajax/ai-geo.php';
 require_once MYLS_PATH . 'inc/ajax/ai-faqs.php';
 require_once MYLS_PATH . 'inc/openai.php';
 require_once MYLS_PATH . 'inc/ajax/ai-excerpts.php';
+require_once MYLS_PATH . 'inc/ajax/ai-html-excerpts.php';
 require_once MYLS_PATH . 'inc/ajax/ai-person-linkedin.php';
 require_once MYLS_PATH . 'inc/ajax/ai-taglines.php';
 
 /** Service FAQ Page generator AJAX */
 require_once MYLS_PATH . 'inc/ajax/generate-service-faq-page.php';
+require_once MYLS_PATH . 'inc/ajax/generate-memberships-page.php';
 
 /** Google Maps bulk generation AJAX */
 require_once MYLS_PATH . 'inc/ajax/google-maps.php';

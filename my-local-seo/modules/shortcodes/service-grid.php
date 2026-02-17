@@ -164,14 +164,6 @@ if ( ! function_exists('ssseo_service_grid_shortcode_v2') ) {
           echo '</a>';
         }
 
-        // Display tagline between image and title (if enabled and exists)
-        if ( $a['show_tagline'] === '1' ) {
-          $tagline = get_post_meta( $post_id, '_myls_service_tagline', true );
-          if ( ! empty( $tagline ) ) {
-            echo '<p class="mb-2 myls-sg-tagline-top">' . esc_html( $tagline ) . '</p>';
-          }
-        }
-
         echo '<h4 class="mb-2 myls-sg-title"><a href="' . esc_url( $permalink ) . '">' . esc_html( $title ) . '</a></h4>';
 
         // Subtext: Tagline or Excerpt

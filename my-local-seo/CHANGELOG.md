@@ -1,5 +1,109 @@
 # My Local SEO — Changelog
 
+## 5.0.0 — 2026-02-16
+
+### New Feature: HTML Excerpt Editor & AI Generation
+- **WYSIWYG metabox** for `html_excerpt` post meta on all public post types — full
+  TinyMCE editor with Visual/Text tabs, trimmed toolbar (bold, italic, link, lists,
+  headings), and live preview.
+- **AI Generate button** in the editor metabox — pulls prompt template from plugin
+  admin settings (`myls_ai_prompt_html_excerpt`), generates via OpenAI, and inserts
+  into the WYSIWYG editor.
+- **Admin AI tab → Excerpts subtab** now has 3-column layout:
+  - Column 1: Select Posts (shared post selector)
+  - Column 2: AI Actions (standard WP `post_excerpt` generation)
+  - Column 3: HTML Excerpt Actions (new `html_excerpt` meta generation)
+- Each column has its own prompt template, save/reset, and bulk generate buttons.
+- New AJAX endpoints: `myls_ai_html_excerpt_generate_single`,
+  `myls_ai_html_excerpt_save_prompt`, `myls_ai_html_excerpt_generate_bulk`.
+
+### Updated: service_area_grid Shortcode
+- **`show_page_title` attribute** (default: `1`) — renders the current page title as
+  an H2 above the grid. Set `show_page_title="0"` to hide.
+- **`show_title` fix** — boolean parsing now accepts `0/false/no` reliably (was strict
+  `=== '1'` comparison that could fail depending on attribute format).
+- Updated shortcode doc header with full attribute reference.
+
+### Updated: service_grid Shortcode
+- **Fixed duplicate tagline** — tagline was rendering both above and below the title.
+  Removed the above-title `show_tagline` block; tagline now only appears below the
+  title via the `subtext` logic. `show_tagline` attribute kept for backward compat.
+
+### Updated: Shortcode Documentation
+- Comprehensive shortcode-data.php rewrite covering all 30+ shortcodes across 6
+  categories with full attributes, examples, and tips.
+- New shortcodes documented: `association_memberships`, `service_faq_page`,
+  `service_area_roots_children`, `divi_child_posts`, `custom_service_cards`,
+  `myls_card_grid`/`myls_flip_grid`, `channel_list`, `gmb_hours`, `county_name`,
+  `acf_field`, `page_title`, `with_transcript`.
+- **Interactive Shortcodes tab redesigned** — single-column accordion layout with
+  persistent search, category pills, inline copy buttons, and collapsible detail
+  sections. Replaces the previous 4-column card grid that was difficult to scan.
+
+## 4.15.8 — 2026-02-16
+
+### New Feature: Association Memberships
+Manage professional association memberships (BBB, Chamber of Commerce, trade groups, etc.)
+from the plugin admin and display them on the front end with valid structured data.
+
+#### Admin UI (Schema → Organization)
+- **Memberships repeater** — add/remove association entries with fields:
+  Name (required), Association URL, Your Profile URL, Logo URL, Member Since year, Description.
+- **Generate Memberships Page** card — creates/updates a WordPress page with the
+  `[association_memberships]` shortcode. Configurable title, slug, and status.
+- Data saved to `myls_org_memberships` option.
+
+#### Schema
+- **`memberOf` on Organization** — each membership is output as an `Organization` object
+  in the `memberOf` array on the existing Organization schema node.
+- **`memberOf` on LocalBusiness** — same `memberOf` array is injected into LocalBusiness
+  schema via new `myls_lb_build_member_of()` helper.
+- **Dedicated Memberships Page provider** (`inc/schema/providers/memberships-page.php`) —
+  if the memberships page is not already assigned to Organization schema, outputs a
+  lightweight Organization node with `memberOf` in the `@graph`.
+- **LocalBusiness auto-assigned** to the generated page.
+
+#### Shortcode: `[association_memberships]`
+- Responsive logo grid card layout (2/3/4 columns, mobile-responsive).
+- Each card shows: logo (linked), association name, "Member since" badge, description,
+  and "View Our Profile" button linking to your profile on their site.
+- Attributes: `title`, `columns`, `show_desc`, `show_since`, `link_text`, `card_bg`, `card_border`.
+- H1 defaults to current post title (same pattern as `[service_faq_page]`).
+
+#### Content Best Practices for Search & AI
+- Descriptions explain what each membership *means* (not just the org name).
+- Profile URLs create verifiable two-way link relationships.
+- Logos with proper alt text for image search visibility.
+- `memberOf` structured data feeds Google Knowledge Graph and AI systems
+  (Gemini, ChatGPT, Perplexity) for entity credibility verification.
+
+### Files
+- **NEW:** `modules/shortcodes/association-memberships.php`
+- **NEW:** `inc/ajax/generate-memberships-page.php`
+- **NEW:** `inc/schema/providers/memberships-page.php`
+- **Changed:** `admin/tabs/schema/subtab-organization.php` — memberships section + page generator
+- **Changed:** `inc/schema/providers/organization.php` — `memberOf` injection
+- **Changed:** `inc/schema/providers/localbusiness.php` — `memberOf` injection + helper
+- **Changed:** `my-local-seo.php` — new includes
+
+## 4.15.7 — 2026-02-16
+
+### Shortcodes
+- **`[service_faq_page]`** — H1 title now defaults to the current page/post title instead of
+  a hardcoded "Service FAQs". Whatever you set as the Page Title in the admin card becomes both
+  the WP post title and the H1 on the page. You can still override with `title="Custom Text"`
+  or hide with `title=""`.
+
+## 4.15.6 — 2026-02-16
+
+### Bug Fix
+- **FIX: AI FAQ Generator "Permission Denied" in post editor** — The AI FAQ Generator metabox
+  was sending the `myls_ai_faq_gen` nonce to the generate endpoint (`myls_ai_faqs_generate_v1`),
+  but that endpoint validates against `myls_ai_ops` via the shared `myls_ai_check_nonce()` helper.
+  The metabox now creates and sends the correct `myls_ai_ops` nonce for the generate call, while
+  continuing to use `myls_ai_faq_gen` for the save and clear endpoints (which verify it directly).
+- File changed: `inc/metaboxes/ai-faq-generator.php`.
+
 ## 4.15.5 — 2026-02-16
 
 ### Schema → FAQ (Critical Fix)

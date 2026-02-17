@@ -44,6 +44,9 @@ add_action('add_meta_boxes', function() {
 function myls_ai_faq_generator_render($post) {
     wp_nonce_field('myls_ai_faq_gen', 'myls_ai_faq_gen_nonce');
     
+    // The generate endpoint uses the shared AI nonce (myls_ai_ops).
+    $ai_nonce = wp_create_nonce('myls_ai_ops');
+    
     // Check if OpenAI API key is configured
     $api_key = trim(get_option('myls_openai_api_key', ''));
     $has_api_key = !empty($api_key);
@@ -164,6 +167,7 @@ function myls_ai_faq_generator_render($post) {
     jQuery(function($) {
         var postId = <?php echo (int)$post->ID; ?>;
         var generating = false;
+        var aiNonce = '<?php echo esc_js( $ai_nonce ); ?>';
         
         // Generate FAQs
         $('#myls_generate_faqs_btn').on('click', function(e) {
@@ -196,7 +200,7 @@ function myls_ai_faq_generator_render($post) {
                 action: 'myls_ai_faqs_generate_v1',
                 post_id: postId,
                 variant: variant,
-                nonce: $('#myls_ai_faq_gen_nonce').val()
+                nonce: aiNonce
             }, function(response) {
                 if (!response.success) {
                     $status.html('<span class="dashicons dashicons-dismiss"></span> ' + (response.data?.message || 'Generation failed')).css('color', '#d63638');

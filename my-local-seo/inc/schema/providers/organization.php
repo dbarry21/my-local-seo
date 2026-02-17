@@ -101,6 +101,26 @@ add_filter('myls_schema_graph', function(array $graph) {
 	if ( $awards )       $node['award']       = $awards;
 	if ( $certs )        $node['hasCertification'] = array_map(function($c){ return ['@type'=>'Certification','name'=>$c]; }, $certs);
 
+	// Memberships → memberOf
+	$memberships = get_option('myls_org_memberships', []);
+	if ( is_array($memberships) && ! empty($memberships) ) {
+		$member_of = [];
+		foreach ( $memberships as $m ) {
+			if ( ! is_array($m) || empty($m['name']) ) continue;
+			$org = [
+				'@type' => 'Organization',
+				'name'  => sanitize_text_field( $m['name'] ),
+			];
+			if ( ! empty($m['url']) )         $org['url']         = esc_url_raw( $m['url'] );
+			if ( ! empty($m['logo_url']) )    $org['logo']        = esc_url_raw( $m['logo_url'] );
+			if ( ! empty($m['description']) ) $org['description'] = sanitize_text_field( $m['description'] );
+			$member_of[] = $org;
+		}
+		if ( ! empty($member_of) ) {
+			$node['memberOf'] = $member_of;
+		}
+	}
+
 	// Optional geo (allowed via Place link)
 	if ( $lat !== '' && $lng !== '' && is_numeric($lat) && is_numeric($lng) ) {
 		$node['location'] = [

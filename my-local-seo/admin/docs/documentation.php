@@ -68,7 +68,7 @@ if ( ! function_exists('mlseo_docs_md_to_html') ) {
 
 function mlseo_render_full_docs_page() {
 
-	$active_tab = isset($_GET['tab']) ? sanitize_text_field($_GET['tab']) : 'overview';
+	$active_tab = isset($_GET['dtab']) ? sanitize_text_field($_GET['dtab']) : 'overview';
 
 	$tabs = [
 		'quickstart' => '🚀 Quick Start',
@@ -87,7 +87,7 @@ function mlseo_render_full_docs_page() {
 
 		<h2 class="nav-tab-wrapper">
 			<?php foreach ( $tabs as $slug => $label ): ?>
-				<a href="<?php echo esc_url( admin_url('admin.php?page=mlseo-docs&tab=' . $slug) ); ?>"
+				<a href="<?php echo esc_url( admin_url('admin.php?page=mlseo-docs&dtab=' . $slug) ); ?>"
 				   class="nav-tab <?php echo $active_tab === $slug ? 'nav-tab-active' : ''; ?>">
 					<?php echo esc_html($label); ?>
 				</a>

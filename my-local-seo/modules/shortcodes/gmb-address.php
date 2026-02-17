@@ -125,6 +125,7 @@ add_shortcode('gmb_address', function( $atts ) {
 		'directions_mode'  => '',                 // driving|walking|bicycling|transit
 		'directions_target'=> '_blank',
 		'directions_class' => 'gmb-directions',
+		'directions_link_class' => 'gmb-directions-link',
 	], $atts, 'gmb_address');
 
 	$api_key  = ssseo_get_google_places_api_key();
@@ -279,7 +280,7 @@ $directions_html = '<div class="' . esc_attr( $atts['directions_class'] ) . '">'
 	if ( $atts['link'] === '1' && ! empty($maps_url) ) {
 		$inner = '<a href="'. esc_url($maps_url) .'" target="_blank" rel="noopener" class="btn btn-primary">'. $inner .'</a>';
 	}
-	//$wrap_class = 'gmb-address'. ( $atts['class'] ? ' '.esc_attr($atts['class']) : '' );
+	$wrap_class = 'gmb-address'. ( $atts['class'] ? ' '.esc_attr($atts['class']) : '' );
 	$out = '<span class="'. $wrap_class .'">'. $inner .'</span>' . $directions_html;
 
 	if ( $atts['debug'] === '1' ) $out .= ssseo_dbg_tag('gmb_address', ['pid-source'=>$pid_source, 'cache'=>$hit?'hit':'miss']);

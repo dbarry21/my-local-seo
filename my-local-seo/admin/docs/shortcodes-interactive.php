@@ -2,436 +2,394 @@
 /**
  * My Local SEO – Interactive Shortcodes Documentation
  * File: admin/docs/shortcodes-interactive.php
- * 
- * Features:
- * - Bootstrap 5 cards layout
- * - Live search/filter
- * - Category filtering
- * - Copy to clipboard
- * - Expandable examples
+ *
+ * Redesigned in v5.0 — single-column accordion layout
+ * - Persistent search with instant filtering
+ * - Category pill filters
+ * - One-click copy for shortcode and examples
+ * - Collapsible attribute tables and examples
+ * - Clean, scannable layout
+ *
+ * @since 5.0.0
  */
 
 if (!defined('ABSPATH')) exit;
 
-// Get all shortcode documentation data
-$shortcodes_data = mlseo_get_all_shortcode_docs();
+$shortcodes_data = mlseo_compile_shortcode_documentation();
 
-// Group by category
 $categories = [
-    'location' => 'Location & Geography',
-    'services' => 'Services & Service Areas',
-    'content' => 'Content Display',
-    'schema' => 'Schema & SEO',
-    'social' => 'Social & Sharing',
-    'utility' => 'Utility & Tools'
+    'location' => ['label' => 'Location',       'icon' => '📍', 'color' => '#4CAF50'],
+    'services' => ['label' => 'Services',        'icon' => '🔧', 'color' => '#2196F3'],
+    'content'  => ['label' => 'Content',         'icon' => '📄', 'color' => '#FF9800'],
+    'schema'   => ['label' => 'Schema & SEO',    'icon' => '🏷️', 'color' => '#9C27B0'],
+    'social'   => ['label' => 'Social',          'icon' => '🔗', 'color' => '#00BCD4'],
+    'utility'  => ['label' => 'Utility & Tools', 'icon' => '⚙️', 'color' => '#607D8B'],
 ];
+
+// Count per category
+$cat_counts = [];
+foreach ($shortcodes_data as $sc) {
+    $cat = $sc['category'] ?? 'utility';
+    $cat_counts[$cat] = ($cat_counts[$cat] ?? 0) + 1;
+}
 ?>
 
 <style>
-.shortcode-cards-wrapper {
-    margin-top: 20px;
+/* Layout */
+.myls-sc-docs { max-width: 960px; margin: 0 auto; }
+
+/* Search */
+.myls-sc-search {
+    position: sticky; top: 32px; z-index: 100;
+    background: #fff; padding: 16px 0 12px; margin-bottom: 8px;
+    border-bottom: 1px solid #e0e0e0;
+}
+.myls-sc-search input {
+    width: 100%; padding: 10px 16px; font-size: 15px;
+    border: 2px solid #ddd; border-radius: 8px; outline: none;
+    transition: border-color 0.2s;
+}
+.myls-sc-search input:focus { border-color: #2271b1; }
+
+/* Category pills */
+.myls-sc-pills {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    padding: 10px 0; margin-bottom: 12px;
+}
+.myls-sc-pill {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 5px 14px; border-radius: 20px; font-size: 13px; font-weight: 500;
+    border: 1px solid #ccc; background: #fff; cursor: pointer;
+    transition: all 0.15s;
+}
+.myls-sc-pill:hover { background: #f0f6fc; border-color: #2271b1; }
+.myls-sc-pill.active { background: #2271b1; color: #fff; border-color: #2271b1; }
+.myls-sc-pill .pill-count {
+    font-size: 11px; opacity: 0.7; margin-left: 2px;
 }
 
-.shortcode-search-bar {
-    max-width: 600px;
-    margin: 20px auto;
+/* Stats */
+.myls-sc-stats {
+    font-size: 13px; color: #666; padding: 6px 0 14px;
 }
 
-.shortcode-filters {
-    margin: 20px 0;
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    align-items: center;
+/* Shortcode items */
+.myls-sc-item {
+    border: 1px solid #e0e0e0; border-radius: 8px;
+    margin-bottom: 10px; background: #fff;
+    transition: box-shadow 0.15s;
+}
+.myls-sc-item:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+
+/* Item header (always visible) */
+.myls-sc-header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 16px; cursor: pointer; user-select: none;
+}
+.myls-sc-header:hover { background: #fafafa; }
+
+.myls-sc-cat-dot {
+    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+}
+.myls-sc-name {
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size: 15px; font-weight: 700; color: #1d2327;
+    min-width: 200px;
+}
+.myls-sc-desc {
+    font-size: 13px; color: #555; flex: 1;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.myls-sc-copy-short {
+    flex-shrink: 0; padding: 3px 10px; font-size: 12px;
+    border: 1px solid #ccc; border-radius: 4px; background: #f9f9f9;
+    cursor: pointer; transition: all 0.15s; white-space: nowrap;
+}
+.myls-sc-copy-short:hover { background: #2271b1; color: #fff; border-color: #2271b1; }
+.myls-sc-copy-short.copied { background: #00a32a; color: #fff; border-color: #00a32a; }
+.myls-sc-chevron {
+    flex-shrink: 0; font-size: 16px; color: #999; transition: transform 0.2s;
+}
+.myls-sc-item.open .myls-sc-chevron { transform: rotate(90deg); }
+
+/* Detail panel (collapsible) */
+.myls-sc-detail {
+    display: none; padding: 0 16px 16px;
+    border-top: 1px solid #f0f0f0;
+}
+.myls-sc-item.open .myls-sc-detail { display: block; }
+
+/* Basic usage box */
+.myls-sc-usage {
+    display: flex; align-items: center; gap: 10px;
+    background: #f6f7f7; border-left: 3px solid #2271b1;
+    padding: 10px 14px; margin: 12px 0;
+    font-family: monospace; font-size: 14px;
+}
+.myls-sc-usage code { flex: 1; font-size: 14px; }
+.myls-sc-usage button {
+    padding: 2px 10px; font-size: 11px;
+    border: 1px solid #ccc; border-radius: 3px; background: #fff; cursor: pointer;
+}
+.myls-sc-usage button:hover { background: #2271b1; color: #fff; border-color: #2271b1; }
+
+/* Attribute table */
+.myls-sc-attrs { width: 100%; border-collapse: collapse; font-size: 13px; margin: 10px 0; }
+.myls-sc-attrs th {
+    text-align: left; padding: 6px 10px; background: #f0f6fc;
+    font-weight: 600; font-size: 12px; text-transform: uppercase; color: #555;
+}
+.myls-sc-attrs td { padding: 6px 10px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+.myls-sc-attrs .attr-name {
+    font-family: monospace; font-weight: 600; color: #d63638; white-space: nowrap;
+}
+.myls-sc-attrs .attr-default {
+    font-family: monospace; background: #f0f0f1; padding: 1px 6px;
+    border-radius: 3px; font-size: 12px; white-space: nowrap;
 }
 
-.shortcode-card {
-    margin-bottom: 20px;
-    transition: all 0.3s ease;
-    border-left: 4px solid transparent;
+/* Examples */
+.myls-sc-examples { margin: 10px 0; }
+.myls-sc-example {
+    display: flex; align-items: center; gap: 10px;
+    padding: 6px 12px; margin: 4px 0;
+    background: #f9f9f9; border-radius: 4px;
 }
-
-.shortcode-card:hover {
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    border-left-color: #2271b1;
+.myls-sc-example .ex-label { font-size: 12px; color: #666; min-width: 140px; }
+.myls-sc-example code { flex: 1; font-size: 13px; }
+.myls-sc-example button {
+    padding: 1px 8px; font-size: 11px;
+    border: 1px solid #ddd; border-radius: 3px; background: #fff; cursor: pointer;
 }
+.myls-sc-example button:hover { background: #2271b1; color: #fff; border-color: #2271b1; }
 
-.shortcode-card.cat-location { border-left-color: #4CAF50; }
-.shortcode-card.cat-services { border-left-color: #2196F3; }
-.shortcode-card.cat-content { border-left-color: #FF9800; }
-.shortcode-card.cat-schema { border-left-color: #9C27B0; }
-.shortcode-card.cat-social { border-left-color: #00BCD4; }
-.shortcode-card.cat-utility { border-left-color: #607D8B; }
-
-.shortcode-name {
-    font-family: 'Courier New', monospace;
-    font-size: 18px;
-    font-weight: bold;
-    color: #2271b1;
-    margin-bottom: 8px;
-}
-
-.shortcode-badge {
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 3px;
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    margin-right: 8px;
-}
-
-.badge-location { background: #4CAF50; color: white; }
-.badge-services { background: #2196F3; color: white; }
-.badge-content { background: #FF9800; color: white; }
-.badge-schema { background: #9C27B0; color: white; }
-.badge-social { background: #00BCD4; color: white; }
-.badge-utility { background: #607D8B; color: white; }
-
-.copy-btn {
-    font-size: 12px;
-    padding: 2px 8px;
-}
-
-.attribute-table {
+/* Tips */
+.myls-sc-tips {
+    margin: 12px 0 4px; padding: 10px 14px;
+    background: #fef8e7; border-left: 3px solid #dba617; border-radius: 0 4px 4px 0;
     font-size: 13px;
 }
+.myls-sc-tips ul { margin: 4px 0 0 16px; padding: 0; }
+.myls-sc-tips li { margin: 2px 0; }
 
-.attribute-table td {
-    padding: 6px;
-    vertical-align: top;
+/* Section headers */
+.myls-sc-section-header {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    color: #888; letter-spacing: 0.5px; margin: 6px 0;
 }
 
-.attribute-name {
-    font-family: 'Courier New', monospace;
-    font-weight: bold;
-    color: #d63638;
+/* No results */
+.myls-sc-empty {
+    text-align: center; padding: 40px 20px; color: #999; display: none;
 }
 
-.attribute-default {
-    font-family: 'Courier New', monospace;
-    background: #f0f0f1;
-    padding: 2px 6px;
-    border-radius: 3px;
-}
-
-.example-block {
-    background: #f6f7f7;
-    border-left: 3px solid #2271b1;
-    padding: 12px;
-    margin: 10px 0;
-    font-family: 'Courier New', monospace;
-    font-size: 13px;
-}
-
-.no-results {
-    text-align: center;
-    padding: 60px 20px;
-    color: #666;
-}
-
-.stats-bar {
-    background: #f0f6fc;
-    padding: 15px 20px;
-    border-radius: 6px;
-    margin-bottom: 20px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.collapse-toggle {
-    cursor: pointer;
-    color: #2271b1;
-    font-size: 13px;
-    margin-top: 10px;
-}
-
-.collapse-toggle:hover {
-    text-decoration: underline;
+/* Responsive */
+@media (max-width: 782px) {
+    .myls-sc-header { flex-wrap: wrap; }
+    .myls-sc-desc { display: none; }
+    .myls-sc-name { min-width: auto; }
 }
 </style>
 
-<div class="shortcode-cards-wrapper">
-    <!-- Search Bar -->
-    <div class="shortcode-search-bar">
-        <input 
-            type="text" 
-            id="shortcode-search" 
-            class="form-control form-control-lg" 
-            placeholder="🔍 Search shortcodes by name, description, or attribute..."
-            autocomplete="off"
-        >
+<div class="myls-sc-docs">
+
+    <!-- Search -->
+    <div class="myls-sc-search">
+        <input type="text" id="myls-sc-search" placeholder="Search shortcodes — type a name, attribute, or keyword..." autocomplete="off">
     </div>
 
-    <!-- Filters -->
-    <div class="shortcode-filters">
-        <strong>Category:</strong>
-        <button class="btn btn-sm btn-outline-secondary filter-btn active" data-category="all">
-            All (<?php echo count($shortcodes_data); ?>)
-        </button>
-        <?php foreach ($categories as $cat_key => $cat_label): 
-            $count = count(array_filter($shortcodes_data, fn($sc) => $sc['category'] === $cat_key));
-            if ($count > 0):
+    <!-- Category pills -->
+    <div class="myls-sc-pills">
+        <span class="myls-sc-pill active" data-cat="all">All <span class="pill-count"><?php echo count($shortcodes_data); ?></span></span>
+        <?php foreach ($categories as $key => $cat):
+            $count = $cat_counts[$key] ?? 0;
+            if (!$count) continue;
         ?>
-            <button class="btn btn-sm btn-outline-secondary filter-btn" data-category="<?php echo $cat_key; ?>">
-                <?php echo $cat_label; ?> (<?php echo $count; ?>)
-            </button>
-        <?php 
-            endif;
-        endforeach; 
-        ?>
-        
-        <div style="margin-left: auto;">
-            <button class="btn btn-sm btn-outline-primary" id="expand-all">Expand All</button>
-            <button class="btn btn-sm btn-outline-primary" id="collapse-all">Collapse All</button>
-        </div>
-    </div>
-
-    <!-- Stats Bar -->
-    <div class="stats-bar">
-        <div>
-            <strong>Total Shortcodes:</strong> <span id="total-count"><?php echo count($shortcodes_data); ?></span> |
-            <strong>Showing:</strong> <span id="visible-count"><?php echo count($shortcodes_data); ?></span>
-        </div>
-        <div>
-            <button class="btn btn-sm btn-primary" id="export-docs">
-                <i class="dashicons dashicons-download"></i> Export Documentation
-            </button>
-        </div>
-    </div>
-
-    <!-- Shortcode Cards Grid -->
-    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-3" id="shortcodes-container">
-        <?php foreach ($shortcodes_data as $shortcode): ?>
-            <div class="shortcode-item" 
-                 data-category="<?php echo esc_attr($shortcode['category']); ?>"
-                 data-search="<?php echo esc_attr(strtolower($shortcode['name'] . ' ' . $shortcode['description'] . ' ' . implode(' ', array_keys($shortcode['attributes'])))); ?>">
-                
-                <div class="card shortcode-card cat-<?php echo esc_attr($shortcode['category']); ?>">
-                    <div class="card-body">
-                        <!-- Header -->
-                        <div class="d-flex justify-content-between align-items-start mb-2">
-                            <div class="shortcode-name"><?php echo esc_html($shortcode['name']); ?></div>
-                            <button class="btn btn-sm btn-outline-primary copy-btn" 
-                                    data-shortcode="<?php echo esc_attr($shortcode['name']); ?>"
-                                    title="Copy to clipboard">
-                                📋 Copy
-                            </button>
-                        </div>
-
-                        <!-- Category Badge -->
-                        <div class="mb-2">
-                            <span class="shortcode-badge badge-<?php echo esc_attr($shortcode['category']); ?>">
-                                <?php echo esc_html($categories[$shortcode['category']] ?? 'Other'); ?>
-                            </span>
-                        </div>
-
-                        <!-- Description -->
-                        <p class="card-text"><?php echo esc_html($shortcode['description']); ?></p>
-
-                        <!-- Basic Usage -->
-                        <div class="example-block">
-                            <?php echo esc_html($shortcode['basic_usage']); ?>
-                        </div>
-
-                        <!-- Expandable Details -->
-                        <div class="collapse" id="details-<?php echo esc_attr(sanitize_title($shortcode['name'])); ?>">
-                            
-                            <?php if (!empty($shortcode['attributes'])): ?>
-                                <h6 class="mt-3 mb-2"><strong>Attributes:</strong></h6>
-                                <table class="table table-sm table-bordered attribute-table">
-                                    <thead>
-                                        <tr>
-                                            <th width="30%">Attribute</th>
-                                            <th width="25%">Default</th>
-                                            <th width="45%">Description</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php foreach ($shortcode['attributes'] as $attr => $info): ?>
-                                            <tr>
-                                                <td class="attribute-name"><?php echo esc_html($attr); ?></td>
-                                                <td><span class="attribute-default"><?php echo esc_html($info['default'] ?? '—'); ?></span></td>
-                                                <td><?php echo esc_html($info['description'] ?? ''); ?></td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    </tbody>
-                                </table>
-                            <?php endif; ?>
-
-                            <?php if (!empty($shortcode['examples'])): ?>
-                                <h6 class="mt-3 mb-2"><strong>Examples:</strong></h6>
-                                <?php foreach ($shortcode['examples'] as $example): ?>
-                                    <div class="mb-2">
-                                        <small class="text-muted"><?php echo esc_html($example['label']); ?></small>
-                                        <div class="example-block">
-                                            <?php echo esc_html($example['code']); ?>
-                                        </div>
-                                    </div>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
-
-                            <?php if (!empty($shortcode['tips'])): ?>
-                                <div class="alert alert-info mt-3">
-                                    <strong>💡 Tips:</strong>
-                                    <ul class="mb-0">
-                                        <?php foreach ($shortcode['tips'] as $tip): ?>
-                                            <li><?php echo esc_html($tip); ?></li>
-                                        <?php endforeach; ?>
-                                    </ul>
-                                </div>
-                            <?php endif; ?>
-                        </div>
-
-                        <!-- Show/Hide Details Toggle -->
-                        <div class="collapse-toggle" 
-                             data-bs-toggle="collapse" 
-                             data-bs-target="#details-<?php echo esc_attr(sanitize_title($shortcode['name'])); ?>">
-                            <span class="show-text">▼ Show Details</span>
-                            <span class="hide-text" style="display:none;">▲ Hide Details</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <span class="myls-sc-pill" data-cat="<?php echo esc_attr($key); ?>" style="--pill-color:<?php echo esc_attr($cat['color']); ?>">
+                <?php echo $cat['icon']; ?> <?php echo esc_html($cat['label']); ?>
+                <span class="pill-count"><?php echo $count; ?></span>
+            </span>
         <?php endforeach; ?>
     </div>
 
-    <!-- No Results Message -->
-    <div class="no-results" id="no-results" style="display:none;">
-        <h3>No shortcodes found</h3>
-        <p>Try adjusting your search or filter criteria</p>
+    <!-- Stats -->
+    <div class="myls-sc-stats">
+        Showing <strong id="myls-sc-visible"><?php echo count($shortcodes_data); ?></strong> of <?php echo count($shortcodes_data); ?> shortcodes
     </div>
+
+    <!-- Shortcode list -->
+    <div id="myls-sc-list">
+    <?php
+    $last_cat = '';
+    foreach ($shortcodes_data as $idx => $sc):
+        $cat = $sc['category'] ?? 'utility';
+        $cat_info = $categories[$cat] ?? ['label' => 'Other', 'icon' => '📦', 'color' => '#999'];
+        $slug = sanitize_title($sc['name']);
+
+        // Category section header
+        if ($cat !== $last_cat):
+            $last_cat = $cat;
+        ?>
+            <div class="myls-sc-section-header" data-cat="<?php echo esc_attr($cat); ?>">
+                <span><?php echo $cat_info['icon']; ?></span>
+                <?php echo esc_html($cat_info['label']); ?>
+            </div>
+        <?php endif; ?>
+
+        <div class="myls-sc-item" data-cat="<?php echo esc_attr($cat); ?>"
+             data-search="<?php echo esc_attr(strtolower($sc['name'] . ' ' . $sc['description'] . ' ' . implode(' ', array_keys($sc['attributes'] ?? [])))); ?>">
+
+            <!-- Header row (always visible) -->
+            <div class="myls-sc-header" data-toggle="<?php echo esc_attr($slug); ?>">
+                <span class="myls-sc-cat-dot" style="background:<?php echo esc_attr($cat_info['color']); ?>"></span>
+                <span class="myls-sc-name">[<?php echo esc_html($sc['name']); ?>]</span>
+                <span class="myls-sc-desc"><?php echo esc_html($sc['description']); ?></span>
+                <button class="myls-sc-copy-short" data-copy="[<?php echo esc_attr($sc['name']); ?>]" title="Copy shortcode" onclick="event.stopPropagation();">Copy</button>
+                <span class="myls-sc-chevron">›</span>
+            </div>
+
+            <!-- Expandable detail -->
+            <div class="myls-sc-detail">
+
+                <!-- Full description -->
+                <p style="margin:12px 0 6px;color:#333;"><?php echo esc_html($sc['description']); ?></p>
+
+                <!-- Basic usage -->
+                <div class="myls-sc-usage">
+                    <code><?php echo esc_html($sc['basic_usage']); ?></code>
+                    <button class="myls-sc-copy-btn" data-copy="<?php echo esc_attr($sc['basic_usage']); ?>">Copy</button>
+                </div>
+
+                <!-- Attributes table -->
+                <?php if (!empty($sc['attributes'])): ?>
+                    <table class="myls-sc-attrs">
+                        <thead><tr><th>Attribute</th><th>Default</th><th>Description</th></tr></thead>
+                        <tbody>
+                        <?php foreach ($sc['attributes'] as $attr => $info): ?>
+                            <tr>
+                                <td class="attr-name"><?php echo esc_html($attr); ?></td>
+                                <td><span class="attr-default"><?php echo esc_html($info['default'] ?? '—'); ?></span></td>
+                                <td><?php echo esc_html($info['description'] ?? ''); ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                <?php endif; ?>
+
+                <!-- Examples -->
+                <?php if (!empty($sc['examples'])): ?>
+                    <div class="myls-sc-examples">
+                        <strong style="font-size:12px;color:#555;">EXAMPLES</strong>
+                        <?php foreach ($sc['examples'] as $ex): ?>
+                            <div class="myls-sc-example">
+                                <span class="ex-label"><?php echo esc_html($ex['label']); ?></span>
+                                <code><?php echo esc_html($ex['code']); ?></code>
+                                <button class="myls-sc-copy-btn" data-copy="<?php echo esc_attr($ex['code']); ?>">Copy</button>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+
+                <!-- Tips -->
+                <?php if (!empty($sc['tips'])): ?>
+                    <div class="myls-sc-tips">
+                        <strong>💡 Tips</strong>
+                        <ul>
+                        <?php foreach ($sc['tips'] as $tip): ?>
+                            <li><?php echo esc_html($tip); ?></li>
+                        <?php endforeach; ?>
+                        </ul>
+                    </div>
+                <?php endif; ?>
+
+            </div>
+        </div>
+    <?php endforeach; ?>
+    </div>
+
+    <!-- No results -->
+    <div class="myls-sc-empty" id="myls-sc-empty">
+        <p style="font-size:18px;">No shortcodes match your search.</p>
+        <p>Try a different keyword or clear the filter.</p>
+    </div>
+
 </div>
 
 <script>
-jQuery(document).ready(function($) {
-    const $search = $('#shortcode-search');
-    const $filterBtns = $('.filter-btn');
-    const $items = $('.shortcode-item');
-    const $container = $('#shortcodes-container');
-    const $noResults = $('#no-results');
-    const $visibleCount = $('#visible-count');
+jQuery(function($) {
+    var $search  = $('#myls-sc-search');
+    var $pills   = $('.myls-sc-pill');
+    var $items   = $('.myls-sc-item');
+    var $headers = $('.myls-sc-section-header');
+    var $visible = $('#myls-sc-visible');
+    var $empty   = $('#myls-sc-empty');
+    var $list    = $('#myls-sc-list');
 
-    let activeCategory = 'all';
-    let searchQuery = '';
+    var activeCat = 'all';
+    var query = '';
 
-    // Filter function
-    function filterItems() {
-        let visibleCount = 0;
+    function filterAll() {
+        var count = 0;
+        var visibleCats = {};
 
         $items.each(function() {
-            const $item = $(this);
-            const category = $item.data('category');
-            const searchText = $item.data('search');
-
-            const categoryMatch = activeCategory === 'all' || category === activeCategory;
-            const searchMatch = searchQuery === '' || searchText.includes(searchQuery);
-
-            if (categoryMatch && searchMatch) {
-                $item.show();
-                visibleCount++;
+            var $el = $(this);
+            var cat = $el.data('cat');
+            var text = $el.data('search');
+            var catOk = (activeCat === 'all' || cat === activeCat);
+            var searchOk = (!query || text.indexOf(query) !== -1);
+            if (catOk && searchOk) {
+                $el.show();
+                visibleCats[cat] = true;
+                count++;
             } else {
-                $item.hide();
+                $el.hide();
             }
         });
 
-        $visibleCount.text(visibleCount);
-        
-        if (visibleCount === 0) {
-            $container.hide();
-            $noResults.show();
-        } else {
-            $container.show();
-            $noResults.hide();
-        }
+        // Show/hide section headers
+        $headers.each(function() {
+            var hCat = $(this).data('cat');
+            $(this).toggle(!!(visibleCats[hCat]));
+        });
+
+        $visible.text(count);
+        $list.toggle(count > 0);
+        $empty.toggle(count === 0);
     }
 
     // Search
     $search.on('input', function() {
-        searchQuery = $(this).val().toLowerCase();
-        filterItems();
+        query = $(this).val().toLowerCase().trim();
+        filterAll();
     });
 
-    // Category filter
-    $filterBtns.on('click', function() {
-        $filterBtns.removeClass('active');
+    // Category pills
+    $pills.on('click', function() {
+        $pills.removeClass('active');
         $(this).addClass('active');
-        activeCategory = $(this).data('category');
-        filterItems();
+        activeCat = $(this).data('cat');
+        filterAll();
     });
 
-    // Copy to clipboard
-    $(document).on('click', '.copy-btn', function() {
-        const shortcode = '[' + $(this).data('shortcode') + ']';
-        const $btn = $(this);
+    // Toggle detail panels
+    $(document).on('click', '.myls-sc-header', function() {
+        $(this).closest('.myls-sc-item').toggleClass('open');
+    });
 
-        navigator.clipboard.writeText(shortcode).then(function() {
-            const originalText = $btn.text();
-            $btn.text('✓ Copied!').removeClass('btn-outline-primary').addClass('btn-success');
-            setTimeout(function() {
-                $btn.text(originalText).removeClass('btn-success').addClass('btn-outline-primary');
-            }, 2000);
+    // Copy buttons
+    $(document).on('click', '.myls-sc-copy-short, .myls-sc-copy-btn', function(e) {
+        e.stopPropagation();
+        var $btn = $(this);
+        var text = $btn.data('copy');
+        navigator.clipboard.writeText(text).then(function() {
+            var orig = $btn.text();
+            $btn.text('Copied!').addClass('copied');
+            setTimeout(function() { $btn.text(orig).removeClass('copied'); }, 1500);
         });
-    });
-
-    // Collapse toggle text
-    $(document).on('show.bs.collapse', '.collapse', function() {
-        const $toggle = $(this).prev('.collapse-toggle');
-        $toggle.find('.show-text').hide();
-        $toggle.find('.hide-text').show();
-    });
-
-    $(document).on('hide.bs.collapse', '.collapse', function() {
-        const $toggle = $(this).prev('.collapse-toggle');
-        $toggle.find('.show-text').show();
-        $toggle.find('.hide-text').hide();
-    });
-
-    // Expand/Collapse All
-    $('#expand-all').on('click', function() {
-        $('.shortcode-item:visible .collapse').collapse('show');
-    });
-
-    $('#collapse-all').on('click', function() {
-        $('.collapse').collapse('hide');
-    });
-
-    <!-- Export documentation -->
-    $('#export-docs').on('click', function() {
-        // Create a form and submit with nonce
-        const form = $('<form>', {
-            method: 'POST',
-            action: '<?php echo admin_url('admin-post.php'); ?>'
-        });
-        
-        form.append($('<input>', {
-            type: 'hidden',
-            name: 'action',
-            value: 'mlseo_docs_export_pdf'
-        }));
-        
-        form.append($('<input>', {
-            type: 'hidden',
-            name: '_wpnonce',
-            value: '<?php echo wp_create_nonce('mlseo_docs_export_pdf'); ?>'
-        }));
-        
-        form.appendTo('body').submit().remove();
     });
 });
 </script>
-<?php
 
-/**
- * Get all shortcode documentation data
- * This function compiles all shortcode information
- */
-function mlseo_get_all_shortcode_docs() {
-    $shortcodes = [];
-    
-    // We'll populate this with comprehensive data for each shortcode
-    // For now, returning the structure - we'll fill in the complete data next
-    
-    return mlseo_compile_shortcode_documentation();
-}
+<?php

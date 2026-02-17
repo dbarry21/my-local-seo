@@ -284,6 +284,115 @@ $spec = [
 						</div>
 					</div>
 
+					<hr class="myls-org-hr">
+
+					<?php
+					// ── Association Memberships repeater ──
+					$memberships = (array) get_option('myls_org_memberships', []);
+					if ( empty($memberships) ) {
+						$memberships = [ ['name'=>'','url'=>'','profile_url'=>'','logo_url'=>'','description'=>'','since'=>''] ];
+					}
+					?>
+					<div class="myls-org-section">
+						<div class="myls-org-section-title">Association Memberships</div>
+						<div class="text-muted" style="margin:-6px 0 12px 0; font-size:12px;">
+							Professional associations and memberships. Output as <code>memberOf</code> on Organization &amp; LocalBusiness schema.
+							Use the shortcode <code>[association_memberships]</code> to display on the front end.
+						</div>
+
+						<div id="myls-org-memberships">
+							<?php foreach ( $memberships as $i => $m ) :
+								$m = wp_parse_args( (array) $m, ['name'=>'','url'=>'','profile_url'=>'','logo_url'=>'','description'=>'','since'=>''] );
+							?>
+							<div class="myls-membership-row" style="border:1px solid #ccc; border-radius:1em; padding:14px; margin-bottom:12px; background:#fafafa;">
+								<div class="row">
+									<div class="col-md-4">
+										<label class="form-label">Association Name <span style="color:#dc3545;">*</span></label>
+										<input type="text" name="myls_org_memberships[<?php echo $i; ?>][name]" value="<?php echo esc_attr($m['name']); ?>" placeholder="e.g. Better Business Bureau">
+									</div>
+									<div class="col-md-4">
+										<label class="form-label">Association URL</label>
+										<input type="url" name="myls_org_memberships[<?php echo $i; ?>][url]" value="<?php echo esc_url($m['url']); ?>" placeholder="https://www.bbb.org">
+									</div>
+									<div class="col-md-4">
+										<label class="form-label">Your Profile URL</label>
+										<input type="url" name="myls_org_memberships[<?php echo $i; ?>][profile_url]" value="<?php echo esc_url($m['profile_url']); ?>" placeholder="https://www.bbb.org/us/fl/tampa/your-biz">
+									</div>
+									<div class="col-md-4">
+										<label class="form-label">Logo URL</label>
+										<input type="url" name="myls_org_memberships[<?php echo $i; ?>][logo_url]" value="<?php echo esc_url($m['logo_url']); ?>" placeholder="https://example.com/logo.png">
+									</div>
+									<div class="col-md-2">
+										<label class="form-label">Member Since</label>
+										<input type="text" name="myls_org_memberships[<?php echo $i; ?>][since]" value="<?php echo esc_attr($m['since']); ?>" placeholder="e.g. 2019" maxlength="4">
+									</div>
+									<div class="col-md-6">
+										<label class="form-label">Description</label>
+										<input type="text" name="myls_org_memberships[<?php echo $i; ?>][description]" value="<?php echo esc_attr($m['description']); ?>" placeholder="Brief description of what this membership means">
+									</div>
+								</div>
+								<div style="text-align:right; margin-top:8px;">
+									<button type="button" class="myls-btn myls-btn-danger myls-remove-membership">Remove</button>
+								</div>
+							</div>
+							<?php endforeach; ?>
+						</div>
+
+						<button class="myls-btn myls-btn-outline" type="button" id="myls-org-add-membership">+ Add Membership</button>
+					</div>
+
+					<hr class="myls-org-hr">
+
+					<?php
+					// ── Generate Memberships Page card ──
+					$mem_page_id   = (int) get_option('myls_memberships_page_id', 0);
+					$mem_page_exists = ( $mem_page_id && get_post_status($mem_page_id) !== false );
+					$mem_page_title  = $mem_page_exists ? get_the_title($mem_page_id) : 'Our Memberships & Associations';
+					$mem_page_slug   = $mem_page_exists ? get_post_field('post_name', $mem_page_id) : 'memberships';
+					$mem_page_status = $mem_page_exists ? get_post_status($mem_page_id) : 'publish';
+					?>
+					<div class="myls-org-section" style="border:1px solid #0d6efd; border-radius:1em; padding:16px; background:#f0f6fc;">
+						<div class="myls-org-section-title" style="color:#0d6efd;">
+							<span class="dashicons dashicons-admin-page" style="margin-right:4px;"></span>
+							Generate Memberships Page
+							<?php if ($mem_page_exists): ?>
+								<span style="background:#198754;color:#fff;font-size:.7rem;padding:2px 8px;border-radius:1em;margin-left:8px;">Page exists</span>
+							<?php endif; ?>
+						</div>
+						<div class="text-muted" style="margin-bottom:12px; font-size:12px;">
+							Creates a page with the <code>[association_memberships]</code> shortcode. Displays a logo grid card layout with schema.
+						</div>
+						<div class="row">
+							<div class="col-md-4">
+								<label class="form-label">Page Title</label>
+								<input type="text" id="myls_mem_page_title" value="<?php echo esc_attr($mem_page_title); ?>" placeholder="Our Memberships & Associations">
+							</div>
+							<div class="col-md-4">
+								<label class="form-label">Page Slug</label>
+								<input type="text" id="myls_mem_page_slug" value="<?php echo esc_attr($mem_page_slug); ?>" placeholder="memberships">
+								<small class="text-muted"><?php echo esc_html(home_url('/')); ?><span id="myls_mem_slug_preview"><?php echo esc_html($mem_page_slug); ?></span>/</small>
+							</div>
+							<div class="col-md-4">
+								<label class="form-label">Page Status</label>
+								<select id="myls_mem_page_status">
+									<option value="publish" <?php selected($mem_page_status, 'publish'); ?>>Published</option>
+									<option value="draft" <?php selected($mem_page_status, 'draft'); ?>>Draft</option>
+								</select>
+							</div>
+						</div>
+						<div style="display:flex; gap:8px; align-items:center; margin-top:12px; flex-wrap:wrap;">
+							<button type="button" class="myls-btn myls-btn-primary" id="myls_generate_mem_page_btn">
+								<?php echo $mem_page_exists ? '⚡ Update Page' : '⚡ Generate Page'; ?>
+							</button>
+							<?php if ($mem_page_exists): ?>
+								<a href="<?php echo esc_url(get_permalink($mem_page_id)); ?>" target="_blank" class="myls-btn myls-btn-outline" style="text-decoration:none;">View Page</a>
+								<a href="<?php echo esc_url(get_edit_post_link($mem_page_id, 'raw')); ?>" target="_blank" class="myls-btn myls-btn-outline" style="text-decoration:none;">Edit Page</a>
+							<?php endif; ?>
+							<span id="myls_mem_spinner" style="display:none;"><span class="spinner" style="visibility:visible;float:none;margin:0 6px;"></span></span>
+						</div>
+						<div id="myls_mem_result" style="display:none; margin-top:10px;"></div>
+					</div>
+
 
 				<!-- (No submit button here; the main tab provides Save Settings) -->
 			</div>
@@ -402,6 +511,102 @@ $spec = [
 			if (!sel) return; for (const o of sel.options) o.selected = false;
 		  });
 		})();
+
+		// Membership repeater rows
+		(function(){
+		  var wrap = document.getElementById('myls-org-memberships');
+		  var idx = wrap ? wrap.querySelectorAll('.myls-membership-row').length : 0;
+
+		  document.getElementById('myls-org-add-membership')?.addEventListener('click', function(){
+			var row = document.createElement('div');
+			row.className = 'myls-membership-row';
+			row.style.cssText = 'border:1px solid #ccc; border-radius:1em; padding:14px; margin-bottom:12px; background:#fafafa;';
+			row.innerHTML = '<div class="row">'
+			  + '<div class="col-md-4"><label class="form-label">Association Name <span style="color:#dc3545;">*</span></label>'
+			  + '<input type="text" name="myls_org_memberships['+idx+'][name]" placeholder="e.g. Better Business Bureau"></div>'
+			  + '<div class="col-md-4"><label class="form-label">Association URL</label>'
+			  + '<input type="url" name="myls_org_memberships['+idx+'][url]" placeholder="https://www.bbb.org"></div>'
+			  + '<div class="col-md-4"><label class="form-label">Your Profile URL</label>'
+			  + '<input type="url" name="myls_org_memberships['+idx+'][profile_url]" placeholder="https://www.bbb.org/us/fl/tampa/your-biz"></div>'
+			  + '<div class="col-md-4"><label class="form-label">Logo URL</label>'
+			  + '<input type="url" name="myls_org_memberships['+idx+'][logo_url]" placeholder="https://example.com/logo.png"></div>'
+			  + '<div class="col-md-2"><label class="form-label">Member Since</label>'
+			  + '<input type="text" name="myls_org_memberships['+idx+'][since]" placeholder="e.g. 2019" maxlength="4"></div>'
+			  + '<div class="col-md-6"><label class="form-label">Description</label>'
+			  + '<input type="text" name="myls_org_memberships['+idx+'][description]" placeholder="Brief description of what this membership means"></div>'
+			  + '</div>'
+			  + '<div style="text-align:right; margin-top:8px;">'
+			  + '<button type="button" class="myls-btn myls-btn-danger myls-remove-membership">Remove</button>'
+			  + '</div>';
+			wrap.appendChild(row);
+			idx++;
+		  });
+
+		  wrap?.addEventListener('click', function(e){
+			var btn = e.target.closest('.myls-remove-membership');
+			if (btn) { btn.closest('.myls-membership-row').remove(); }
+		  });
+		})();
+
+		// Generate Memberships Page AJAX
+		(function(){
+		  var btn = document.getElementById('myls_generate_mem_page_btn');
+		  var spinner = document.getElementById('myls_mem_spinner');
+		  var result = document.getElementById('myls_mem_result');
+		  var slugIn = document.getElementById('myls_mem_page_slug');
+		  var slugPrev = document.getElementById('myls_mem_slug_preview');
+
+		  if (slugIn && slugPrev) {
+			slugIn.addEventListener('input', function(){
+			  var v = this.value.trim().toLowerCase().replace(/[^a-z0-9\-]/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'');
+			  slugPrev.textContent = v || 'memberships';
+			});
+		  }
+
+		  if (!btn) return;
+		  btn.addEventListener('click', function(e){
+			e.preventDefault();
+			var title  = document.getElementById('myls_mem_page_title').value.trim() || 'Our Memberships & Associations';
+			var slug   = slugIn ? slugIn.value.trim() : '';
+			var status = document.getElementById('myls_mem_page_status').value || 'publish';
+
+			btn.disabled = true;
+			spinner.style.display = 'inline-block';
+			result.style.display  = 'none';
+
+			var fd = new FormData();
+			fd.append('action',      'myls_generate_memberships_page');
+			fd.append('nonce',       '<?php echo wp_create_nonce("myls_schema_save"); ?>');
+			fd.append('page_title',  title);
+			fd.append('page_slug',   slug);
+			fd.append('page_status', status);
+
+			fetch(ajaxurl, { method:'POST', body:fd })
+			  .then(function(r){ return r.json(); })
+			  .then(function(resp){
+				btn.disabled = false;
+				spinner.style.display = 'none';
+				result.style.display  = 'block';
+				if (resp.success) {
+				  var d = resp.data;
+				  result.innerHTML = '<div style="background:#d1e7dd;border:1px solid #badbcc;border-radius:.5rem;padding:10px 14px;">'
+					+ '<strong>&#10003; ' + d.message + '</strong><br>'
+					+ '<span style="font-size:.9rem;">' + d.membership_count + ' membership(s)</span><br>'
+					+ '<a href="'+d.view_url+'" target="_blank">View Page →</a> '
+					+ '<a href="'+d.edit_url+'" target="_blank" style="margin-left:10px;">Edit Page →</a></div>';
+				  if (d.page_slug && slugIn) { slugIn.value = d.page_slug; if(slugPrev) slugPrev.textContent = d.page_slug; }
+				  btn.textContent = '⚡ Update Page';
+				} else {
+				  result.innerHTML = '<div style="background:#f8d7da;border:1px solid #f5c2c7;border-radius:.5rem;padding:10px 14px;">'
+					+ '<strong>Error:</strong> ' + (resp.data?.message||'Unknown error') + '</div>';
+				}
+			  })
+			  .catch(function(err){
+				btn.disabled = false; spinner.style.display = 'none'; result.style.display = 'block';
+				result.innerHTML = '<div style="background:#f8d7da;border:1px solid #f5c2c7;border-radius:.5rem;padding:10px 14px;"><strong>Error:</strong> '+err.message+'</div>';
+			  });
+		  });
+		})();
 		</script>
 		<?php
 	},
@@ -448,6 +653,25 @@ $spec = [
 			? array_map('sanitize_text_field', $_POST['myls_org_certifications']) : [];
 		$raw_certs = array_values(array_filter($raw_certs));
 		update_option('myls_org_certifications', $raw_certs);
+
+		// Memberships
+		$raw_memberships = (isset($_POST['myls_org_memberships']) && is_array($_POST['myls_org_memberships']))
+			? $_POST['myls_org_memberships'] : [];
+		$clean_memberships = [];
+		foreach ( $raw_memberships as $m ) {
+			if ( ! is_array($m) ) continue;
+			$name = sanitize_text_field( $m['name'] ?? '' );
+			if ( $name === '' ) continue; // name is required
+			$clean_memberships[] = [
+				'name'        => $name,
+				'url'         => esc_url_raw( $m['url'] ?? '' ),
+				'profile_url' => esc_url_raw( $m['profile_url'] ?? '' ),
+				'logo_url'    => esc_url_raw( $m['logo_url'] ?? '' ),
+				'description' => sanitize_text_field( $m['description'] ?? '' ),
+				'since'       => sanitize_text_field( $m['since'] ?? '' ),
+			];
+		}
+		update_option('myls_org_memberships', $clean_memberships);
 		
 
 		// Assignments
