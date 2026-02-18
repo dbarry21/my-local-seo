@@ -51,6 +51,25 @@ return [
                        placeholder="e.g., Intelligize Chat – AI-Powered Chat Plugin">
 
                 <label class="form-label fw-bold">Description / Instructions</label>
+
+                <!-- Description History Controls -->
+                <div class="d-flex gap-1 mb-2 align-items-end">
+                    <div class="flex-grow-1">
+                        <select id="myls_pb_desc_history" class="form-select form-select-sm">
+                            <option value="">— Saved Descriptions —</option>
+                        </select>
+                    </div>
+                    <button type="button" class="button button-small" id="myls_pb_desc_load" title="Load selected description">
+                        <i class="bi bi-folder2-open"></i>
+                    </button>
+                    <button type="button" class="button button-small" id="myls_pb_desc_save" title="Save current description">
+                        <i class="bi bi-floppy"></i>
+                    </button>
+                    <button type="button" class="button button-small" id="myls_pb_desc_delete" title="Delete selected description" style="color:#dc3545;">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+
                 <textarea id="myls_pb_description" class="form-control mb-1" rows="8"
                           placeholder="Describe what this page is about. The more detail you give, the better the AI output.&#10;&#10;Example:&#10;Intelligize Chat is a WordPress plugin that adds an AI-powered chat widget. Highlight features like knowledge base training, customizable appearance, lead capture, and easy setup. Target audience: small business owners. Include a CTA to download."></textarea>
                 <div class="form-text mb-3">Key features, target audience, tone, page structure — whatever helps the AI.</div>
@@ -68,10 +87,11 @@ return [
                     <div class="col-6 d-flex align-items-end">
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="myls_pb_menu" checked>
-                            <label class="form-check-label" for="myls_pb_menu">Add to Main Menu</label>
+                            <label class="form-check-label" for="myls_pb_menu">Add to Menu</label>
                         </div>
                     </div>
                 </div>
+                <div id="myls_pb_nav_info" class="form-text mb-3" style="display:none;"></div>
 
                 <hr class="my-3">
 
@@ -130,9 +150,76 @@ return [
                     </div>
                 </div>
 
+                <!-- ── AI Images ─────────────────────────── -->
+                <div class="card mb-3" style="border:1px solid #ddd;">
+                    <div class="card-header d-flex justify-content-between align-items-center" style="padding:8px 12px;">
+                        <strong><i class="bi bi-image"></i> AI Images (DALL-E 3)</strong>
+                        <span class="badge bg-secondary">Optional</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-2 mb-2">
+                            <div class="col-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="myls_pb_gen_hero" checked>
+                                    <label class="form-check-label" for="myls_pb_gen_hero">
+                                        <i class="bi bi-card-image"></i> Hero / Banner Image
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="myls_pb_gen_feature">
+                                    <label class="form-check-label" for="myls_pb_gen_feature">
+                                        <i class="bi bi-grid-3x2-gap"></i> Feature Images
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row g-2 mb-2">
+                            <div class="col-6">
+                                <label class="form-label small">Feature image count</label>
+                                <select id="myls_pb_feature_count" class="form-select form-select-sm">
+                                    <option value="0">0</option>
+                                    <option value="3" selected>3</option>
+                                    <option value="4">4</option>
+                                    <option value="6">6</option>
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small">Image Style</label>
+                                <select id="myls_pb_img_style" class="form-select form-select-sm">
+                                    <option value="modern-flat">Modern Flat</option>
+                                    <option value="photorealistic">Photorealistic</option>
+                                    <option value="isometric">Isometric 3D</option>
+                                    <option value="watercolor">Watercolor</option>
+                                    <option value="gradient-abstract">Abstract Gradient</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="myls_pb_set_featured" checked>
+                                    <label class="form-check-label small" for="myls_pb_set_featured">Set hero as Featured Image</label>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="myls_pb_insert_hero" checked>
+                                    <label class="form-check-label small" for="myls_pb_insert_hero">Insert hero into page</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-text mt-1">Uses DALL-E 3 · ~$0.04/standard image · Images upload to your Media Library.</div>
+                    </div>
+                </div>
+
                 <div class="d-flex flex-wrap gap-2 mb-3">
                     <button type="button" class="button button-primary button-hero" id="myls_pb_create_btn">
                         <i class="bi bi-lightning-charge"></i> Create Page with AI
+                    </button>
+                    <button type="button" class="button button-secondary" id="myls_pb_gen_images_btn" style="display:none;">
+                        <i class="bi bi-images"></i> Generate Images
                     </button>
                 </div>
 
@@ -150,6 +237,12 @@ return [
                      style="min-height:140px; max-height:360px; overflow:auto; background:#f9f9f9;
                             border:1px solid #ddd; border-radius:8px; padding:12px;
                             white-space:pre-wrap; font-size:12px;"></pre>
+
+                <!-- Image preview area -->
+                <div id="myls_pb_img_preview" style="display:none;" class="mt-3">
+                    <label class="form-label fw-bold"><i class="bi bi-images"></i> Generated Images</label>
+                    <div id="myls_pb_img_grid" class="d-flex flex-wrap gap-2"></div>
+                </div>
             </div>
 
         </div>
@@ -157,6 +250,124 @@ return [
         <script>
         (function(){
             const $ = (id) => document.getElementById(id);
+            let lastPostId = 0;
+            let descHistory = []; // cached history
+
+            // ── Description History ─────────────────────────────────────
+            async function loadDescHistory() {
+                try {
+                    const fd = new FormData();
+                    fd.append('action', 'myls_pb_list_descriptions');
+                    fd.append('_wpnonce', $('myls_pb_nonce').value);
+                    const res = await fetch(ajaxurl, { method: 'POST', body: fd });
+                    const data = await res.json();
+                    if (data?.success) {
+                        descHistory = data.data.history || [];
+                        renderDescDropdown();
+                    }
+                } catch(e) { /* silent */ }
+            }
+
+            function renderDescDropdown() {
+                const sel = $('myls_pb_desc_history');
+                sel.innerHTML = '<option value="">— Saved Descriptions (' + descHistory.length + ') —</option>';
+                descHistory.forEach(item => {
+                    const opt = document.createElement('option');
+                    opt.value = item.slug;
+                    opt.textContent = item.name + (item.updated ? ' · ' + item.updated.substring(0,10) : '');
+                    sel.appendChild(opt);
+                });
+            }
+
+            // Load selected description
+            $('myls_pb_desc_load')?.addEventListener('click', () => {
+                const slug = $('myls_pb_desc_history').value;
+                if (!slug) { alert('Select a saved description first.'); return; }
+                const item = descHistory.find(h => h.slug === slug);
+                if (item) {
+                    $('myls_pb_description').value = item.description;
+                }
+            });
+
+            // Save current description
+            $('myls_pb_desc_save')?.addEventListener('click', async () => {
+                const desc = $('myls_pb_description').value.trim();
+                if (!desc) { alert('Write a description first.'); return; }
+
+                // Use page title as default name, or prompt
+                let name = $('myls_pb_title').value.trim() || '';
+                name = prompt('Save description as:', name || 'My Description');
+                if (!name) return;
+
+                const fd = new FormData();
+                fd.append('action', 'myls_pb_save_description');
+                fd.append('_wpnonce', $('myls_pb_nonce').value);
+                fd.append('desc_name', name);
+                fd.append('description', desc);
+
+                try {
+                    const res = await fetch(ajaxurl, { method: 'POST', body: fd });
+                    const data = await res.json();
+                    if (data?.success) {
+                        descHistory = data.data.history || [];
+                        renderDescDropdown();
+                        // Auto-select the one we just saved
+                        const slug = descHistory.find(h => h.name === name)?.slug;
+                        if (slug) $('myls_pb_desc_history').value = slug;
+                    }
+                    alert(data?.success ? data.data.message : (data?.data?.message || 'Error'));
+                } catch(e) { alert('Error: ' + e.message); }
+            });
+
+            // Delete selected description
+            $('myls_pb_desc_delete')?.addEventListener('click', async () => {
+                const slug = $('myls_pb_desc_history').value;
+                if (!slug) { alert('Select a description to delete.'); return; }
+                const item = descHistory.find(h => h.slug === slug);
+                if (!confirm('Delete "' + (item?.name || slug) + '"?')) return;
+
+                const fd = new FormData();
+                fd.append('action', 'myls_pb_delete_description');
+                fd.append('_wpnonce', $('myls_pb_nonce').value);
+                fd.append('desc_slug', slug);
+
+                try {
+                    const res = await fetch(ajaxurl, { method: 'POST', body: fd });
+                    const data = await res.json();
+                    if (data?.success) {
+                        descHistory = data.data.history || [];
+                        renderDescDropdown();
+                    }
+                } catch(e) { alert('Error: ' + e.message); }
+            });
+
+            // Load history on init
+            loadDescHistory();
+
+            // Load nav info (detect block theme and active navigation)
+            (async function() {
+                try {
+                    const fd = new FormData();
+                    fd.append('action', 'myls_pb_get_nav_posts');
+                    fd.append('_wpnonce', $('myls_pb_nonce').value);
+                    const res = await fetch(ajaxurl, { method: 'POST', body: fd });
+                    const data = await res.json();
+                    if (data?.success) {
+                        const info = $('myls_pb_nav_info');
+                        if (data.data.is_block_theme) {
+                            const active = data.data.nav_posts?.find(n => n.active);
+                            if (active) {
+                                info.innerHTML = '<i class="bi bi-info-circle"></i> Block theme detected. Active navigation: <strong>' + active.title + '</strong> (#' + active.id + '). Manage in <a href="' + ajaxurl.replace('admin-ajax.php', 'site-editor.php?path=%2Fnavigation') + '">Appearance → Editor → Navigation</a>';
+                            } else if (data.data.nav_posts?.length) {
+                                info.innerHTML = '<i class="bi bi-info-circle"></i> Block theme detected. ' + data.data.nav_posts.length + ' navigation menu(s) found.';
+                            } else {
+                                info.innerHTML = '<i class="bi bi-info-circle"></i> Block theme detected. Header likely uses Page List (auto-shows all published pages).';
+                            }
+                            info.style.display = '';
+                        }
+                    }
+                } catch(e) { /* silent */ }
+            })();
 
             const defaultPrompt = `Create a professional, SEO-optimized WordPress page for "{{PAGE_TITLE}}".
 
@@ -199,6 +410,11 @@ Requirements:
                 } catch(e) { alert('Error: ' + e.message); }
             });
 
+            // Helper: should we generate images?
+            function wantsImages() {
+                return $('myls_pb_gen_hero').checked || $('myls_pb_gen_feature').checked;
+            }
+
             // ── Create Page ─────────────────────────────────────────────
             $('myls_pb_create_btn')?.addEventListener('click', async () => {
                 const title = $('myls_pb_title').value.trim();
@@ -207,9 +423,12 @@ Requirements:
                 const logEl = $('myls_pb_log');
                 const btn   = $('myls_pb_create_btn');
                 const editLink = $('myls_pb_edit_link');
+                const imgBtn = $('myls_pb_gen_images_btn');
 
                 logEl.textContent = '⏳ Generating content with AI… this may take 15-30 seconds.';
                 editLink.style.display = 'none';
+                imgBtn.style.display = 'none';
+                $('myls_pb_img_preview').style.display = 'none';
                 btn.disabled = true;
                 btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Generating…';
 
@@ -228,10 +447,18 @@ Requirements:
                     const data = await res.json();
 
                     if (data?.success) {
+                        lastPostId = data.data.post_id || 0;
                         logEl.textContent = data.data.log || data.data.message || 'Done.';
+
                         if (data.data.edit_url) {
                             $('myls_pb_edit_url').href = data.data.edit_url;
                             editLink.style.display = '';
+                        }
+
+                        // Show image gen button if images are wanted and we have a post
+                        if (wantsImages() && lastPostId) {
+                            imgBtn.style.display = '';
+                            logEl.textContent += '\n\n🖼️ Ready to generate images — click "Generate Images" below.';
                         }
                     } else {
                         logEl.textContent = '❌ ' + (data?.data?.message || 'Unknown error.');
@@ -241,6 +468,69 @@ Requirements:
                 } finally {
                     btn.disabled = false;
                     btn.innerHTML = '<i class="bi bi-lightning-charge"></i> Create Page with AI';
+                }
+            });
+
+            // ── Generate Images ─────────────────────────────────────────
+            $('myls_pb_gen_images_btn')?.addEventListener('click', async () => {
+                if (!lastPostId) { alert('Create a page first.'); return; }
+
+                const logEl = $('myls_pb_log');
+                const btn   = $('myls_pb_gen_images_btn');
+                const imgGrid = $('myls_pb_img_grid');
+                const imgPreview = $('myls_pb_img_preview');
+
+                const genHero = $('myls_pb_gen_hero').checked;
+                const genFeature = $('myls_pb_gen_feature').checked;
+                const featureCount = genFeature ? parseInt($('myls_pb_feature_count').value) : 0;
+                const totalImages = (genHero ? 1 : 0) + featureCount;
+
+                if (!totalImages) { alert('Select at least one image type to generate.'); return; }
+
+                logEl.textContent += '\n\n⏳ Generating ' + totalImages + ' image(s) with DALL-E 3… this may take 30-90 seconds.';
+                btn.disabled = true;
+                btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Generating Images…';
+
+                const fd = new FormData();
+                fd.append('action',        'myls_pb_generate_images');
+                fd.append('_wpnonce',      $('myls_pb_nonce').value);
+                fd.append('post_id',       lastPostId);
+                fd.append('page_title',    $('myls_pb_title').value);
+                fd.append('description',   $('myls_pb_description').value);
+                fd.append('image_style',   $('myls_pb_img_style').value);
+                fd.append('gen_hero',      genHero ? '1' : '0');
+                fd.append('gen_feature',   genFeature ? '1' : '0');
+                fd.append('feature_count', featureCount);
+                fd.append('set_featured',  $('myls_pb_set_featured').checked ? '1' : '0');
+                fd.append('insert_hero',   $('myls_pb_insert_hero').checked ? '1' : '0');
+
+                try {
+                    const res = await fetch(ajaxurl, { method: 'POST', body: fd });
+                    const data = await res.json();
+
+                    if (data?.success) {
+                        logEl.textContent += '\n\n' + (data.data.log || 'Images done.');
+
+                        // Show image previews
+                        if (data.data.images && data.data.images.length) {
+                            imgGrid.innerHTML = '';
+                            data.data.images.forEach(img => {
+                                const div = document.createElement('div');
+                                div.style.cssText = 'width:140px; text-align:center;';
+                                div.innerHTML = `<img src="${img.url}" style="width:140px;height:100px;object-fit:cover;border-radius:8px;border:1px solid #ddd;" alt="${img.subject || img.type}">
+                                    <div class="small text-muted mt-1">${img.type}${img.subject ? ': ' + img.subject : ''}</div>`;
+                                imgGrid.appendChild(div);
+                            });
+                            imgPreview.style.display = '';
+                        }
+                    } else {
+                        logEl.textContent += '\n\n❌ ' + (data?.data?.message || 'Image generation failed.');
+                    }
+                } catch(e) {
+                    logEl.textContent += '\n\n❌ Network error: ' + e.message;
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-images"></i> Generate Images';
                 }
             });
         })();

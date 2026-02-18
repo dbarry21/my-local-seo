@@ -141,6 +141,7 @@ require_once MYLS_PATH . 'inc/ajax/ai-html-excerpts.php';
 require_once MYLS_PATH . 'inc/ajax/ai-person-linkedin.php';
 require_once MYLS_PATH . 'inc/ajax/ai-taglines.php';
 require_once MYLS_PATH . 'inc/ajax/ai-page-builder.php';
+require_once MYLS_PATH . 'inc/ajax/ai-image-gen.php';
 
 /** Service FAQ Page generator AJAX */
 require_once MYLS_PATH . 'inc/ajax/generate-service-faq-page.php';
