@@ -73,6 +73,7 @@ require_once MYLS_PATH . 'inc/release-notes.php';
 
 /** Assets */
 require_once MYLS_PATH . 'inc/assets.php';
+require_once MYLS_PATH . 'inc/custom-css.php';
 require_once MYLS_PATH . 'inc/blog-prefix.php';
 
 /** CPT registration BEFORE module extras */
