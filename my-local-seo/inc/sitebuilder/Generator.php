@@ -90,6 +90,28 @@ class Generator {
         $log[] = "Blog draft created: {$title}";
         break;
 
+      case 'page':
+        $page_title = trim($args['page_title'] ?? '');
+        if (!$page_title) return ['log'=>'No page title provided.'];
+        $description     = trim($args['page_description'] ?? '');
+        $prompt_template = trim($args['page_prompt'] ?? '');
+        $add_to_menu     = !empty($args['add_to_menu']);
+        $page_status     = in_array(($args['page_status'] ?? ''), ['draft','publish']) ? $args['page_status'] : 'draft';
+        $key = 'page:' . sanitize_title($page_title);
+        $content = $this->content_custom_page($vars, $page_title, $description, $prompt_template);
+        $post_id = $this->upsert_page($key, $page_title, $content, $page_status);
+        $posts['page'][$page_title] = $post_id;
+
+        if ($add_to_menu) {
+          $menu_msg = $this->add_single_to_menu($post_id);
+          $log[] = $menu_msg;
+        }
+
+        $edit_url = admin_url('post.php?post=' . $post_id . '&action=edit');
+        $log[] = "Custom page created/updated: {$page_title} (ID: {$post_id}, Status: {$page_status})";
+        $log[] = "Edit: {$edit_url}";
+        break;
+
       default:
         $log[] = "Unknown type.";
     }
@@ -151,7 +173,7 @@ class Generator {
     return Utils::sanitize_lines((string)$raw);
   }
 
-  private function upsert_page(string $key, string $title, string $html): int {
+  private function upsert_page(string $key, string $title, string $html, string $status = 'draft'): int {
     $existing = $this->find_generated('page', $key);
     $content  = $html;
     if ($existing) {
@@ -159,13 +181,13 @@ class Generator {
         'ID'           => $existing->ID,
         'post_title'   => $title,
         'post_content' => $content,
-        'post_status'  => 'draft',
+        'post_status'  => $status,
       ]);
       $post_id = (int)$existing->ID;
     } else {
       $post_id = (int) wp_insert_post([
         'post_type'    => 'page',
-        'post_status'  => 'draft',
+        'post_status'  => $status,
         'post_title'   => $title,
         'post_content' => $content,
         'meta_input'   => [
@@ -223,6 +245,31 @@ class Generator {
     $t = wp_strip_all_tags($html);
     $t = trim(preg_replace('/\s+/', ' ', $t));
     return mb_substr($t, 0, 155);
+  }
+
+  /**
+   * Add a single page to the Main Menu (create menu if needed).
+   */
+  private function add_single_to_menu(int $post_id): string {
+    $menu_name = 'Main Menu';
+    $menu = wp_get_nav_menu_object($menu_name);
+    if (!$menu) {
+      $menu_id = wp_create_nav_menu($menu_name);
+    } else {
+      $menu_id = (int)$menu->term_id;
+    }
+
+    $this->ensure_menu_item($menu_id, $post_id);
+
+    $location = Utils::first_available_menu_location();
+    if ($location) {
+      $locations = get_nav_menu_locations();
+      if (empty($locations[$location]) || (int)$locations[$location] !== $menu_id) {
+        $locations[$location] = $menu_id;
+        set_theme_mod('nav_menu_locations', $locations);
+      }
+    }
+    return "Added to '{$menu_name}' menu.";
   }
 
   private function ensure_menu(array $posts_map): string {
@@ -386,6 +433,81 @@ class Generator {
   [service_area_grid city='{$city_esc}']
 </section>";
     return Utils::replace_tokens($tpl, $vars);
+  }
+
+  private function content_custom_page(array $vars, string $page_title, string $description = '', string $prompt_template = ''): string {
+    // Build the prompt from template or default
+    if (empty($prompt_template)) {
+      $prompt_template = 'Create a professional, SEO-optimized WordPress page for "{{PAGE_TITLE}}".
+
+Business: {{BUSINESS_NAME}} in {{CITY}}
+Phone: {{PHONE}} | Email: {{EMAIL}}
+
+Page Description & Instructions:
+{{DESCRIPTION}}
+
+Requirements:
+- Write clean, semantic HTML using Bootstrap 5 classes
+- Include an engaging hero section with a clear headline
+- Add 3-5 content sections covering key features/benefits
+- Include a strong call-to-action section
+- Use <section>, <h2>, <h3>, <p>, <ul> tags — NO markdown
+- Make it locally relevant and SEO-friendly
+- Output raw HTML only, no code fences or explanation';
+    }
+
+    // Replace all tokens in the prompt
+    $token_map = array_merge($vars, [
+      'page_title'  => $page_title,
+      'description' => $description ?: 'A page about ' . $page_title,
+    ]);
+    $prompt = Utils::replace_tokens($prompt_template, $token_map);
+
+    // Try AI generation first
+    $html = '';
+    if (function_exists('myls_openai_chat')) {
+      $model = (string) get_option('myls_openai_model', 'gpt-4o');
+      $html = myls_openai_chat($prompt, [
+        'model'       => $model,
+        'max_tokens'  => 3000,
+        'temperature' => 0.7,
+        'system'      => 'You are an expert web content writer. Write clean, structured HTML for WordPress pages. Use HTML tags like <section>, <h2>, <h3>, <p>, <ul>, <li>, <strong>, <em>. Use Bootstrap 5 utility classes for layout. NEVER use markdown. Output raw HTML only, no code fences.',
+      ]);
+    }
+
+    // Also try the filter-based approach
+    if (empty($html)) {
+      $html = $this->try_ai('custom_page', array_merge($vars, [
+        'page_title'  => $page_title,
+        'description' => $description,
+      ]));
+    }
+
+    // Fallback if AI is unavailable
+    if (empty($html)) {
+      $title_esc = esc_html($page_title);
+      $desc_esc  = esc_html($description ?: 'Learn more about ' . $page_title);
+      $html = "
+<section class='container py-5'>
+  <div class='text-center mb-4'>
+    <h1 class='display-5 mb-3'>{$title_esc}</h1>
+    <p class='lead'>{$desc_esc}</p>
+  </div>
+</section>
+<section class='container py-4'>
+  <div class='row'>
+    <div class='col-lg-8 mx-auto'>
+      <h2 class='h3 mb-3'>About {$title_esc}</h2>
+      <p>{$desc_esc}</p>
+      <p>Contact us at <strong>{{PHONE}}</strong> or email <strong>{{EMAIL}}</strong> to learn more.</p>
+      <a class='btn btn-primary btn-lg mt-3' href='/contact/'>Get Started Today</a>
+    </div>
+  </div>
+</section>";
+      $html = Utils::replace_tokens($html, $vars);
+    }
+
+    return $html;
   }
 
   private function content_blog(array $vars, string $topic): string {
