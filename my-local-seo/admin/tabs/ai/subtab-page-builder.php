@@ -488,6 +488,21 @@ Requirements:
                             imgBtn.style.display = '';
                             logEl.textContent += '\n\n🖼️ Ready to generate images — click "Generate Images" below.';
                         }
+
+                        // Show image previews if images were generated (integrated mode)
+                        if (data.data.images && data.data.images.length) {
+                            const imgGrid = $('myls_pb_img_grid');
+                            const imgPreview = $('myls_pb_img_preview');
+                            imgGrid.innerHTML = '';
+                            data.data.images.forEach(img => {
+                                const div = document.createElement('div');
+                                div.style.cssText = 'width:140px; text-align:center;';
+                                div.innerHTML = '<img src="' + img.url + '" style="width:140px;height:100px;object-fit:cover;border-radius:8px;border:1px solid #ddd;" alt="' + (img.subject || img.type) + '">'
+                                    + '<div class="small text-muted mt-1">' + img.type + (img.subject ? ': ' + img.subject : '') + '</div>';
+                                imgGrid.appendChild(div);
+                            });
+                            imgPreview.style.display = '';
+                        }
                     } else {
                         logEl.textContent = '❌ ' + (data?.data?.message || 'Unknown error.');
                     }

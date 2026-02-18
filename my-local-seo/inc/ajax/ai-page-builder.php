@@ -67,11 +67,6 @@ add_action('wp_ajax_myls_pb_create_page', function () {
     ]);
     $prompt = myls_pb_replace_tokens($prompt_template, $token_map);
 
-    // Append image instructions if images were pre-generated
-    if ( ! empty($image_instructions) ) {
-        $prompt .= $image_instructions;
-    }
-
     // ── Generate content via AI ────────────────────────────────────────
     $html = '';
     $ai_used = false;
@@ -185,11 +180,16 @@ add_action('wp_ajax_myls_pb_create_page', function () {
         $image_instructions .= "\nIMPORTANT: Use the exact <img> tags provided above. Do NOT invent placeholder image URLs. Place hero image prominently at top, and feature images alongside their related content sections (in cards, beside text, or as section illustrations).\n";
     }
 
+    // ── Append image instructions to prompt (AFTER images are generated) ──
+    if ( ! empty($image_instructions) ) {
+        $prompt .= $image_instructions;
+    }
+
     if ( function_exists('myls_openai_chat') ) {
         $model = (string) get_option('myls_openai_model', 'gpt-4o');
         $html = myls_openai_chat($prompt, [
             'model'       => $model,
-            'max_tokens'  => 3000,
+            'max_tokens'  => 4000,
             'temperature' => 0.7,
             'system'      => 'You are an expert web designer and content writer. Write clean, structured HTML for WordPress pages using Bootstrap 5 classes and Bootstrap Icons (bi bi-* classes from https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css).
 
@@ -344,6 +344,7 @@ GENERAL:
         'edit_url' => $edit_url,
         'view_url' => $view_url,
         'ai_used'  => $ai_used,
+        'images'   => $generated_images,
     ]);
 });
 
