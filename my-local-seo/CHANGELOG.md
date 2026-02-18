@@ -1,5 +1,20 @@
 # My Local SEO — Changelog
 
+## 6.0.0 — 2026-02-18
+
+### New Feature: AI Page Builder
+- Added **Page Builder** subtab under AI tab for creating pages/posts with AI-generated content
+- Supports all public post types (pages, posts, services, service areas, and any registered CPT)
+- Description/Instructions field for detailed AI context (features, audience, tone, structure)
+- Customizable AI prompt template with token support ({{PAGE_TITLE}}, {{DESCRIPTION}}, {{BUSINESS_NAME}}, etc.)
+- Save/Reset prompt templates across sessions
+- Post status selection (Draft/Publish) and Add to Main Menu option
+- Business variables auto-filled from Site Builder settings, editable per-session
+- Standalone AJAX handler — no dependency on Site Builder enabled state
+- Upsert logic prevents duplicate pages on re-run
+- Auto-sets Yoast SEO title and meta description
+- Edit link appears in results log after page creation
+
 ## 5.0.0 — 2026-02-16
 
 ### New Feature: HTML Excerpt Editor & AI Generation

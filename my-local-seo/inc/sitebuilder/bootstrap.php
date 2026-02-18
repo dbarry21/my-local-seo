@@ -74,8 +74,6 @@ add_action('wp_ajax_myls_sb_generate_single', function () {
     'page_title'       => sanitize_text_field($_POST['page_title'] ?? ''),
     'page_description' => wp_kses_post($_POST['page_description'] ?? ''),
     'page_prompt'      => wp_kses_post($_POST['page_prompt'] ?? ''),
-    'add_to_menu'      => !empty($_POST['add_to_menu']),
-    'page_status'      => in_array(($_POST['page_status'] ?? ''), ['draft','publish']) ? $_POST['page_status'] : 'draft',
   ]);
   wp_send_json_success(['log' => $result['log'] ?? 'Done', 'posts' => $result['posts'] ?? []]);
 });

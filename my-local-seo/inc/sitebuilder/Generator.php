@@ -93,22 +93,14 @@ class Generator {
       case 'page':
         $page_title = trim($args['page_title'] ?? '');
         if (!$page_title) return ['log'=>'No page title provided.'];
-        $description     = trim($args['page_description'] ?? '');
+        $description    = trim($args['page_description'] ?? '');
         $prompt_template = trim($args['page_prompt'] ?? '');
-        $add_to_menu     = !empty($args['add_to_menu']);
-        $page_status     = in_array(($args['page_status'] ?? ''), ['draft','publish']) ? $args['page_status'] : 'draft';
         $key = 'page:' . sanitize_title($page_title);
         $content = $this->content_custom_page($vars, $page_title, $description, $prompt_template);
-        $post_id = $this->upsert_page($key, $page_title, $content, $page_status);
+        $post_id = $this->upsert_page($key, $page_title, $content);
         $posts['page'][$page_title] = $post_id;
-
-        if ($add_to_menu) {
-          $menu_msg = $this->add_single_to_menu($post_id);
-          $log[] = $menu_msg;
-        }
-
         $edit_url = admin_url('post.php?post=' . $post_id . '&action=edit');
-        $log[] = "Custom page created/updated: {$page_title} (ID: {$post_id}, Status: {$page_status})";
+        $log[] = "Custom page created/updated: {$page_title} (ID: {$post_id})";
         $log[] = "Edit: {$edit_url}";
         break;
 
@@ -173,7 +165,7 @@ class Generator {
     return Utils::sanitize_lines((string)$raw);
   }
 
-  private function upsert_page(string $key, string $title, string $html, string $status = 'draft'): int {
+  private function upsert_page(string $key, string $title, string $html): int {
     $existing = $this->find_generated('page', $key);
     $content  = $html;
     if ($existing) {
@@ -181,13 +173,13 @@ class Generator {
         'ID'           => $existing->ID,
         'post_title'   => $title,
         'post_content' => $content,
-        'post_status'  => $status,
+        'post_status'  => 'draft',
       ]);
       $post_id = (int)$existing->ID;
     } else {
       $post_id = (int) wp_insert_post([
         'post_type'    => 'page',
-        'post_status'  => $status,
+        'post_status'  => 'draft',
         'post_title'   => $title,
         'post_content' => $content,
         'meta_input'   => [
@@ -245,31 +237,6 @@ class Generator {
     $t = wp_strip_all_tags($html);
     $t = trim(preg_replace('/\s+/', ' ', $t));
     return mb_substr($t, 0, 155);
-  }
-
-  /**
-   * Add a single page to the Main Menu (create menu if needed).
-   */
-  private function add_single_to_menu(int $post_id): string {
-    $menu_name = 'Main Menu';
-    $menu = wp_get_nav_menu_object($menu_name);
-    if (!$menu) {
-      $menu_id = wp_create_nav_menu($menu_name);
-    } else {
-      $menu_id = (int)$menu->term_id;
-    }
-
-    $this->ensure_menu_item($menu_id, $post_id);
-
-    $location = Utils::first_available_menu_location();
-    if ($location) {
-      $locations = get_nav_menu_locations();
-      if (empty($locations[$location]) || (int)$locations[$location] !== $menu_id) {
-        $locations[$location] = $menu_id;
-        set_theme_mod('nav_menu_locations', $locations);
-      }
-    }
-    return "Added to '{$menu_name}' menu.";
   }
 
   private function ensure_menu(array $posts_map): string {

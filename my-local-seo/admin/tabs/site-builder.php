@@ -102,10 +102,6 @@ myls_register_admin_tab([
                 <div class="mb-2"><label class="form-label">Page Title</label><input type="text" id="myls_sb_page_title" class="form-control" placeholder="e.g., Intelligize Chat - AI-Powered Chat Plugin"></div>
                 <div class="mb-2"><label class="form-label">Description / Instructions <span class="text-muted fw-normal">(optional)</span></label><textarea id="myls_sb_page_description" rows="4" class="form-control" placeholder="Describe what this page is about and any specific instructions for AI content generation.&#10;&#10;Example: Intelligize Chat is a new WordPress plugin that adds an AI-powered chat widget. Highlight features like multi-language support, customizable appearance, and easy setup. Include a CTA for downloading."></textarea><div class="form-text">Give AI context about the page purpose, key features, target audience, or tone.</div></div>
                 <div class="mb-2"><label class="form-label d-flex justify-content-between align-items-center">AI Prompt Template <span class="text-muted fw-normal">(optional – uses default if blank)</span><button type="button" class="btn btn-outline-secondary btn-sm" id="myls_sb_reset_prompt">Reset to Default</button></label><textarea id="myls_sb_page_prompt" rows="6" class="form-control font-monospace small" placeholder=""></textarea><div class="form-text">Available tokens: <code>{{PAGE_TITLE}}</code>, <code>{{DESCRIPTION}}</code>, <code>{{BUSINESS_NAME}}</code>, <code>{{CITY}}</code>, <code>{{PHONE}}</code>, <code>{{EMAIL}}</code></div></div>
-                <div class="row g-2 mt-1">
-                  <div class="col-auto"><div class="form-check"><input class="form-check-input" type="checkbox" id="myls_sb_add_to_menu" checked><label class="form-check-label" for="myls_sb_add_to_menu">Add to Main Menu</label></div></div>
-                  <div class="col-auto"><label class="form-label mb-0 me-1 small text-muted">Status:</label><select id="myls_sb_page_status" class="form-select form-select-sm d-inline-block" style="width:auto;"><option value="draft">Draft</option><option value="publish">Publish</option></select></div>
-                </div>
               </div>
             </div>
             <div class="card-footer"><button type="button" class="btn btn-outline-primary w-100" id="myls_sb_generate_single" <?php disabled( ! $enabled ); ?>>Create Single Page</button></div>
@@ -208,8 +204,6 @@ Requirements:
             page_title:       document.getElementById('myls_sb_page_title').value || '',
             page_description: document.getElementById('myls_sb_page_description').value || '',
             page_prompt:      document.getElementById('myls_sb_page_prompt').value || '',
-            add_to_menu:      document.getElementById('myls_sb_add_to_menu').checked ? 1 : 0,
-            page_status:      document.getElementById('myls_sb_page_status').value || 'draft',
             _wpnonce: '<?php echo wp_create_nonce('myls_sb_generate_single'); ?>' };
 
           if (type === 'page' && !payload.page_title.trim()) {
