@@ -379,9 +379,11 @@ Page Description & Instructions:
 
 Requirements:
 - Write clean, semantic HTML using Bootstrap 5 classes
-- Include an engaging hero section with a clear headline and subheading
-- Add 3-5 content sections covering key features or benefits
-- Include a strong call-to-action section at the bottom
+- Hero section: dark or gradient background (#1a2332 or similar) with white text, centered headline, subheading, and CTA button
+- Feature/benefit cards: each card MUST have a Bootstrap Icon in a colored circle (60x60px, rounded-circle, varied background colors like #2c7be5, #00b894, #e17055, #6c5ce7). Use shadow-sm, border-0, text-center, h-100 on cards
+- "How it Works" section: numbered steps with icons in colored circles
+- FAQ section: use Bootstrap 5 accordion-flush with compact padding (py-2 on buttons and bodies). NO excessive spacing
+- CTA section at bottom with strong action text and contact info
 - Use <section>, <h2>, <h3>, <p>, <ul>, <li> tags — NO markdown
 - Make it locally relevant and SEO-friendly
 - Output raw HTML only, no code fences or explanation`;

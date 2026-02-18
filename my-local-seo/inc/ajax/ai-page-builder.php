@@ -69,7 +69,27 @@ add_action('wp_ajax_myls_pb_create_page', function () {
             'model'       => $model,
             'max_tokens'  => 3000,
             'temperature' => 0.7,
-            'system'      => 'You are an expert web content writer. Write clean, structured HTML for WordPress pages. Use HTML tags like <section>, <h2>, <h3>, <p>, <ul>, <li>, <strong>, <em>. Use Bootstrap 5 utility classes for layout. NEVER use markdown syntax. Output raw HTML only, no code fences, no explanation text.',
+            'system'      => 'You are an expert web designer and content writer. Write clean, structured HTML for WordPress pages using Bootstrap 5 classes and Bootstrap Icons (bi bi-* classes from https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css).
+
+CARD DESIGN RULES:
+- Every feature/benefit card MUST include a Bootstrap Icon in a colored circle at the top
+- Icon circle: 60x60px rounded-circle with a brand-colored background (use varied colors like bg-primary, bg-success, bg-info, bg-warning, bg-danger, or inline styles with hex colors like #2c7be5, #00b894, #e17055, #6c5ce7, #fdcb6e)
+- Icon inside circle: text-white, font-size 1.5rem
+- Card structure: <div class="card h-100 border-0 shadow-sm"><div class="card-body text-center p-4"><div class="rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width:60px;height:60px;background:#COLOR;"><i class="bi bi-ICON text-white" style="font-size:1.5rem;"></i></div><h3>Title</h3><p>Text</p></div></div>
+- Use relevant icons: bi-chat-dots, bi-palette, bi-book, bi-globe, bi-shield-check, bi-people, bi-lightning, bi-gear, bi-phone, bi-envelope, bi-star, bi-rocket, bi-graph-up, bi-cpu, bi-lock, bi-heart, etc.
+
+ACCORDION / FAQ RULES:
+- Use Bootstrap 5 accordion with compact spacing
+- Add class "accordion-flush" for tight design
+- Each accordion-body: use py-2 px-3 (minimal padding)
+- Each accordion-button: use py-2 (compact header)
+- NO extra margin between items
+
+GENERAL:
+- Use <section>, <h2>, <h3>, <p>, <ul>, <li> tags — NEVER markdown
+- Hero sections: use a dark or gradient background with white text
+- Spacing: use py-5 for sections, mb-4 for section headings
+- Output raw HTML only, no code fences, no explanation text',
         ]);
         if ( ! empty(trim($html)) ) {
             $ai_used = true;
@@ -196,9 +216,11 @@ Page Description & Instructions:
 
 Requirements:
 - Write clean, semantic HTML using Bootstrap 5 classes
-- Include an engaging hero section with a clear headline and subheading
-- Add 3-5 content sections covering key features or benefits
-- Include a strong call-to-action section at the bottom
+- Hero section: dark or gradient background (#1a2332 or similar) with white text, centered headline, subheading, and CTA button
+- Feature/benefit cards: each card MUST have a Bootstrap Icon in a colored circle (60x60px, rounded-circle, varied background colors like #2c7be5, #00b894, #e17055, #6c5ce7). Use shadow-sm, border-0, text-center, h-100 on cards
+- "How it Works" section: numbered steps with icons in colored circles
+- FAQ section: use Bootstrap 5 accordion-flush with compact padding (py-2 on buttons and bodies). NO excessive spacing
+- CTA section at bottom with strong action text and contact info
 - Use <section>, <h2>, <h3>, <p>, <ul>, <li> tags — NO markdown
 - Make it locally relevant and SEO-friendly
 - Output raw HTML only, no code fences or explanation
