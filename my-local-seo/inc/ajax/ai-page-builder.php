@@ -26,6 +26,14 @@ add_action('wp_ajax_myls_pb_create_page', function () {
     $prompt_template = wp_kses_post($_POST['prompt_template'] ?? '');
     $add_to_menu     = ! empty($_POST['add_to_menu']);
 
+    // Image integration options
+    $integrate_images = ! empty($_POST['integrate_images']);
+    $image_style      = sanitize_text_field($_POST['image_style'] ?? 'modern-flat');
+    $gen_hero_img     = ! empty($_POST['gen_hero']);
+    $gen_feature_imgs = ! empty($_POST['gen_feature']);
+    $feature_count    = max(0, min(6, (int) ($_POST['feature_count'] ?? 3)));
+    $set_featured     = ! empty($_POST['set_featured']);
+
     if ( empty($page_title) ) {
         wp_send_json_error(['message' => 'Page title is required.'], 400);
     }
@@ -59,9 +67,123 @@ add_action('wp_ajax_myls_pb_create_page', function () {
     ]);
     $prompt = myls_pb_replace_tokens($prompt_template, $token_map);
 
+    // Append image instructions if images were pre-generated
+    if ( ! empty($image_instructions) ) {
+        $prompt .= $image_instructions;
+    }
+
     // ── Generate content via AI ────────────────────────────────────────
     $html = '';
     $ai_used = false;
+    $generated_images = [];
+    $image_log = [];
+
+    // ── Pre-generate images if requested ─────────────────────────────
+    if ( $integrate_images && function_exists('myls_pb_dall_e_generate') ) {
+        $api_key = function_exists('myls_openai_get_api_key') ? myls_openai_get_api_key() : '';
+        if ( ! empty($api_key) ) {
+            // Style presets
+            $style_map = [
+                'modern-flat'       => 'Modern flat design illustration, clean lines, soft gradients, professional color palette, minimalist',
+                'photorealistic'    => 'Professional stock photography style, high quality, well-lit, clean background',
+                'isometric'         => 'Isometric 3D illustration, colorful, tech-forward, clean white background',
+                'watercolor'        => 'Soft watercolor style illustration, artistic, professional, warm tones',
+                'gradient-abstract' => 'Abstract gradient art, flowing shapes, modern tech aesthetic, vivid colors',
+            ];
+            $style_suffix = $style_map[$image_style] ?? $style_map['modern-flat'];
+
+            // Generate hero image
+            if ( $gen_hero_img ) {
+                $image_log[] = "🎨 Generating hero image…";
+                $hero_prompt = "Create a wide banner/hero image for a webpage about: {$page_title}. ";
+                if ( $description ) {
+                    $hero_prompt .= "Context: " . mb_substr(wp_strip_all_tags($description), 0, 300) . ". ";
+                }
+                $hero_prompt .= "Style: {$style_suffix}. Landscape orientation, 1792x1024, no text or words in the image.";
+
+                $result = myls_pb_dall_e_generate($api_key, $hero_prompt, '1792x1024');
+                if ( $result['ok'] ) {
+                    $attach_id = myls_pb_upload_image_from_url(
+                        $result['url'],
+                        sanitize_title($page_title) . '-hero',
+                        $page_title . ' - Hero Image',
+                        0
+                    );
+                    if ( $attach_id ) {
+                        $img_url = wp_get_attachment_url($attach_id);
+                        $generated_images[] = [
+                            'type'      => 'hero',
+                            'id'        => $attach_id,
+                            'url'       => $img_url,
+                            'alt'       => $page_title . ' - Hero Image',
+                            'subject'   => $page_title,
+                        ];
+                        $image_log[] = "   ✅ Hero image ready (ID: {$attach_id})";
+                    }
+                } else {
+                    $image_log[] = "   ❌ Hero: " . $result['error'];
+                }
+            }
+
+            // Generate feature images
+            if ( $gen_feature_imgs && $feature_count > 0 ) {
+                $image_log[] = "🎨 Generating {$feature_count} feature image(s)…";
+                $subjects = function_exists('myls_pb_suggest_image_subjects')
+                    ? myls_pb_suggest_image_subjects($page_title, $description, $feature_count)
+                    : array_map(fn($i) => "Feature {$i} of {$page_title}", range(1, $feature_count));
+
+                for ($i = 0; $i < $feature_count; $i++) {
+                    $subject = $subjects[$i] ?? "Feature " . ($i + 1) . " of {$page_title}";
+                    $feat_prompt = "Create a square icon/illustration representing: {$subject}. ";
+                    $feat_prompt .= "For a page about: {$page_title}. ";
+                    $feat_prompt .= "Style: {$style_suffix}. Square format, 1024x1024, no text or words in the image.";
+
+                    $result = myls_pb_dall_e_generate($api_key, $feat_prompt, '1024x1024');
+                    if ( $result['ok'] ) {
+                        $attach_id = myls_pb_upload_image_from_url(
+                            $result['url'],
+                            sanitize_title($page_title) . '-feature-' . ($i + 1),
+                            $page_title . ' - ' . $subject,
+                            0
+                        );
+                        if ( $attach_id ) {
+                            $img_url = wp_get_attachment_url($attach_id);
+                            $generated_images[] = [
+                                'type'    => 'feature',
+                                'id'      => $attach_id,
+                                'url'     => $img_url,
+                                'alt'     => $page_title . ' - ' . $subject,
+                                'subject' => $subject,
+                            ];
+                            $image_log[] = "   ✅ Feature " . ($i + 1) . ": \"{$subject}\"";
+                        }
+                    } else {
+                        $image_log[] = "   ❌ Feature " . ($i + 1) . ": " . $result['error'];
+                    }
+                }
+            }
+        }
+    }
+
+    // ── Build image instruction block for AI prompt ──────────────────
+    $image_instructions = '';
+    if ( ! empty($generated_images) ) {
+        $image_instructions = "\n\nAVAILABLE IMAGES — You MUST use ALL of these images in the page at appropriate locations:\n";
+        foreach ( $generated_images as $idx => $img ) {
+            $image_instructions .= sprintf(
+                "- %s image: <img src=\"%s\" alt=\"%s\" class=\"img-fluid rounded\" />\n",
+                ucfirst($img['type']),
+                esc_url($img['url']),
+                esc_attr($img['alt'])
+            );
+            if ( $img['type'] === 'hero' ) {
+                $image_instructions .= "  → Place this as a full-width hero banner at the top of the page inside a figure tag\n";
+            } else {
+                $image_instructions .= "  → Place this in or near the section about: {$img['subject']}\n";
+            }
+        }
+        $image_instructions .= "\nIMPORTANT: Use the exact <img> tags provided above. Do NOT invent placeholder image URLs. Place hero image prominently at top, and feature images alongside their related content sections (in cards, beside text, or as section illustrations).\n";
+    }
 
     if ( function_exists('myls_openai_chat') ) {
         $model = (string) get_option('myls_openai_model', 'gpt-4o');
@@ -92,6 +214,11 @@ GENERAL:
 - Output raw HTML only, no code fences, no explanation text',
         ]);
         if ( ! empty(trim($html)) ) {
+            // Strip ```html code fences that AI sometimes wraps around output
+            $html = trim($html);
+            $html = preg_replace('/^```(?:html|HTML)?\s*\n?/i', '', $html);
+            $html = preg_replace('/\n?\s*```\s*$/i', '', $html);
+            $html = trim($html);
             $ai_used = true;
         }
     }
@@ -156,6 +283,21 @@ GENERAL:
         wp_send_json_error(['message' => 'Failed to create post.'], 500);
     }
 
+    // ── Attach generated images to the post ──────────────────────────
+    if ( ! empty($generated_images) ) {
+        foreach ( $generated_images as $img ) {
+            // Re-parent image to this post
+            wp_update_post([
+                'ID'          => $img['id'],
+                'post_parent' => $post_id,
+            ]);
+            // Set first hero image as featured
+            if ( $img['type'] === 'hero' && $set_featured ) {
+                set_post_thumbnail($post_id, $img['id']);
+            }
+        }
+    }
+
     // Set Yoast meta if available
     $desc_for_yoast = wp_strip_all_tags($html);
     $desc_for_yoast = trim(preg_replace('/\s+/', ' ', $desc_for_yoast));
@@ -179,6 +321,10 @@ GENERAL:
     $log_lines[] = "✅ {$type_label} {$action_label}: \"{$page_title}\"";
     $log_lines[] = "   Post ID: {$post_id} | Status: {$page_status}";
     $log_lines[] = "   AI: " . ($ai_used ? 'Content generated by AI' : 'Using fallback template (check OpenAI API key)');
+    if ( ! empty($image_log) ) {
+        $log_lines = array_merge($log_lines, $image_log);
+        $log_lines[] = "   📸 " . count($generated_images) . " image(s) integrated into page content";
+    }
     if ( $menu_msg ) {
         $log_lines[] = "   Menu: {$menu_msg}";
         // Detect block theme and add helpful tip

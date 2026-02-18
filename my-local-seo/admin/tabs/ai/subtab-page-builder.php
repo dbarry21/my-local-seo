@@ -211,6 +211,14 @@ return [
                             </div>
                         </div>
                         <div class="form-text mt-1">Uses DALL-E 3 · ~$0.04/standard image · Images upload to your Media Library.</div>
+                        <hr class="my-2">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="myls_pb_integrate_images" checked>
+                            <label class="form-check-label fw-bold" for="myls_pb_integrate_images">
+                                <i class="bi bi-layout-text-window-reverse"></i> Integrate images into page content
+                            </label>
+                        </div>
+                        <div class="form-text mt-1">When checked, images are generated FIRST and the AI weaves them into the page HTML. When unchecked, use the separate "Generate Images" button after page creation.</div>
                     </div>
                 </div>
 
@@ -426,13 +434,21 @@ Requirements:
                 const btn   = $('myls_pb_create_btn');
                 const editLink = $('myls_pb_edit_link');
                 const imgBtn = $('myls_pb_gen_images_btn');
+                const integrateImages = $('myls_pb_integrate_images').checked && wantsImages();
 
-                logEl.textContent = '⏳ Generating content with AI… this may take 15-30 seconds.';
                 editLink.style.display = 'none';
                 imgBtn.style.display = 'none';
                 $('myls_pb_img_preview').style.display = 'none';
                 btn.disabled = true;
-                btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Generating…';
+
+                if (integrateImages) {
+                    const totalImgs = ($('myls_pb_gen_hero').checked ? 1 : 0) + (parseInt($('myls_pb_feature_count').value) || 0);
+                    logEl.textContent = '🎨 Step 1/2: Generating ' + totalImgs + ' image(s) with DALL-E 3…\n(This may take 30-90 seconds)\n\n✏️ Step 2/2: AI will then build the page with images integrated.';
+                    btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Generating Images + Content…';
+                } else {
+                    logEl.textContent = '⏳ Generating content with AI… this may take 15-30 seconds.';
+                    btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Generating…';
+                }
 
                 const fd = new FormData();
                 fd.append('action',           'myls_pb_create_page');
@@ -443,6 +459,16 @@ Requirements:
                 fd.append('page_description', $('myls_pb_description').value);
                 fd.append('prompt_template',  promptEl.value);
                 fd.append('add_to_menu',      $('myls_pb_menu').checked ? '1' : '0');
+
+                // Send image params when integrating
+                if (integrateImages) {
+                    fd.append('integrate_images', '1');
+                    fd.append('image_style',      $('myls_pb_img_style').value);
+                    fd.append('gen_hero',          $('myls_pb_gen_hero').checked ? '1' : '0');
+                    fd.append('gen_feature',       $('myls_pb_gen_feature').checked ? '1' : '0');
+                    fd.append('feature_count',     $('myls_pb_feature_count').value);
+                    fd.append('set_featured',      $('myls_pb_set_featured').checked ? '1' : '0');
+                }
 
                 try {
                     const res  = await fetch(ajaxurl, { method: 'POST', body: fd });
@@ -457,8 +483,8 @@ Requirements:
                             editLink.style.display = '';
                         }
 
-                        // Show image gen button if images are wanted and we have a post
-                        if (wantsImages() && lastPostId) {
+                        // Show separate image gen button only if NOT integrated and images are wanted
+                        if (!integrateImages && wantsImages() && lastPostId) {
                             imgBtn.style.display = '';
                             logEl.textContent += '\n\n🖼️ Ready to generate images — click "Generate Images" below.';
                         }
