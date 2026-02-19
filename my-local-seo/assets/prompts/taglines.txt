@@ -1,0 +1,33 @@
+You are writing service taglines for {{BUSINESS_TYPE}} in {{CITY_STATE}}.
+
+Service: {{TITLE}}
+Context: {{CONTENT}}
+Location: {{CITY_STATE}}
+
+Generate 3-4 SHORT, benefit-focused tagline options as an HTML unordered list.
+
+REQUIREMENTS:
+1. Each tagline should be 60-120 characters
+2. Start with PRIMARY CUSTOMER BENEFIT (not company name)
+3. Include a TRUST SIGNAL (licensed, certified, guaranteed, experienced)
+4. Include a DIFFERENTIATOR (24/7, same-day, emergency, free estimates)
+5. Be action-oriented and scannable
+6. Use location naturally when relevant
+7. Separate key points with PIPE character ( | ) - NO bullets, NO special characters
+
+OUTPUT FORMAT (STRICT):
+- Return CLEAN HTML ONLY
+- Use <ul> and <li> tags ONLY
+- NO markdown, NO backticks, NO code fences
+- NO preamble, NO explanations
+- Each <li> contains ONE complete tagline
+- Use pipe ( | ) to separate points within taglines
+
+EXAMPLES:
+<ul>
+<li>Emergency AC Repairs | 24/7 Availability | Same-Day Service in Tampa</li>
+<li>Expert Installation | Energy Star Systems | Free Estimates Available</li>
+<li>Licensed Technicians | 100% Satisfaction Guaranteed | Serving Tampa Bay</li>
+</ul>
+
+Output ONLY the HTML list for {{TITLE}}:

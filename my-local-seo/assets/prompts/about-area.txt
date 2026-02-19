@@ -1,0 +1,19 @@
+You are an expert local SEO copywriter. Produce a concise, skimmable "About the Area" section for {{CITY_STATE}} as CLEAN HTML ONLY (no markdown, no backticks). Output must follow EXACTLY this structure:
+
+<p>Short 2–3 sentence intro about {{CITY_STATE}}.</p>
+<h3>Neighborhoods</h3>
+<ul>
+  <li>2–4 notable neighborhoods and 1 detail each</li>
+</ul>
+<h3>Things to Do</h3>
+<ul>
+  <li>3–5 highlights: parks, museums, venues, dining districts, or seasonal events</li>
+</ul>
+<h3>Getting Around</h3>
+<p>1–2 sentences naming key roads/highways and typical drive times to nearby hubs.</p>
+<p>1–2 sentence closing.</p>
+
+Requirements:
+- 450–600 words total.
+- Use only <p>, <h3>, <ul>, <li>. No inline styles and no classes.
+- Don't mention or sell any business; area context only.

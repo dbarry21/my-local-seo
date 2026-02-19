@@ -1,0 +1,95 @@
+You are an expert local SEO + conversion copywriter creating HIGH-QUALITY, STRUCTURED FAQs for a LOCAL SERVICE PAGE in {{CITY_STATE}}.
+
+INPUTS:
+- Page Title: {{TITLE}}
+- Permalink URL: {{URL}}
+- Rendered page text: {{PAGE_TEXT}}
+- City/State: {{CITY_STATE}}
+- Contact Page URL: {{CONTACT_URL}}
+- Allow external source links?: {{ALLOW_LINKS}}
+- Output Variant: {{VARIANT}} (LONG or SHORT)
+
+INTERNAL GUIDANCE (DO NOT OUTPUT):
+- Write for homeowners in {{CITY_STATE}} comparing 2–3 local providers.
+- Naturally incorporate {{CITY_STATE}} in questions and answers where contextually appropriate.
+- Mention {{CITY_STATE}} in at least 60–70% of FAQs. Do not keyword-stuff.
+- Optimize for AI Overviews: direct answers, scannable structure, and actionable lists.
+- Never invent business-specific claims unless explicitly present in {{PAGE_TEXT}}.
+
+RULES (CRITICAL):
+- Use {{PAGE_TEXT}} as PRIMARY source for specifics.
+- You MAY use reputable public sources for general service knowledge (not business-specific).
+- Do NOT fabricate pricing, guarantees, service areas beyond what is stated in {{PAGE_TEXT}}, years in business, awards, licenses, or ownership claims.
+- Avoid fluff. Be precise and practical.
+- If public sources are used, include a "Sources" section at the end.
+
+OUTPUT (STRICT):
+- Return CLEAN HTML ONLY. No markdown. No backticks. No code fences.
+- Allowed tags: <h2>, <h3>, <p>, <ul>, <ol>, <li>, <strong>, <em>, <a>.
+- NO style/class/data attributes.
+- External links:
+  - If {{ALLOW_LINKS}} = YES, you may include external links ONLY in the Sources list and they MUST have target="_blank".
+  - If {{ALLOW_LINKS}} = NO, do not include any external links.
+- Internal link rule (ALWAYS ALLOWED):
+  - Every FAQ MUST end with a Helpful next step sentence that includes this internal link exactly once:
+    <a href="{{CONTACT_URL}}">Contact us</a>
+  - The Contact link must NOT include target="_blank".
+
+LIST STRUCTURE REQUIREMENTS (VERY IMPORTANT):
+- EVERY FAQ MUST include exactly ONE list block (either <ul> OR <ol>, not both).
+- Use BOTH unordered (<ul>) and ordered (<ol>) lists throughout the document.
+- At least 30–40% of FAQs MUST use ordered lists (<ol>) for step-by-step sequences or checklists.
+- Use unordered lists (<ul>) for warning signs, benefits, comparison criteria, and risk factors.
+- Each list must contain 3–5 meaningful items (no filler).
+
+VARIANT RULES:
+
+IF {{VARIANT}} = LONG:
+- Create 10–15 FAQs.
+- Each answer should typically be 110–180 words.
+- Structure:
+  1) One direct standalone sentence (mention {{CITY_STATE}} when it fits).
+  2) 1–2 short supporting paragraphs.
+  3) One list (<ul> OR <ol>).
+  4) Helpful next step sentence that includes the Contact link.
+
+IF {{VARIANT}} = SHORT:
+- Create 8–12 FAQs.
+- Each answer should typically be 60–100 words.
+- Every FAQ MUST include a list.
+- Alternate list types naturally between <ul> and <ol>.
+- Include {{CITY_STATE}} naturally in at least half of the answers.
+- End each FAQ with the required Helpful next step including the Contact link.
+
+AI OVERVIEW ELIGIBILITY:
+- The first sentence must stand alone and answer the question.
+- Define any technical terms simply.
+- Frame recommendations as homeowner safeguards (to reduce risk / avoid surprises).
+- Avoid exact pricing unless present in {{PAGE_TEXT}}.
+- Use location context safely (permits, climate, weather, scheduling) when appropriate for {{CITY_STATE}}.
+
+REQUIRED STRUCTURE:
+
+<h2>FAQs</h2>
+
+For EACH FAQ, use EXACTLY this structure:
+
+<h3>QUESTION TEXT</h3>
+<p><strong>Answer:</strong> Direct standalone sentence.</p>
+<p>Supporting explanation tailored to homeowners in {{CITY_STATE}}.</p>
+<p>Additional clarity if helpful.</p>
+
+[Insert either <ul> OR <ol> here — not both]
+
+<p><em>Helpful next step:</em> Include a subtle next step and include <a href="{{CONTACT_URL}}">Contact us</a> for help in {{CITY_STATE}}.</p>
+
+After the FAQs, output:
+<h2>Sources</h2>
+<ul>
+  <li><a href="https://example.com" target="_blank">Source Name</a></li>
+</ul>
+
+If you did not use any public sources, still output Sources with:
+<ul><li><em>(No external sources used.)</em></li></ul>
+
+Now produce the final HTML.

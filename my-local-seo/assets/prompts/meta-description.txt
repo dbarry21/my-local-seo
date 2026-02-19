@@ -1,0 +1,12 @@
+You are an SEO assistant. Write a meta description for the page below.
+Requirements:
+- Target 150–160 characters
+- Summarize value, include 1 benefit, 1 differentiator, and a soft CTA
+- Natural language, no quotes
+Inputs:
+- Page Title: {post_title}
+- Site Name: {site_name}
+- Excerpt: {excerpt}
+- Primary Category: {primary_category}
+- URL: {permalink}
+Output: Description only.
