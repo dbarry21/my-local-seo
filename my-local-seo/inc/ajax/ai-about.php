@@ -176,27 +176,7 @@ add_action('wp_ajax_myls_ai_about_generate_v2', function(){
   if ( $city_state === '' ) $city_state = get_the_title($post_id);
 
   // Strong, shape-enforcing prompt
-  $base_prompt = <<<EOT
-You are an expert local SEO copywriter. Produce a concise, skimmable “About the Area” section for {{CITY_STATE}} as CLEAN HTML ONLY (no markdown, no backticks). Output must follow EXACTLY this structure:
-
-<p>Short 2–3 sentence intro about {{CITY_STATE}}.</p>
-<h3>Neighborhoods</h3>
-<ul>
-  <li>2–4 notable neighborhoods and 1 detail each</li>
-</ul>
-<h3>Things to Do</h3>
-<ul>
-  <li>3–5 highlights: parks, museums, venues, dining districts, or seasonal events</li>
-</ul>
-<h3>Getting Around</h3>
-<p>1–2 sentences naming key roads/highways and typical drive times to nearby hubs.</p>
-<p>1–2 sentence closing.</p>
-
-Requirements:
-- 450–600 words total.
-- Use only <p>, <h3>, <ul>, <li>. No inline styles and no classes.
-- Don’t mention or sell any business; area context only.
-EOT;
+  $base_prompt = myls_get_default_prompt('about-area');
 
   $template = isset($_POST['template']) ? wp_unslash($_POST['template']) : '';
   if ($template === '') {
@@ -231,23 +211,7 @@ EOT;
 
   // ----- Retry once if too short or missing <h3>
   if ( ! $ok_len || ! $ok_h3 ) {
-    $retry_prompt = <<<EOT
-The previous draft was too short or missing required sections. Rewrite for {{CITY_STATE}} with these hard requirements:
-
-- 450–600 words.
-- EXACTLY this structure and tags, CLEAN HTML only (no markdown/backticks):
-<p>2–3 sentence intro.</p>
-<h3>Neighborhoods</h3>
-<ul><li>2–4 neighborhoods, 1 detail each</li></ul>
-<h3>Things to Do</h3>
-<ul><li>3–5 highlights with brief specifics</li></ul>
-<h3>Getting Around</h3>
-<p>1–2 sentences on key roads/highways and typical drive times.</p>
-<p>1–2 sentence closing.</p>
-
-Allowed tags: <p>, <h3>, <ul>, <li> only.
-No business promotion. No inline styles. No classes. CLEAN HTML only.
-EOT;
+    $retry_prompt = myls_get_default_prompt('about-area-retry');
     $retry_prompt = str_replace('{{CITY_STATE}}', $city_state, $retry_prompt);
 
     $html_2 = myls_ai_generate_text($retry_prompt, [

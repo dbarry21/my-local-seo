@@ -14,6 +14,8 @@
  *   link_text  - Text for profile link button. Default: "View Our Profile".
  *   card_bg    - Card background color override.
  *   card_border- Card border color override.
+ *   orderby    - Sort order: "manual" (admin drag order, default), "name", or "since".
+ *   order      - Sort direction: "asc" (default) or "desc". Only applies when orderby is name/since.
  *
  * @since 4.15.8
  */
@@ -43,6 +45,8 @@ if ( ! function_exists( 'myls_association_memberships_shortcode' ) ) {
 				'link_text'   => 'View Our Profile',
 				'card_bg'     => '',
 				'card_border' => '',
+				'orderby'     => 'manual',
+				'order'       => 'asc',
 			],
 			$atts,
 			'association_memberships'
@@ -50,13 +54,30 @@ if ( ! function_exists( 'myls_association_memberships_shortcode' ) ) {
 
 		$memberships = (array) get_option( 'myls_org_memberships', [] );
 		// Filter to only entries with a name.
-		$memberships = array_filter( $memberships, function( $m ) {
+		$memberships = array_values( array_filter( $memberships, function( $m ) {
 			return is_array( $m ) && ! empty( $m['name'] );
-		});
+		}) );
 
 		if ( empty( $memberships ) ) {
 			return '<p><em>No memberships found.</em></p>';
 		}
+
+		// Ordering: 'manual' (default) respects admin drag-and-drop order.
+		$orderby = strtolower( trim( $atts['orderby'] ) );
+		$order   = strtolower( trim( $atts['order'] ) ) === 'desc' ? 'desc' : 'asc';
+
+		if ( $orderby === 'name' ) {
+			usort( $memberships, function( $a, $b ) use ( $order ) {
+				$cmp = strcasecmp( $a['name'] ?? '', $b['name'] ?? '' );
+				return $order === 'desc' ? -$cmp : $cmp;
+			});
+		} elseif ( $orderby === 'since' ) {
+			usort( $memberships, function( $a, $b ) use ( $order ) {
+				$cmp = strcmp( $a['since'] ?? '', $b['since'] ?? '' );
+				return $order === 'desc' ? -$cmp : $cmp;
+			});
+		}
+		// 'manual' = no re-sort, use array order as-is from admin
 
 		$cols       = in_array( (int) $atts['columns'], [2,3,4], true ) ? (int) $atts['columns'] : 3;
 		$show_desc  = ( $atts['show_desc'] === '1' );

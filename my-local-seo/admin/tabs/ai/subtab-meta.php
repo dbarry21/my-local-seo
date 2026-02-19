@@ -11,37 +11,9 @@ return [
 		unset($pts['attachment']);
 		$default_pt = isset($pts['page']) ? 'page' : ( $pts ? array_key_first($pts) : 'page' );
 
-		// ---------- FACTORY DEFAULT TEMPLATES (do not edit in DB) ----------
-		$default_title_prompt = <<<EOT
-You are an SEO assistant. Write a compelling Yoast SEO title for the page below.
-Requirements:
-- Max ~60 characters when possible (but don't truncate if clarity suffers)
-- Include primary intent and brand when natural
-- Avoid ALL CAPS and clickbait; keep it truthful and scannable
-- If a location is obvious, include it once
-Inputs:
-- Page Title: {post_title}
-- Site Name: {site_name}
-- Excerpt: {excerpt}
-- Primary Category: {primary_category}
-- URL: {permalink}
-Output: Title only.
-EOT;
-
-		$default_desc_prompt = <<<EOT
-You are an SEO assistant. Write a meta description for the page below.
-Requirements:
-- Target 150–160 characters
-- Summarize value, include 1 benefit, 1 differentiator, and a soft CTA
-- Natural language, no quotes
-Inputs:
-- Page Title: {post_title}
-- Site Name: {site_name}
-- Excerpt: {excerpt}
-- Primary Category: {primary_category}
-- URL: {permalink}
-Output: Description only.
-EOT;
+		// ---------- FACTORY DEFAULT TEMPLATES (loaded from assets/prompts/) ----------
+		$default_title_prompt = myls_get_default_prompt('meta-title');
+		$default_desc_prompt  = myls_get_default_prompt('meta-description');
 
 		// ---------- LOAD SAVED (PERSISTENT) VALUES ----------
 		$saved_title_prompt = get_option('myls_ai_prompt_title', $default_title_prompt);

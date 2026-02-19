@@ -31,26 +31,7 @@ if ( ! function_exists('myls_ai_check_nonce') ) {
  * ------------------------------------------------------------------------- */
 if ( ! function_exists('myls_ai_default_html_excerpt_prompt') ) {
     function myls_ai_default_html_excerpt_prompt() : string {
-        return <<<'EOT'
-You are an SEO copywriter. Write a concise HTML excerpt for the page below.
-Requirements:
-- 2–4 short sentences (aim 40–80 words)
-- Use basic HTML: <p>, <strong>, <em> tags only
-- Describe what the page is about and who it helps
-- If a location is obvious, include it naturally
-- Avoid fluff, quotes, and ALL CAPS
-- Output HTML only, no markdown, no code fences
-
-Inputs:
-- Page Title: {post_title}
-- Site Name: {site_name}
-- Current WP Excerpt: {excerpt}
-- Primary Category: {primary_category}
-- City/State: {city_state}
-- URL: {permalink}
-
-Output: HTML excerpt only.
-EOT;
+        return myls_get_default_prompt('html-excerpt');
     }
 }
 

@@ -15,16 +15,7 @@ return [
       echo '<div class="updated notice"><p>Saved “About the Area” template & params.</p></div>';
     }
 
-    $default_prompt = <<<EOT
-You are an expert local SEO copywriter. Write a concise, skimmable “About the Area” section (400–500 words) as clean HTML for the service area: {{CITY_STATE}}.
-
-Requirements:
-- Tone: warm, helpful, trustworthy (no fluff).
-- Structure: brief intro, 2–3 subsections with <h3> headings, and a short closing.
-- Include locally relevant landmarks, roads, or districts when appropriate.
-- Do not mention or sell any business; this is area context only.
-- Use <p>, <h3>, <ul>/<li>; no inline styles.
-EOT;
+    $default_prompt = myls_get_default_prompt('about-area');
 
     $about_prompt = get_option('myls_ai_about_prompt_template', $default_prompt);
     $about_tokens = (int) get_option('myls_ai_about_tokens', 1600);

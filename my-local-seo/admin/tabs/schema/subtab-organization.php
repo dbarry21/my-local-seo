@@ -22,6 +22,7 @@ $spec = [
 		if ( function_exists('wp_enqueue_media') ) {
 			wp_enqueue_media();
 		}
+		wp_enqueue_script('jquery-ui-sortable');
 
 		// Service Type options (from ssseo-tools)
 		$service_types = [
@@ -124,6 +125,29 @@ $spec = [
 			.myls-chooser-tip { font-size:12px; opacity:.8; margin-top:.5rem; }
 			.myls-chooser-toolbar { display:flex; gap:.5rem; margin-bottom:.75rem; }
 			.myls-logo-preview img { max-width:220px; height:auto; border:1px solid #000; border-radius:1em; }
+
+			/* Drag-and-drop membership ordering */
+			.myls-membership-row { cursor:default; position:relative; }
+			.myls-membership-drag-handle {
+				cursor:grab; display:flex; align-items:center; justify-content:center;
+				width:36px; height:36px; border-radius:.5em; background:#e9ecef;
+				color:#666; font-size:18px; flex-shrink:0; user-select:none;
+				transition:background .15s, color .15s;
+			}
+			.myls-membership-drag-handle:hover { background:#dee2e6; color:#333; }
+			.myls-membership-drag-handle:active { cursor:grabbing; }
+			.myls-membership-row.ui-sortable-helper {
+				box-shadow:0 6px 24px rgba(0,0,0,.18); transform:rotate(0.5deg); z-index:100;
+			}
+			.myls-membership-row.ui-sortable-placeholder {
+				visibility:visible !important; border:2px dashed #0d6efd !important;
+				background:#f0f6fc !important; min-height:80px; border-radius:1em;
+			}
+			.myls-membership-order-badge {
+				display:inline-flex; align-items:center; justify-content:center;
+				width:26px; height:26px; border-radius:50%; background:#0d6efd;
+				color:#fff; font-weight:700; font-size:.78rem; flex-shrink:0;
+			}
 		</style>
 
 		<div class="myls-org-two-col">
@@ -305,10 +329,16 @@ $spec = [
 								$m = wp_parse_args( (array) $m, ['name'=>'','url'=>'','profile_url'=>'','logo_url'=>'','description'=>'','since'=>''] );
 							?>
 							<div class="myls-membership-row" style="border:1px solid #ccc; border-radius:1em; padding:14px; margin-bottom:12px; background:#fafafa;">
+								<div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+									<span class="myls-membership-drag-handle" title="Drag to reorder">☰</span>
+									<span class="myls-membership-order-badge"><?php echo $i + 1; ?></span>
+									<strong class="myls-membership-row-title" style="flex:1;"><?php echo esc_html( $m['name'] ?: 'New Membership' ); ?></strong>
+									<button type="button" class="myls-btn myls-btn-danger myls-remove-membership" style="margin-left:auto;">Remove</button>
+								</div>
 								<div class="row">
 									<div class="col-md-4">
 										<label class="form-label">Association Name <span style="color:#dc3545;">*</span></label>
-										<input type="text" name="myls_org_memberships[<?php echo $i; ?>][name]" value="<?php echo esc_attr($m['name']); ?>" placeholder="e.g. Better Business Bureau">
+										<input type="text" class="myls-membership-name-input" name="myls_org_memberships[<?php echo $i; ?>][name]" value="<?php echo esc_attr($m['name']); ?>" placeholder="e.g. Better Business Bureau">
 									</div>
 									<div class="col-md-4">
 										<label class="form-label">Association URL</label>
@@ -330,9 +360,6 @@ $spec = [
 										<label class="form-label">Description</label>
 										<input type="text" name="myls_org_memberships[<?php echo $i; ?>][description]" value="<?php echo esc_attr($m['description']); ?>" placeholder="Brief description of what this membership means">
 									</div>
-								</div>
-								<div style="text-align:right; margin-top:8px;">
-									<button type="button" class="myls-btn myls-btn-danger myls-remove-membership">Remove</button>
 								</div>
 							</div>
 							<?php endforeach; ?>
@@ -512,18 +539,76 @@ $spec = [
 		  });
 		})();
 
-		// Membership repeater rows
+		// Membership repeater rows with drag-and-drop ordering
 		(function(){
 		  var wrap = document.getElementById('myls-org-memberships');
 		  var idx = wrap ? wrap.querySelectorAll('.myls-membership-row').length : 0;
 
+		  // ── Helper: renumber all rows (badges + input names) ──
+		  function renumberMemberships() {
+			if (!wrap) return;
+			var rows = wrap.querySelectorAll('.myls-membership-row');
+			rows.forEach(function(row, i){
+			  // Update order badge
+			  var badge = row.querySelector('.myls-membership-order-badge');
+			  if (badge) badge.textContent = i + 1;
+			  // Update all input name indices: myls_org_memberships[OLD][field] → myls_org_memberships[NEW][field]
+			  row.querySelectorAll('input, textarea, select').forEach(function(inp){
+				var n = inp.getAttribute('name');
+				if (n && n.indexOf('myls_org_memberships[') === 0) {
+				  inp.setAttribute('name', n.replace(/myls_org_memberships\[\d+\]/, 'myls_org_memberships['+i+']'));
+				}
+			  });
+			});
+		  }
+
+		  // ── Helper: update row title from name input ──
+		  function bindNameSync(row) {
+			var nameInput = row.querySelector('.myls-membership-name-input');
+			var titleEl   = row.querySelector('.myls-membership-row-title');
+			if (nameInput && titleEl) {
+			  nameInput.addEventListener('input', function(){
+				titleEl.textContent = this.value.trim() || 'New Membership';
+			  });
+			}
+		  }
+
+		  // Bind name sync on existing rows
+		  if (wrap) {
+			wrap.querySelectorAll('.myls-membership-row').forEach(bindNameSync);
+		  }
+
+		  // ── Init jQuery UI Sortable (deferred until scripts loaded) ──
+		  function initMembershipSortable() {
+			if (!wrap || typeof jQuery === 'undefined' || !jQuery.fn.sortable) return;
+			jQuery(wrap).sortable({
+			  handle: '.myls-membership-drag-handle',
+			  placeholder: 'myls-membership-row ui-sortable-placeholder',
+			  tolerance: 'pointer',
+			  opacity: 0.85,
+			  update: function() { renumberMemberships(); }
+			});
+		  }
+		  // Try now, and also on jQuery ready (in case jquery-ui-sortable loads later)
+		  initMembershipSortable();
+		  if (typeof jQuery !== 'undefined') {
+			jQuery(function(){ initMembershipSortable(); });
+		  }
+
+		  // ── Add new membership ──
 		  document.getElementById('myls-org-add-membership')?.addEventListener('click', function(){
 			var row = document.createElement('div');
 			row.className = 'myls-membership-row';
 			row.style.cssText = 'border:1px solid #ccc; border-radius:1em; padding:14px; margin-bottom:12px; background:#fafafa;';
-			row.innerHTML = '<div class="row">'
+			row.innerHTML = '<div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">'
+			  + '<span class="myls-membership-drag-handle" title="Drag to reorder">☰</span>'
+			  + '<span class="myls-membership-order-badge">'+(idx+1)+'</span>'
+			  + '<strong class="myls-membership-row-title" style="flex:1;">New Membership</strong>'
+			  + '<button type="button" class="myls-btn myls-btn-danger myls-remove-membership" style="margin-left:auto;">Remove</button>'
+			  + '</div>'
+			  + '<div class="row">'
 			  + '<div class="col-md-4"><label class="form-label">Association Name <span style="color:#dc3545;">*</span></label>'
-			  + '<input type="text" name="myls_org_memberships['+idx+'][name]" placeholder="e.g. Better Business Bureau"></div>'
+			  + '<input type="text" class="myls-membership-name-input" name="myls_org_memberships['+idx+'][name]" placeholder="e.g. Better Business Bureau"></div>'
 			  + '<div class="col-md-4"><label class="form-label">Association URL</label>'
 			  + '<input type="url" name="myls_org_memberships['+idx+'][url]" placeholder="https://www.bbb.org"></div>'
 			  + '<div class="col-md-4"><label class="form-label">Your Profile URL</label>'
@@ -534,17 +619,23 @@ $spec = [
 			  + '<input type="text" name="myls_org_memberships['+idx+'][since]" placeholder="e.g. 2019" maxlength="4"></div>'
 			  + '<div class="col-md-6"><label class="form-label">Description</label>'
 			  + '<input type="text" name="myls_org_memberships['+idx+'][description]" placeholder="Brief description of what this membership means"></div>'
-			  + '</div>'
-			  + '<div style="text-align:right; margin-top:8px;">'
-			  + '<button type="button" class="myls-btn myls-btn-danger myls-remove-membership">Remove</button>'
 			  + '</div>';
 			wrap.appendChild(row);
+			bindNameSync(row);
 			idx++;
+			// Refresh sortable to include new row
+			if (typeof jQuery !== 'undefined' && jQuery.fn.sortable && jQuery(wrap).sortable('instance')) {
+			  jQuery(wrap).sortable('refresh');
+			}
 		  });
 
+		  // ── Remove membership ──
 		  wrap?.addEventListener('click', function(e){
 			var btn = e.target.closest('.myls-remove-membership');
-			if (btn) { btn.closest('.myls-membership-row').remove(); }
+			if (btn) {
+			  btn.closest('.myls-membership-row').remove();
+			  renumberMemberships();
+			}
 		  });
 		})();
 

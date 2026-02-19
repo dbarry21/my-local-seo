@@ -49,6 +49,7 @@ if ( ! function_exists('myls_is_our_admin_page') ) {
  * Core + loaders
  * ───────────────────────────────────────────────────────────────────────── */
 require_once MYLS_PATH . 'inc/core.php';
+require_once MYLS_PATH . 'inc/prompt-loader.php';
 require_once MYLS_PATH . 'inc/admin-tabs-loader.php';
 require_once trailingslashit(MYLS_PATH).'inc/sitebuilder/bootstrap.php';
 require_once trailingslashit(MYLS_PATH).'inc/sitebuilder/bootstrap-appearance.php';

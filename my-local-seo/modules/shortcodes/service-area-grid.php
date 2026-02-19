@@ -74,6 +74,14 @@ add_shortcode('service_area_grid', function( $atts ) {
 
 	ob_start(); ?>
 	<div class="container ssseo-service-area-grid <?php echo esc_attr($a['class']); ?>">
+		<style>
+		.ssseo-sa-col-link {
+			display:block; text-decoration:none; color:inherit; cursor:pointer;
+			border-radius:.75em; padding:8px; margin:-8px; transition:background .2s;
+		}
+		.ssseo-sa-col-link:hover { background:rgba(0,0,0,.03); text-decoration:none; color:inherit; }
+		.ssseo-sa-col-link .ssseo-excerpt { pointer-events:none; }
+		</style>
 		<?php
 		// Show the current page title as H2 above the grid
 		$show_page_title = in_array( strtolower( (string) $a['show_page_title'] ), ['1','true','yes'], true );
@@ -109,7 +117,7 @@ add_shortcode('service_area_grid', function( $atts ) {
 			$is_published = ( get_post_status($post_id) === 'publish' );
 
 			$title_html = $is_published
-				? sprintf('<a href="%s">%s</a>', esc_url( get_permalink($post_id) ), $title_text)
+				? sprintf('<a href="%s" aria-label="%s">%s</a>', esc_url( get_permalink($post_id) ), esc_attr( $title_text ), $title_text)
 				: $title_text;
 			?>
 			<div class="row g-4 align-items-center ssseo-row mb-4">
@@ -119,7 +127,14 @@ add_shortcode('service_area_grid', function( $atts ) {
 				<div class="col-md-6 <?php echo esc_attr($text_col_classes); ?>">
 					<?php
 					$show_title = in_array( strtolower( (string) $a['show_title'] ), ['1','true','yes'], true );
-					if ( $show_title ) : ?>
+
+					// When title is hidden, wrap heading + excerpt in a link so the column is clickable
+					$wrap_link = ( ! $show_title && $is_published );
+					if ( $wrap_link ) : ?>
+						<a href="<?php echo esc_url( get_permalink($post_id) ); ?>" class="ssseo-sa-col-link" aria-label="<?php echo esc_attr( $title_text ); ?>">
+					<?php endif; ?>
+
+					<?php if ( $show_title ) : ?>
 						<h3 class="h4 mb-3"><?php echo $title_html; ?></h3>
 					<?php endif; ?>
 
@@ -127,10 +142,14 @@ add_shortcode('service_area_grid', function( $atts ) {
 						<?php echo $html_excerpt; ?>
 					</div>
 
+					<?php if ( $wrap_link ) : ?>
+						</a>
+					<?php endif; ?>
+
 					<?php if ( ! empty($a['button_text']) ) : ?>
 	<div class="ssseo-cta-btn-wrapper text-center">
 		<?php if ( $is_published ) : ?>
-			<a href="<?php echo esc_url( get_permalink($post_id) ); ?>" class="btn btn-primary ssseo-cta-btn">
+			<a href="<?php echo esc_url( get_permalink($post_id) ); ?>" class="btn btn-primary ssseo-cta-btn" aria-label="<?php echo esc_attr( $a['button_text'] . ' — ' . $title_text ); ?>">
 				<?php echo esc_html( $a['button_text'] ); ?>
 			</a>
 		<?php else : ?>
