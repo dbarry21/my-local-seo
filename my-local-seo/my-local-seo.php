@@ -3,7 +3,7 @@
  * Plugin Name:       My Local SEO
  * Plugin URI:        https://mylocalseo.ai/
  * Description:       Modular local SEO toolkit with schema, AI tools, bulk operations, and shortcode utilities.
- * Version: 6.1.1
+ * Version: 6.3.0
  * Author:            Dave Barry
  * Author URI:        https://davebarry.io/
  * Text Domain:       my-local-seo
@@ -16,7 +16,7 @@ if ( ! defined('ABSPATH') ) exit;
  * Canonical constants & helpers (single source of truth)
  * ───────────────────────────────────────────────────────────────────────── */
 // Keep in sync with plugin header above.
-if ( ! defined('MYLS_VERSION') )     define('MYLS_VERSION','6.1.1');
+if ( ! defined('MYLS_VERSION') )     define('MYLS_VERSION','6.3.0');
 if ( ! defined('MYLS_MAIN_FILE') )   define('MYLS_MAIN_FILE', __FILE__);
 if ( ! defined('MYLS_PATH') )        define('MYLS_PATH', plugin_dir_path(MYLS_MAIN_FILE));
 if ( ! defined('MYLS_URL') )         define('MYLS_URL',  plugins_url('', MYLS_MAIN_FILE));
@@ -50,6 +50,7 @@ if ( ! function_exists('myls_is_our_admin_page') ) {
  * ───────────────────────────────────────────────────────────────────────── */
 require_once MYLS_PATH . 'inc/core.php';
 require_once MYLS_PATH . 'inc/prompt-loader.php';
+require_once MYLS_PATH . 'inc/prompt-toolbar.php';
 require_once MYLS_PATH . 'inc/admin-tabs-loader.php';
 require_once trailingslashit(MYLS_PATH).'inc/sitebuilder/bootstrap.php';
 require_once trailingslashit(MYLS_PATH).'inc/sitebuilder/bootstrap-appearance.php';
@@ -137,13 +138,25 @@ require_once MYLS_PATH . 'inc/ajax/ai-about.php';
 require_once MYLS_PATH . 'inc/ajax/ai-geo.php';
 
 require_once MYLS_PATH . 'inc/ajax/ai-faqs.php';
+// Content Quality Analyzer for enterprise logging (optional - degrades gracefully)
+$_myls_ca_path = MYLS_PATH . 'inc/ai/content-analyzer.php';
+if ( file_exists( $_myls_ca_path ) ) {
+	require_once $_myls_ca_path;
+}
+// Variation Engine for AI anti-duplication (optional - degrades gracefully if missing)
+$_myls_ve_path = MYLS_PATH . 'inc/ai/variation-engine.php';
+if ( file_exists( $_myls_ve_path ) ) {
+	require_once $_myls_ve_path;
+}
 require_once MYLS_PATH . 'inc/openai.php';
 require_once MYLS_PATH . 'inc/ajax/ai-excerpts.php';
 require_once MYLS_PATH . 'inc/ajax/ai-html-excerpts.php';
 require_once MYLS_PATH . 'inc/ajax/ai-person-linkedin.php';
 require_once MYLS_PATH . 'inc/ajax/ai-taglines.php';
 require_once MYLS_PATH . 'inc/ajax/ai-page-builder.php';
+require_once MYLS_PATH . 'inc/ajax/prompt-history.php';
 require_once MYLS_PATH . 'inc/ajax/ai-image-gen.php';
+require_once MYLS_PATH . 'inc/ajax/ai-content-analyzer.php';
 require_once MYLS_PATH . 'inc/pb-wpautop-fix.php';
 
 /** Service FAQ Page generator AJAX */
@@ -196,25 +209,19 @@ add_action('admin_enqueue_scripts', function(){
 	$utils = 'assets/css/utilities.css';
 	$admin = 'assets/css/admin.css';
 
-	$missing = [];
-	foreach ([$vars, $utils, $admin] as $rel) {
-		if ( ! file_exists( myls_asset_path($rel) ) ) $missing[] = $rel;
+	// Enqueue each file that exists (don't fail all if one is missing)
+	$deps = [];
+	if ( file_exists( myls_asset_path($vars) ) ) {
+		wp_enqueue_style('myls-vars', myls_asset_url($vars), [], MYLS_VERSION);
+		$deps[] = 'myls-vars';
 	}
-
-	if ( $missing ) {
-		add_action('admin_notices', function() use ($missing){
-			echo '<div class="notice notice-error"><p><strong>My Local SEO:</strong> Missing admin CSS asset(s):</p><ul>';
-			foreach ($missing as $rel) {
-				printf('<li><code>%s</code></li>', esc_html($rel));
-			}
-			echo '</ul><p>Please build or upload the files to <code>assets/css/</code>.</p></div>';
-		});
-		return; // don’t enqueue broken URLs (prevents 404 spam)
+	if ( file_exists( myls_asset_path($utils) ) ) {
+		wp_enqueue_style('myls-utils', myls_asset_url($utils), $deps, MYLS_VERSION);
+		$deps[] = 'myls-utils';
 	}
-
-	wp_enqueue_style('myls-vars',      myls_asset_url($vars),  [], MYLS_VERSION);
-	wp_enqueue_style('myls-utils',     myls_asset_url($utils), ['myls-vars'], MYLS_VERSION);
-	wp_enqueue_style('myls-admin-css', myls_asset_url($admin), ['myls-utils'], MYLS_VERSION);
+	if ( file_exists( myls_asset_path($admin) ) ) {
+		wp_enqueue_style('myls-admin-css', myls_asset_url($admin), $deps, MYLS_VERSION);
+	}
 });
 
 /** Tabs CSS (also scoped to our page) */
