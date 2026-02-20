@@ -33,8 +33,9 @@ return [
           <?php wp_nonce_field('myls_ai_about_save_nonce','myls_ai_about_save_nonce'); ?>
           <div class="mb-3">
             <label class="form-label"><strong>Prompt Template</strong></label>
-            <textarea name="myls_ai_about_prompt_template" class="widefat" rows="12"><?php echo esc_textarea($about_prompt); ?></textarea>
-            <p class="description">Use <code>{{CITY_STATE}}</code> from the post’s <em>city_state</em> field.</p>
+            <?php myls_prompt_toolbar('about-area', 'myls_ai_about_prompt_ta'); ?>
+            <textarea id="myls_ai_about_prompt_ta" name="myls_ai_about_prompt_template" class="widefat" rows="12"><?php echo esc_textarea($about_prompt); ?></textarea>
+            <p class="description">Variables: <code>{{CITY_STATE}}</code>, <code>{{PAGE_TITLE}}</code>, <code>{{FOCUS_KEYWORD}}</code> (Yoast/Rank Math), <code>{{SERVICE_SUBTYPE}}</code> (from Service Schema subtab).</p>
           </div>
 
           <div class="row">
@@ -88,8 +89,11 @@ return [
 
         <hr/>
         <div>
-          <h3 class="h5">Results</h3>
-          <div id="myls_ai_about_results" style="background:#f8f9fa;border:1px solid #ccc;border-radius:8px;padding:12px;min-height:140px;white-space:pre-wrap;overflow:auto;"></div>
+          <div class="myls-results-header">
+            <h3 class="h5 mb-0"><i class="bi bi-terminal"></i> Results</h3>
+            <button type="button" class="myls-btn-export-pdf" data-log-target="myls_ai_about_results"><i class="bi bi-file-earmark-pdf"></i> PDF</button>
+          </div>
+          <pre id="myls_ai_about_results" class="myls-results-terminal">Ready.</pre>
           <div class="mt-2"><strong>Processed:</strong> <span id="myls_ai_about_count">0</span></div>
         </div>
       </div>

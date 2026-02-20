@@ -63,6 +63,8 @@ add_action('wp_ajax_myls_ai_taglines_generate_single', function() {
     if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'myls_ai_ops')) {
         wp_send_json_error(['message' => 'Invalid nonce'], 403);
     }
+    $start_time = microtime(true);
+    if ( class_exists('MYLS_Variation_Engine') ) { MYLS_Variation_Engine::reset_log(); }
     
     if (!current_user_can('edit_posts')) {
         wp_send_json_error(['message' => 'Permission denied'], 403);
@@ -135,6 +137,12 @@ add_action('wp_ajax_myls_ai_taglines_generate_single', function() {
     $prompt = str_replace('{{CITY_STATE}}', $city_state, $prompt);
     $prompt = str_replace('{{BUSINESS_TYPE}}', $business_type, $prompt);
     
+    // ── Variation Engine: inject angle + banned phrases for tagline generation ──
+    if ( class_exists('MYLS_Variation_Engine') ) {
+        $angle  = MYLS_Variation_Engine::next_angle('taglines');
+        $prompt = MYLS_Variation_Engine::inject_variation( $prompt, $angle, 'taglines' );
+    }
+    
     // Generate with AI
     if (!function_exists('myls_ai_generate_text')) {
         wp_send_json_error(['message' => 'AI function not available']);
@@ -152,6 +160,22 @@ add_action('wp_ajax_myls_ai_taglines_generate_single', function() {
     
     // Clean up response
     $response = trim($response);
+
+    // ── Variation Engine: duplicate guard for taglines ──
+    if ( class_exists('MYLS_Variation_Engine') ) {
+        $response = MYLS_Variation_Engine::guard_duplicates(
+            'taglines',
+            $response,
+            function( $original ) use ( $tokens, $temperature, $post_id ) {
+                $rewrite = "Generate completely different taglines. Avoid these patterns:\n" . $original . "\n\nCreate fresh, unique taglines with different sentence structures.";
+                return trim( myls_ai_generate_text( $rewrite, [
+                    'max_tokens' => $tokens,
+                    'temperature' => min(1.0, $temperature + 0.1),
+                    'post_id' => $post_id
+                ]) );
+            }
+        );
+    }
     
     // Remove markdown code fences if present
     $response = preg_replace('/```html?\s*/', '', $response);
@@ -220,12 +244,28 @@ add_action('wp_ajax_myls_ai_taglines_generate_single', function() {
     // Save primary tagline to post meta
     update_post_meta($post_id, '_myls_service_tagline', $primary_tagline);
     
+    $ve_log = class_exists('MYLS_Variation_Engine') ? MYLS_Variation_Engine::build_item_log($start_time, [
+        'tokens'         => $tokens,
+        'temperature'    => $temperature,
+        'prompt_chars'   => mb_strlen($prompt),
+        'output_chars'   => $char_count,
+        'output_words'   => str_word_count($primary_tagline),
+        'tagline_count'  => count($taglines),
+        'page_title'     => $title,
+        'city_state'     => $city_state,
+        '_html'          => $primary_tagline,
+    ]) : ['elapsed_ms' => round((microtime(true) - $start_time) * 1000)];
+
     wp_send_json_success([
         'tagline' => $primary_tagline,
         'all_taglines' => $taglines,
         'char_count' => $char_count,
         'is_over_limit' => $is_over_limit,
         'post_id' => $post_id,
-        'post_title' => $title
+        'post_title' => $title,
+        'status' => 'saved',
+        'preview' => $primary_tagline,
+        'city_state' => $city_state,
+        'log' => $ve_log,
     ]);
 });

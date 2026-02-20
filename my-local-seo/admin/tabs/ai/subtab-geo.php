@@ -93,6 +93,7 @@ return [
 
           <div class="mb-3">
             <label class="form-label"><strong>Prompt Template</strong></label>
+            <?php myls_prompt_toolbar('geo-rewrite', 'myls_ai_geo_prompt_template'); ?>
             <textarea id="myls_ai_geo_prompt_template" name="myls_ai_geo_prompt_template" class="widefat" rows="22"><?php echo esc_textarea($geo_prompt); ?></textarea>
             <p class="description">Variables: <code>{{TITLE}}</code>, <code>{{URL}}</code>, <code>{{PAGE_TEXT}}</code>, <code>{{INCLUDE_FAQ_HOWTO}}</code></p>
           </div>
@@ -196,8 +197,11 @@ return [
         </div>
 
         <div class="mt-3">
-          <h3 class="h5">Results Log</h3>
-          <pre id="myls_ai_geo_results" class="myls-selectbox" tabindex="0" style="white-space:pre-wrap;background:#f8f9fa;border:1px solid #ddd;min-height:120px;max-height:220px;margin:0;"></pre>
+          <div class="myls-results-header">
+            <h3 class="h5 mb-0"><i class="bi bi-terminal"></i> Results Log</h3>
+            <button type="button" class="myls-btn-export-pdf" data-log-target="myls_ai_geo_results"><i class="bi bi-file-earmark-pdf"></i> PDF</button>
+          </div>
+          <pre id="myls_ai_geo_results" class="myls-results-terminal">Ready.</pre>
         </div>
       </div>
     </div>

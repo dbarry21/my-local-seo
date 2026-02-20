@@ -124,8 +124,11 @@ return [
 
       <!-- Results -->
       <div class="mt-4">
-        <h5 class="mb-2">Results</h5>
-        <div id="myls-clone-sa-results" class="card card-body" style="min-height:80px; overflow:auto;"></div>
+        <div class="myls-results-header">
+          <h5 class="mb-0">Results</h5>
+          <button type="button" class="myls-btn-export-pdf" data-log-target="myls-clone-sa-results"><i class="bi bi-file-earmark-pdf"></i> PDF</button>
+        </div>
+        <pre id="myls-clone-sa-results" class="myls-results-terminal">Ready.</pre>
       </div>
     </div>
     <?php

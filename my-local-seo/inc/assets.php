@@ -64,6 +64,39 @@ add_action('admin_enqueue_scripts', function( $hook ) {
     wp_register_style('myls-admin-inline', false);
     wp_enqueue_style('myls-admin-inline');
     wp_add_inline_style('myls-admin-inline', $shim);
+
+    // --- Prompt History Toolbar JS (shared across all AI tabs)
+    $pt_ver = defined('MYLS_VERSION') ? MYLS_VERSION : time();
+    wp_enqueue_script(
+        'myls-prompt-toolbar',
+        trailingslashit(MYLS_URL) . 'assets/js/myls-prompt-toolbar.js',
+        [],
+        $pt_ver,
+        true
+    );
+    wp_add_inline_script(
+        'myls-prompt-toolbar',
+        'window.myls_prompt_toolbar_nonce = ' . wp_json_encode( wp_create_nonce('myls_ai_ops') ) . ';',
+        'before'
+    );
+
+    // --- Enterprise Log Formatter (shared across all AI tabs) — load in header
+    wp_enqueue_script(
+        'myls-log-formatter',
+        trailingslashit(MYLS_URL) . 'assets/js/myls-log-formatter.js',
+        [],
+        $pt_ver,
+        false  // header, not footer — must load before inline subtab scripts
+    );
+
+    // --- Export Log to PDF (shared across all AI tabs)
+    wp_enqueue_script(
+        'myls-export-log',
+        trailingslashit(MYLS_URL) . 'assets/js/myls-export-log.js',
+        [],
+        $pt_ver,
+        true
+    );
 }, 20);
 
 /**

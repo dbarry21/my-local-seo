@@ -128,6 +128,12 @@ add_action('wp_ajax_myls_ai_html_excerpt_generate_single', function() : void {
         wp_send_json_error(['message' => 'Prompt template is empty']);
     }
 
+    // ── Variation Engine: inject angle + banned phrases for HTML excerpt generation ──
+    if ( class_exists('MYLS_Variation_Engine') ) {
+        $angle  = MYLS_Variation_Engine::next_angle('html_excerpt');
+        $prompt = MYLS_Variation_Engine::inject_variation( $prompt, $angle, 'html_excerpt' );
+    }
+
     $generated = myls_ai_generate_html_excerpt_text($prompt);
 
     if ( $generated === '' ) {
@@ -176,6 +182,7 @@ add_action('wp_ajax_myls_ai_html_excerpt_generate_bulk', function() : void {
     if ( ! current_user_can('manage_options') ) {
         wp_send_json_error(['message' => 'Forbidden'], 403);
     }
+    $batch_start = microtime(true);
 
     $post_ids  = isset($_POST['post_ids']) ? (array) $_POST['post_ids'] : [];
     $overwrite = ! empty($_POST['overwrite']);
@@ -193,6 +200,8 @@ add_action('wp_ajax_myls_ai_html_excerpt_generate_bulk', function() : void {
 
     $results = [];
     foreach ( $post_ids as $pid ) {
+        $item_start = microtime(true);
+        if ( class_exists('MYLS_Variation_Engine') ) { MYLS_Variation_Engine::reset_log(); }
 
         $post = get_post($pid);
         if ( ! $post ) {
@@ -225,10 +234,30 @@ add_action('wp_ajax_myls_ai_html_excerpt_generate_bulk', function() : void {
         $generated = preg_replace('/\s*```$/', '', $generated);
         $generated = trim($generated);
 
+        // ── Variation Engine: duplicate guard for HTML excerpts ──
+        if ( $generated !== '' && class_exists('MYLS_Variation_Engine') ) {
+            $generated = MYLS_Variation_Engine::guard_duplicates(
+                'html_excerpt',
+                $generated,
+                function( $original ) use ( $prompt ) {
+                    $rewrite = "Rewrite this HTML excerpt to be structurally distinct. Replace the first sentence entirely.\nReturn clean HTML only.\n\nOriginal:\n" . $original;
+                    return trim( myls_ai_generate_html_excerpt_text( $rewrite ) );
+                }
+            );
+        }
+
         $saved = false;
         if ( ! $dryrun ) {
             $saved = (bool) update_post_meta($pid, 'html_excerpt', wp_kses_post($generated));
         }
+
+        $ve_log = class_exists('MYLS_Variation_Engine') ? MYLS_Variation_Engine::build_item_log($item_start, [
+            'output_words' => str_word_count(wp_strip_all_tags($generated)),
+            'output_chars' => strlen($generated),
+            'page_title'   => (string) get_the_title($pid),
+            'prompt_chars'  => mb_strlen($prompt),
+            '_html'         => $generated,
+        ]) : ['elapsed_ms' => round((microtime(true) - $item_start) * 1000)];
 
         $results[] = [
             'id'           => $pid,
@@ -237,6 +266,8 @@ add_action('wp_ajax_myls_ai_html_excerpt_generate_bulk', function() : void {
             'dryrun'       => $dryrun,
             'html_excerpt' => $generated,
             'title'        => (string) get_the_title($pid),
+            'preview'      => mb_substr(wp_strip_all_tags($generated), 0, 120) . (mb_strlen(wp_strip_all_tags($generated)) > 120 ? '...' : ''),
+            'log'          => $ve_log,
         ];
     }
 
@@ -244,5 +275,6 @@ add_action('wp_ajax_myls_ai_html_excerpt_generate_bulk', function() : void {
         'count'   => count($results),
         'dryrun'  => $dryrun,
         'results' => $results,
+        'batch_elapsed_ms' => round((microtime(true) - $batch_start) * 1000),
     ]);
 });

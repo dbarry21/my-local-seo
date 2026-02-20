@@ -1,15 +1,41 @@
-The previous draft was too short or missing required sections. Rewrite for {{CITY_STATE}} with these hard requirements:
+The previous draft was too short, missing required sections, or used markdown instead of HTML. Rewrite for {{CITY_STATE}} with these hard requirements:
 
-- 450–600 words.
-- EXACTLY this structure and tags, CLEAN HTML only (no markdown/backticks):
-<p>2–3 sentence intro.</p>
-<h3>Neighborhoods</h3>
-<ul><li>2–4 neighborhoods, 1 detail each</li></ul>
+INPUTS:
+- Page Title: {{PAGE_TITLE}}
+- City/State: {{CITY_STATE}}
+- Focus Keyword: {{FOCUS_KEYWORD}}
+- Service Subtype: {{SERVICE_SUBTYPE}}
+
+OUTPUT FORMAT (CRITICAL):
+- CLEAN HTML ONLY. No markdown. No backticks. No code fences.
+- Allowed tags: <h2>, <h3>, <p>, <ul>, <li>, <strong>.
+- NEVER use asterisks (**) for bold. ALWAYS use <strong> tags.
+
+BOLD TEXT RULES:
+- {{CITY_STATE}} and county names MUST use <strong> tags.
+- Major landmarks and parks SHOULD use <strong> tags.
+- Do not overuse bold formatting.
+
+VARIATION REQUIREMENTS:
+- Do NOT begin with: "Nestled in", "Located in", "Welcome to", "Situated in", "Known for its"
+- Avoid: vibrant, charming, thriving, beautiful, bustling
+- Use specific local references, not generic descriptors.
+
+REQUIRED STRUCTURE (400–600 words):
+
+<h2 style="text-align:center;">About <strong>{{SERVICE_SUBTYPE}}</strong> in <strong>{{CITY_STATE}}</strong></h2>
+
+<p>2–3 sentence intro connecting <strong>{{CITY_STATE}}</strong> to <strong>{{FOCUS_KEYWORD}}</strong> and {{SERVICE_SUBTYPE}}.</p>
+
+<h3>Neighborhoods &amp; Surrounding Areas</h3>
+<ul><li>2–4 neighborhoods with 1 detail each</li></ul>
+
 <h3>Things to Do</h3>
 <ul><li>3–5 highlights with brief specifics</li></ul>
-<h3>Getting Around</h3>
-<p>1–2 sentences on key roads/highways and typical drive times.</p>
-<p>1–2 sentence closing.</p>
 
-Allowed tags: <p>, <h3>, <ul>, <li> only.
-No business promotion. No inline styles. No classes. CLEAN HTML only.
+<h3>Getting Around</h3>
+<p>1–2 sentences on key roads/highways and typical drive times to nearby cities.</p>
+
+<p>1–2 sentence closing that ties back to {{SERVICE_SUBTYPE}} and <strong>{{FOCUS_KEYWORD}}</strong> in <strong>{{CITY_STATE}}</strong>.</p>
+
+No business promotion. No inline styles. No classes. CLEAN HTML with <strong> tags only.

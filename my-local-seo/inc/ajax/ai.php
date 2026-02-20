@@ -121,6 +121,12 @@ add_action('wp_ajax_myls_ai_posts_by_type', function(){
 /** GENERATE META (Yoast title/description) */
 add_action('wp_ajax_myls_ai_generate_meta', function(){
 	myls_ai_check_nonce();
+	$batch_start = microtime(true);
+
+	// Reset variation engine log
+	if ( class_exists('MYLS_Variation_Engine') ) {
+		MYLS_Variation_Engine::reset_log();
+	}
 
 	$kind      = isset($_POST['kind']) ? sanitize_key($_POST['kind']) : 'title'; // 'title'|'desc'
 	$pt        = isset($_POST['pt']) ? sanitize_key($_POST['pt']) : 'page';
@@ -143,12 +149,18 @@ add_action('wp_ajax_myls_ai_generate_meta', function(){
 	$saved_count = 0;
 
 	foreach ($ids as $maybe_id) {
+		$item_start = microtime(true);
 		$id  = (int) $maybe_id;
 		$row = ['id'=>$id, 'post_title'=> get_the_title($id)];
 		if ( ! $id || ! current_user_can('edit_post', $id) ) {
 			$row['error'] = 'Insufficient permissions';
 			$items[] = $row;
 			continue;
+		}
+
+		// Reset VE log per-item
+		if ( class_exists('MYLS_Variation_Engine') ) {
+			MYLS_Variation_Engine::reset_log();
 		}
 
 		$meta_key = ($kind === 'title') ? '_yoast_wpseo_title' : '_yoast_wpseo_metadesc';
@@ -165,7 +177,28 @@ add_action('wp_ajax_myls_ai_generate_meta', function(){
 
 		$ctx = myls_ai_context_for_post($id);
 		$final_prompt = myls_ai_apply_tokens($prompt, $ctx);
+
+		// ── Variation Engine: inject angle + banned phrases for meta generation ──
+		if ( class_exists('MYLS_Variation_Engine') ) {
+			$ve_context = ( stripos($final_prompt, 'Title only') !== false ) ? 'meta_title' : 'meta_description';
+			$angle = MYLS_Variation_Engine::next_angle( $ve_context );
+			$final_prompt = MYLS_Variation_Engine::inject_variation( $final_prompt, $angle, $ve_context );
+		}
+
 		$new = trim( myls_ai_generate_text( $final_prompt ) );
+
+		// ── Variation Engine: duplicate guard for meta fields ──
+		// Checks this output against previous batch outputs; rewrites if >60% similar.
+		if ( $new !== '' && class_exists('MYLS_Variation_Engine') ) {
+			$new = MYLS_Variation_Engine::guard_duplicates(
+				$ve_context ?? 'meta_title',
+				$new,
+				function( $original ) use ( $final_prompt ) {
+					$rewrite = "Rewrite this to be structurally distinct. Use a different opening word and sentence structure.\n\nOriginal: " . $original;
+					return trim( myls_ai_generate_text( $rewrite ) );
+				}
+			);
+		}
 
 		if ($new === '') {
 			$row['old']   = $old;
@@ -190,6 +223,20 @@ add_action('wp_ajax_myls_ai_generate_meta', function(){
 			$saved_count++;
 		}
 
+		// Per-item log data
+		$row['log'] = class_exists('MYLS_Variation_Engine') ? MYLS_Variation_Engine::build_item_log($item_start, [
+			'prompt_chars'   => mb_strlen( $final_prompt ),
+			'output_chars'   => strlen( $new ),
+			'output_words'   => str_word_count( $new ),
+			'page_title'     => get_the_title( $id ),
+			'_html'          => $new,
+			'char_count'     => strlen( $new ),
+			'kind'           => $kind,
+		]) : [
+			'elapsed_ms'     => round( ( microtime(true) - $item_start ) * 1000 ),
+			'kind'           => $kind,
+		];
+
 		$items[] = $row;
 	}
 
@@ -200,7 +247,7 @@ add_action('wp_ajax_myls_ai_generate_meta', function(){
 		count($items) - $saved_count
 	);
 
-	myls_ai_json( ['ok'=>true, 'items'=>$items, 'summary'=>$summary] );
+	myls_ai_json( ['ok'=>true, 'items'=>$items, 'summary'=>$summary, 'batch_elapsed_ms' => round( ( microtime(true) - $batch_start ) * 1000 ) ] );
 });
 
 /* ===================== NEW: About the Area ===================== */

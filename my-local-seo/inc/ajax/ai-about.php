@@ -56,23 +56,35 @@ if ( ! function_exists('myls_about_strip_code_fences') ) {
 /**
  * Convert leftover Markdown formatting to HTML.
  * AI models sometimes return **bold** or *italic* even when told to use HTML.
+ *
+ * IMPORTANT: Bold conversion MUST run before list-item conversion,
+ * otherwise lines starting with **text** get misidentified as list items
+ * because the leading * matches the list-item pattern.
  */
 if ( ! function_exists('myls_about_markdown_to_html') ) {
   function myls_about_markdown_to_html( string $s ) : string {
+
+    // ── Step 1: Bold / Italic (MUST run first) ──────────────────────
     // **bold** or __bold__  →  <strong>bold</strong>
-    $s = preg_replace('/\*\*(.+?)\*\*/s', '<strong>$1</strong>', $s);
-    $s = preg_replace('/__(.+?)__/s', '<strong>$1</strong>', $s);
+    // Use non-greedy match, one line at a time to avoid cross-paragraph grabs
+    $s = preg_replace('/\*\*(.+?)\*\*/u', '<strong>$1</strong>', $s);
+    $s = preg_replace('/__(.+?)__/u', '<strong>$1</strong>', $s);
 
-    // *italic* or _italic_  →  <em>italic</em>  (but not inside URLs or HTML attrs)
-    // Only match single * not preceded/followed by space (avoids list markers)
-    $s = preg_replace('/(?<!\w)\*(?!\s)(.+?)(?<!\s)\*(?!\w)/s', '<em>$1</em>', $s);
+    // *italic* or _italic_  →  <em>italic</em>
+    // Only match single * not preceded/followed by word char (avoids list markers)
+    $s = preg_replace('/(?<!\w)\*(?!\s)(.+?)(?<!\s)\*(?!\w)/u', '<em>$1</em>', $s);
 
+    // ── Step 2: Headings ────────────────────────────────────────────
+    // ## Heading 2  →  <h2>Heading 2</h2>
+    $s = preg_replace('/^##\s*(.+)$/m', '<h2>$1</h2>', $s);
     // ### Heading 3  →  <h3>Heading 3</h3>
     $s = preg_replace('/^###\s*(.+)$/m', '<h3>$1</h3>', $s);
 
-    // Markdown list items at start of line: - item or * item  →  <li>item</li>
-    // (only if not already inside HTML tags)
-    $s = preg_replace('/^[\-\*]\s+(.+)$/m', '<li>$1</li>', $s);
+    // ── Step 3: List items (runs AFTER bold is converted) ───────────
+    // - item or * item  →  <li>item</li>
+    // Only match lines that start with - or * followed by space
+    // Skip lines that are already HTML tags
+    $s = preg_replace('/^[\-\*]\s+(?!<)(.+)$/m', '<li>$1</li>', $s);
 
     // Wrap consecutive <li> blocks in <ul> if not already wrapped
     $s = preg_replace_callback('/(<li>.*?<\/li>\s*)+/s', function($m) {
@@ -81,6 +93,11 @@ if ( ! function_exists('myls_about_markdown_to_html') ) {
       if (strpos($block, '<ul>') !== false) return $block;
       return '<ul>' . $block . '</ul>';
     }, $s);
+
+    // ── Step 4: Clean up any stray asterisks that survived ──────────
+    // Remove lone asterisks that were meant as bold markers but didn't match
+    // (e.g., unmatched ** at end of truncated output)
+    $s = preg_replace('/(?<!\w)\*{2,}(?!\w)/', '', $s);
 
     return $s;
   }
@@ -145,6 +162,12 @@ add_action('wp_ajax_myls_ai_about_get_posts_v2', function(){
 /** v2: generate + save one post (SAVE TO _about_the_area) */
 add_action('wp_ajax_myls_ai_about_generate_v2', function(){
   myls_ai_check_nonce();
+  $start_time = microtime(true);
+
+  // Reset variation engine log for this request
+  if ( class_exists('MYLS_Variation_Engine') ) {
+    MYLS_Variation_Engine::reset_log();
+  }
 
   $post_id     = (int) ($_POST['post_id'] ?? 0);
   $skip_filled = !empty($_POST['skip_filled']);
@@ -175,6 +198,22 @@ add_action('wp_ajax_myls_ai_about_generate_v2', function(){
   if ( $city_state === '' ) $city_state = (string) get_post_meta($post_id, 'city_state', true);
   if ( $city_state === '' ) $city_state = get_the_title($post_id);
 
+  // Page title
+  $page_title = get_the_title($post_id);
+
+  // Yoast focus keyword (fall back to empty string)
+  $focus_keyword = (string) get_post_meta($post_id, '_yoast_wpseo_focuskw', true);
+  if ( $focus_keyword === '' ) {
+    // Try Rank Math as fallback
+    $focus_keyword = (string) get_post_meta($post_id, 'rank_math_focus_keyword', true);
+  }
+
+  // Service Subtype from Schema settings (fall back to page title)
+  $service_subtype = (string) get_option('myls_service_subtype', '');
+  if ( $service_subtype === '' ) {
+    $service_subtype = (string) get_option('myls_service_default_type', '');
+  }
+
   // Strong, shape-enforcing prompt
   $base_prompt = myls_get_default_prompt('about-area');
 
@@ -186,7 +225,22 @@ add_action('wp_ajax_myls_ai_about_generate_v2', function(){
   if ( strpos($template, '{{CITY_STATE}}') === false ) {
     $template .= "\n\n(Location: {{CITY_STATE}})";
   }
-  $prompt_1 = str_replace('{{CITY_STATE}}', $city_state, $template);
+
+  // Replace all placeholders
+  $prompt_1 = str_replace(
+    ['{{CITY_STATE}}', '{{PAGE_TITLE}}', '{{FOCUS_KEYWORD}}', '{{SERVICE_SUBTYPE}}'],
+    [$city_state, $page_title, $focus_keyword ?: $page_title, $service_subtype ?: $page_title],
+    $template
+  );
+
+  // ── Variation Engine: inject angle rotation + banned phrases ──────
+  // This prevents batch runs from producing "Nestled in the heart of..." on every page.
+  // Each call gets a different opening angle (homeowner, climate, growth, etc.)
+  // and a list of banned stock phrases appended to the prompt.
+  if ( class_exists('MYLS_Variation_Engine') ) {
+    $angle   = MYLS_Variation_Engine::next_angle('about_the_area');
+    $prompt_1 = MYLS_Variation_Engine::inject_variation( $prompt_1, $angle, 'about_the_area' );
+  }
 
   // ----- First pass
   $html_1 = myls_ai_generate_text($prompt_1, [
@@ -212,7 +266,11 @@ add_action('wp_ajax_myls_ai_about_generate_v2', function(){
   // ----- Retry once if too short or missing <h3>
   if ( ! $ok_len || ! $ok_h3 ) {
     $retry_prompt = myls_get_default_prompt('about-area-retry');
-    $retry_prompt = str_replace('{{CITY_STATE}}', $city_state, $retry_prompt);
+    $retry_prompt = str_replace(
+      ['{{CITY_STATE}}', '{{PAGE_TITLE}}', '{{FOCUS_KEYWORD}}', '{{SERVICE_SUBTYPE}}'],
+      [$city_state, $page_title, $focus_keyword ?: $page_title, $service_subtype ?: $page_title],
+      $retry_prompt
+    );
 
     $html_2 = myls_ai_generate_text($retry_prompt, [
       'model'       => $model,
@@ -233,8 +291,47 @@ add_action('wp_ajax_myls_ai_about_generate_v2', function(){
     $final_html = $cand;
   }
 
+  // ── Variation Engine: duplicate guard ───────────────────────────────
+  // Compares this output's first 300 chars against all previous outputs in the
+  // current batch. If similarity > 60%, triggers an automatic rewrite pass
+  // that replaces the first two sentences to ensure structural uniqueness.
+  if ( class_exists('MYLS_Variation_Engine') ) {
+    $final_html = MYLS_Variation_Engine::guard_duplicates(
+      'about_the_area',
+      $final_html,
+      function( $original_html ) use ( $model, $tokens, $temperature, $post_id, $city_state ) {
+        // Build a rewrite prompt that forces structural differentiation
+        $rewrite_prompt  = "Rewrite the following About the Area HTML to be structurally distinct.\n";
+        $rewrite_prompt .= "Replace the first two sentences entirely with a different opening angle.\n";
+        $rewrite_prompt .= "Do NOT begin with: 'Nestled in', 'Located in', 'Welcome to', 'Situated in', 'Known for', 'In the heart of'.\n";
+        $rewrite_prompt .= "Keep the same city ({$city_state}), same sections, same HTML formatting.\n";
+        $rewrite_prompt .= "Return clean HTML only, no markdown, no code fences.\n\n";
+        $rewrite_prompt .= "Original HTML:\n" . $original_html;
+
+        $rewritten = myls_ai_generate_text( $rewrite_prompt, [
+          'model'       => $model,
+          'max_tokens'  => max( $tokens, 1600 ),
+          'temperature' => min( 1.0, $temperature + 0.1 ), // slightly higher for diversity
+          'context'     => 'about_the_area',
+          'post_id'     => $post_id,
+        ] );
+
+        if ( is_string( $rewritten ) && trim( $rewritten ) !== '' ) {
+          return myls_about_clean_ai_response( $rewritten );
+        }
+        return $original_html; // fallback: keep original if rewrite fails
+      }
+    );
+  }
+
   // Sanitize and save to _about_the_area
   $allowed = wp_kses_allowed_html('post');
+  // Ensure <h2> allows style="text-align:center" for the section header
+  if ( isset($allowed['h2']) ) {
+    $allowed['h2']['style'] = true;
+  } else {
+    $allowed['h2'] = ['style' => true, 'id' => true, 'class' => true];
+  }
   $clean   = wp_kses( wp_unslash($final_html), $allowed );
 
   $saved = (bool) update_post_meta($post_id, '_about_the_area', $clean);
@@ -254,12 +351,33 @@ add_action('wp_ajax_myls_ai_about_generate_v2', function(){
     ], 500);
   }
 
+  // ── Build enterprise log ─────────────────────────────────────────
+  $output_plain = wp_strip_all_tags( $clean );
+
+  $ve_log = class_exists('MYLS_Variation_Engine') ? MYLS_Variation_Engine::build_item_log($start_time, [
+    'model'           => $model,
+    'tokens'          => $tokens,
+    'temperature'     => $temperature,
+    'prompt_chars'    => mb_strlen( $prompt_1 ),
+    'output_words'    => str_word_count( $output_plain ),
+    'output_chars'    => strlen( $clean ),
+    'page_title'      => $page_title,
+    'city_state'      => $city_state,
+    'focus_keyword'   => $focus_keyword ?: '(none)',
+    '_html'           => $clean,
+    // About-specific extras
+    'has_h3'          => myls_about_has_h3( $clean ),
+    'retry_used'      => isset($html_2),
+    'service_subtype' => $service_subtype ?: '(none)',
+  ]) : ['elapsed_ms' => round((microtime(true) - $start_time) * 1000)];
+
   wp_send_json_success([
     'marker'     => 'about_v2',
     'status'     => 'saved',
     'post_id'    => $post_id,
     'city_state' => $city_state,
     'length'     => strlen($clean),
-    'preview'    => mb_substr( wp_strip_all_tags($verify), 0, 100 ) . ( strlen( wp_strip_all_tags($verify) ) > 100 ? '…' : '' ),
+    'preview'    => mb_substr( $output_plain, 0, 120 ) . ( mb_strlen($output_plain) > 120 ? '...' : '' ),
+    'log'        => $ve_log,
   ]);
 });

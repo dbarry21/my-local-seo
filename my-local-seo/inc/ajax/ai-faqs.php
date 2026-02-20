@@ -101,6 +101,11 @@ if ( ! function_exists('myls_ai_fetch_permalink_text') ) {
       $main = $html;
     }
 
+    // Insert spaces before closing block-level tags to prevent word concatenation
+    // e.g. <li>word1</li><li>word2</li> → word1 word2 (not word1word2)
+    $main = preg_replace('#</(p|div|li|h[1-6]|tr|td|th|dd|dt|blockquote|section|article|header|footer|aside|nav|figure|figcaption|option|label|span|a|strong|em|b|i|u)>#i', '</$1> ', $main);
+    $main = preg_replace('#<br\s*/?\s*>#i', ' ', $main);
+
     $text = wp_strip_all_tags($main);
     $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, get_bloginfo('charset') ?: 'UTF-8');
     $text = preg_replace('/\s+/u', ' ', trim($text));
@@ -118,8 +123,157 @@ if ( ! function_exists('myls_ai_fetch_permalink_text') ) {
 if ( ! function_exists('myls_ai_strip_code_fences') ) {
   function myls_ai_strip_code_fences( string $s ) : string {
     $s = preg_replace('/^\s*```[a-zA-Z0-9_-]*\s*\n/u', '', $s);
-    $s = preg_replace('/\n?\s*```\\s*$/u', '', $s);
+    $s = preg_replace('/\n?\s*```\s*$/u', '', $s);
     return str_replace("```", "", (string)$s);
+  }
+}
+
+/* -------------------------------------------------------------------------
+ * Markdown → HTML fallback converter (NEW)
+ *
+ * If the AI returns markdown despite being told to produce HTML, detect it
+ * and convert the most common markdown patterns to the allowed HTML tags.
+ * This prevents wp_kses() from stripping everything and leaving garbage.
+ * ------------------------------------------------------------------------- */
+if ( ! function_exists('myls_ai_detect_markdown') ) {
+  /**
+   * Returns true if the string looks like it contains markdown rather than HTML.
+   */
+  function myls_ai_detect_markdown( string $s ) : bool {
+    $s = trim($s);
+    if ( $s === '' ) return false;
+
+    // Count markdown indicators vs HTML indicators
+    $md_score  = 0;
+    $html_score = 0;
+
+    // Markdown headings: ## or ###
+    if ( preg_match_all('/^#{1,6}\s+/m', $s) > 0 ) $md_score += 3;
+    // Markdown bold: **text**
+    if ( preg_match_all('/\*\*[^*]+\*\*/', $s) > 0 ) $md_score += 2;
+    // Markdown italic: *text* (not **)
+    if ( preg_match_all('/(?<!\*)\*(?!\*)[^*]+\*(?!\*)/', $s) > 0 ) $md_score += 1;
+    // Markdown list items: - item or * item at start of line
+    if ( preg_match_all('/^[\-\*]\s+/m', $s) > 1 ) $md_score += 2;
+    // Markdown numbered lists: 1. item
+    if ( preg_match_all('/^\d+\.\s+/m', $s) > 1 ) $md_score += 2;
+
+    // HTML tags
+    if ( preg_match_all('/<(h[1-6]|p|ul|ol|li|strong|em)\b/i', $s) > 0 ) $html_score += 3;
+    if ( preg_match_all('/<\/(h[1-6]|p|ul|ol|li)>/i', $s) > 0 ) $html_score += 2;
+
+    return ( $md_score > $html_score );
+  }
+}
+
+if ( ! function_exists('myls_ai_markdown_to_html') ) {
+  /**
+   * Convert common markdown patterns to HTML.
+   * Handles: headings, bold, italic, unordered lists, ordered lists, paragraphs.
+   */
+  function myls_ai_markdown_to_html( string $md ) : string {
+    $md = trim($md);
+    if ( $md === '' ) return '';
+
+    // Normalize line endings
+    $md = str_replace(["\r\n", "\r"], "\n", $md);
+
+    $lines  = explode("\n", $md);
+    $html   = '';
+    $in_ul  = false;
+    $in_ol  = false;
+
+    foreach ( $lines as $line ) {
+      $trimmed = trim($line);
+
+      // Skip empty lines (close any open list)
+      if ( $trimmed === '' ) {
+        if ( $in_ul ) { $html .= "</ul>\n"; $in_ul = false; }
+        if ( $in_ol ) { $html .= "</ol>\n"; $in_ol = false; }
+        continue;
+      }
+
+      // Headings: ## Heading → <h2>Heading</h2>
+      if ( preg_match('/^(#{1,6})\s+(.+)$/', $trimmed, $m) ) {
+        if ( $in_ul ) { $html .= "</ul>\n"; $in_ul = false; }
+        if ( $in_ol ) { $html .= "</ol>\n"; $in_ol = false; }
+        $level = strlen($m[1]);
+        $text  = myls_ai_md_inline($m[2]);
+        $html .= "<h{$level}>{$text}</h{$level}>\n";
+        continue;
+      }
+
+      // Unordered list: - item or * item
+      if ( preg_match('/^[\-\*]\s+(.+)$/', $trimmed, $m) ) {
+        if ( $in_ol ) { $html .= "</ol>\n"; $in_ol = false; }
+        if ( ! $in_ul ) { $html .= "<ul>\n"; $in_ul = true; }
+        $html .= "<li>" . myls_ai_md_inline($m[1]) . "</li>\n";
+        continue;
+      }
+
+      // Ordered list: 1. item
+      if ( preg_match('/^\d+\.\s+(.+)$/', $trimmed, $m) ) {
+        if ( $in_ul ) { $html .= "</ul>\n"; $in_ul = false; }
+        if ( ! $in_ol ) { $html .= "<ol>\n"; $in_ol = true; }
+        $html .= "<li>" . myls_ai_md_inline($m[1]) . "</li>\n";
+        continue;
+      }
+
+      // Regular paragraph
+      if ( $in_ul ) { $html .= "</ul>\n"; $in_ul = false; }
+      if ( $in_ol ) { $html .= "</ol>\n"; $in_ol = false; }
+      $html .= "<p>" . myls_ai_md_inline($trimmed) . "</p>\n";
+    }
+
+    // Close any still-open list
+    if ( $in_ul ) $html .= "</ul>\n";
+    if ( $in_ol ) $html .= "</ol>\n";
+
+    return $html;
+  }
+}
+
+if ( ! function_exists('myls_ai_md_inline') ) {
+  /**
+   * Convert inline markdown: **bold**, *italic*, [text](url)
+   */
+  function myls_ai_md_inline( string $s ) : string {
+    // Bold: **text**
+    $s = preg_replace('/\*\*(.+?)\*\*/', '<strong>$1</strong>', $s);
+    // Italic: *text*
+    $s = preg_replace('/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/', '<em>$1</em>', $s);
+    // Links: [text](url)
+    $s = preg_replace('/\[([^\]]+)\]\(([^)]+)\)/', '<a href="$2">$1</a>', $s);
+    return $s;
+  }
+}
+
+/* -------------------------------------------------------------------------
+ * Output validation: check if generated HTML has a reasonable FAQ structure
+ * ------------------------------------------------------------------------- */
+if ( ! function_exists('myls_ai_faqs_validate_output') ) {
+  /**
+   * Returns true if the output looks like valid FAQ HTML.
+   * Checks for:
+   *  - At least one <h3> tag (question)
+   *  - At least one <p> tag (answer)
+   *  - No excessively long runs of characters without spaces (garbled text)
+   */
+  function myls_ai_faqs_validate_output( string $html ) : bool {
+    $html = trim($html);
+    if ( $html === '' ) return false;
+
+    // Must have at least one question heading
+    if ( preg_match_all('/<h3\b/i', $html) < 1 ) return false;
+
+    // Must have at least one paragraph
+    if ( preg_match_all('/<p\b/i', $html) < 1 ) return false;
+
+    // Check for garbled text: words longer than 60 chars without spaces
+    $text = wp_strip_all_tags($html);
+    if ( preg_match('/[^\s]{60,}/', $text) ) return false;
+
+    return true;
   }
 }
 
@@ -802,6 +956,8 @@ add_action('wp_ajax_myls_ai_faqs_get_posts_v1', function(){
  * ------------------------------------------------------------------------- */
 add_action('wp_ajax_myls_ai_faqs_generate_v1', function(){
   myls_ai_check_nonce();
+  $start_time = microtime(true);
+  if ( class_exists('MYLS_Variation_Engine') ) { MYLS_Variation_Engine::reset_log(); }
 
   $post_id     = (int) ($_POST['post_id'] ?? 0);
   $allow_links = ! empty($_POST['allow_links']);
@@ -886,6 +1042,14 @@ add_action('wp_ajax_myls_ai_faqs_generate_v1', function(){
     $template
   );
 
+  // ── Variation Engine: inject angle + banned phrases for FAQ generation ──
+  // FAQs are extremely prone to duplication across service area pages.
+  // The angle controls question perspective diversity (cost, timing, materials, etc.)
+  if ( class_exists('MYLS_Variation_Engine') ) {
+    $angle  = MYLS_Variation_Engine::next_angle('faqs_generate');
+    $prompt = MYLS_Variation_Engine::inject_variation( $prompt, $angle, 'faqs_generate' );
+  }
+
   // Params (fallback to options)
   $tokens = max(1, (int) ($_POST['tokens'] ?? (int) get_option('myls_ai_faqs_tokens', 10000)));
   $temp   = (float) ($_POST['temperature'] ?? (float) get_option('myls_ai_faqs_temperature', 0.5));
@@ -900,6 +1064,34 @@ add_action('wp_ajax_myls_ai_faqs_generate_v1', function(){
   ]);
 
   $raw = myls_ai_strip_code_fences((string)$ai);
+
+  // ── NEW: Detect and convert markdown → HTML if the AI ignored the HTML-only instruction ──
+  if ( $raw !== '' && myls_ai_detect_markdown($raw) ) {
+    $raw = myls_ai_markdown_to_html($raw);
+    error_log('[MYLS FAQ] AI returned markdown for post #' . $post_id . ' — auto-converted to HTML.');
+  }
+
+  // ── Variation Engine: duplicate guard for FAQs ──
+  if ( $raw !== '' && class_exists('MYLS_Variation_Engine') ) {
+    $raw = MYLS_Variation_Engine::guard_duplicates(
+      'faqs_generate',
+      $raw,
+      function( $original ) use ( $model, $tokens, $temp, $post_id, $city_state ) {
+        $rewrite  = "Rewrite these FAQs to be structurally distinct.\n";
+        $rewrite .= "Replace the first 3 questions entirely with different topics.\n";
+        $rewrite .= "Keep the same city ({$city_state}), same HTML formatting.\n";
+        $rewrite .= "Return clean HTML only.\n\nOriginal:\n" . $original;
+        $result = myls_ai_generate_text( $rewrite, [
+          'model'       => $model ?: null,
+          'max_tokens'  => $tokens,
+          'temperature' => min( 1.0, $temp + 0.1 ),
+          'context'     => 'faqs_generate',
+          'post_id'     => $post_id,
+        ]);
+        return myls_ai_strip_code_fences( (string) $result );
+      }
+    );
+  }
 
   // Sanitize output HTML
   $allowed = [
@@ -935,9 +1127,40 @@ add_action('wp_ajax_myls_ai_faqs_generate_v1', function(){
 
   $clean = wp_kses($raw, $allowed);
 
+  // ── NEW: Validate the output before accepting it ──
+  if ( $clean !== '' && ! myls_ai_faqs_validate_output($clean) ) {
+    error_log('[MYLS FAQ] Output validation failed for post #' . $post_id . '. Raw length: ' . strlen($raw));
+    wp_send_json_error([
+      'status'  => 'error',
+      'message' => 'AI returned malformed FAQ content (no valid question/answer structure detected). Try regenerating this post.',
+      'post_id' => $post_id,
+      'title'   => $title,
+      'raw_preview' => mb_substr(wp_strip_all_tags($raw), 0, 300),
+    ], 422);
+  }
+
   // Save downloads
   $html_url = myls_ai_faqs_save_html($post_id, (string)$title, (string)$url, (string)$clean);
   $doc_url  = myls_ai_faqs_save_docx($post_id, (string)$title, (string)$clean);
+
+  // Count questions generated
+  $faq_count = preg_match_all('/<h3\b/i', $clean);
+
+  $ve_log = class_exists('MYLS_Variation_Engine') ? MYLS_Variation_Engine::build_item_log($start_time, [
+    'model'          => $model ?: 'default',
+    'tokens'         => $tokens,
+    'temperature'    => $temp,
+    'prompt_chars'   => mb_strlen($prompt),
+    'output_words'   => str_word_count(wp_strip_all_tags($clean)),
+    'output_chars'   => strlen($clean),
+    'page_title'     => (string) $title,
+    'city_state'     => $city_state,
+    '_html'          => $clean,
+    'variant'        => $variant,
+    'faq_count'      => $faq_count ?: 0,
+    'has_doc'        => trim($doc_url ?? '') !== '',
+    'allow_links'    => $allow_links,
+  ]) : ['elapsed_ms' => round((microtime(true) - $start_time) * 1000)];
 
   wp_send_json_success([
     'status'   => 'ok',
@@ -948,6 +1171,9 @@ add_action('wp_ajax_myls_ai_faqs_generate_v1', function(){
     'raw'      => (string) $raw,
     'html_url' => (string) $html_url,
     'doc_url'  => (string) $doc_url,
+    'city_state' => $city_state,
+    'preview'  => mb_substr(wp_strip_all_tags($clean), 0, 120) . (mb_strlen(wp_strip_all_tags($clean)) > 120 ? '...' : ''),
+    'log'      => $ve_log,
   ]);
 });
 

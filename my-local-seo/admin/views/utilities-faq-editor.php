@@ -78,7 +78,11 @@ $default_pt = isset($pts['page']) ? 'page' : ( $pts ? array_key_first($pts) : 'p
       </div>
 
       <div class="mt-3">
-        <pre id="myls-fe-log" style="background:#0b1220;color:#d1e7ff;padding:12px;border-radius:8px;min-height:120px;max-height:260px;overflow:auto;white-space:pre-wrap;">Ready.</pre>
+        <div class="myls-results-header">
+          <strong>Results</strong>
+          <button type="button" class="myls-btn-export-pdf" data-log-target="myls-fe-log"><i class="bi bi-file-earmark-pdf"></i> PDF</button>
+        </div>
+        <pre id="myls-fe-log" class="myls-results-terminal">Ready.</pre>
       </div>
     </div>
   </div>

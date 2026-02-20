@@ -16,6 +16,8 @@ add_action('wp_ajax_myls_pb_create_page', function () {
     if ( ! wp_verify_nonce($_POST['_wpnonce'] ?? '', 'myls_pb_create') ) {
         wp_send_json_error(['message' => 'Bad nonce'], 400);
     }
+    $start_time = microtime(true);
+    if ( class_exists('MYLS_Variation_Engine') ) { MYLS_Variation_Engine::reset_log(); }
 
     // ── Collect & sanitize inputs ───────────────────────────────────────
     $page_title      = sanitize_text_field($_POST['page_title'] ?? '');
@@ -185,6 +187,12 @@ add_action('wp_ajax_myls_pb_create_page', function () {
         $prompt .= $image_instructions;
     }
 
+    // ── Variation Engine: inject angle for page builder generation ──
+    if ( class_exists('MYLS_Variation_Engine') ) {
+        $angle  = MYLS_Variation_Engine::next_angle('about_the_area');
+        $prompt = MYLS_Variation_Engine::inject_variation( $prompt, $angle, 'about_the_area' );
+    }
+
     if ( function_exists('myls_openai_chat') ) {
         $model = (string) get_option('myls_openai_model', 'gpt-4o');
         $html = myls_openai_chat($prompt, [
@@ -337,14 +345,30 @@ GENERAL:
     }
     $log_lines[] = "   Edit: {$edit_url}";
 
+    $ve_log = class_exists('MYLS_Variation_Engine') ? MYLS_Variation_Engine::build_item_log($start_time, [
+        'page_title'   => $page_title,
+        'post_type'    => $post_type,
+        'page_status'  => $page_status,
+        'image_count'  => count($generated_images ?? []),
+        'ai_used'      => $ai_used ?? false,
+        'output_words' => str_word_count(wp_strip_all_tags($html ?? '')),
+        'output_chars' => strlen($html ?? ''),
+        'prompt_chars' => isset($prompt) ? mb_strlen($prompt) : 0,
+        '_html'        => $html ?? '',
+    ]) : ['elapsed_ms' => round((microtime(true) - $start_time) * 1000)];
+
     wp_send_json_success([
         'message'  => "{$type_label} {$action_label} successfully.",
-        'log'      => implode("\n", $log_lines),
+        'log_text' => implode("\n", $log_lines),
+        'log'      => $ve_log,
         'post_id'  => $post_id,
         'edit_url' => $edit_url,
         'view_url' => $view_url,
         'ai_used'  => $ai_used,
         'images'   => $generated_images,
+        'status'   => 'saved',
+        'title'    => $page_title,
+        'preview'  => "Created {$type_label}: \"{$page_title}\" (ID {$post_id})",
     ]);
 });
 

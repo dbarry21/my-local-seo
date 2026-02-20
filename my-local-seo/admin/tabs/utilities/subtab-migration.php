@@ -49,7 +49,11 @@ return [
 
 			<hr/>
 
-			<pre id="myls_migration_log" style="background:#f8f9fa;border:1px solid #ddd;padding:12px;min-height:120px;"></pre>
+			<div class="myls-results-header">
+				<h5 class="mb-0">Results</h5>
+				<button type="button" class="myls-btn-export-pdf" data-log-target="myls_migration_log"><i class="bi bi-file-earmark-pdf"></i> PDF</button>
+			</div>
+			<pre id="myls_migration_log" class="myls-results-terminal">Ready.</pre>
 		</div>
 
 		<script>

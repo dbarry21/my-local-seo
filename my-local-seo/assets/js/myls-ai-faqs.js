@@ -302,7 +302,20 @@
 
     clearPreviewPanes();
     setBusy(true, "Generating…");
-    log(`Generate queued: ${ids.length} post(s).`);
+
+    const LOG = window.mylsLog;
+    const total = ids.length;
+    let stats = { saved: 0, skipped: 0, errors: 0 };
+    const tracker = LOG ? LOG.createTracker() : null;
+
+    if (LOG && elResults) {
+      LOG.clear(elResults, LOG.batchStart('FAQ Generation', total, {
+        tokens: currentTokens(),
+        temperature: currentTemperature()
+      }));
+    } else {
+      log(`Generate queued: ${ids.length} post(s).`);
+    }
 
     const genAction = CFG.action_generate;
     if (!genAction) throw new Error("Missing AJAX action for generate.");
@@ -311,10 +324,9 @@
       if (STOP) break;
 
       const title = getTitleForPost(postId);
+      const idx = processed + 1;
 
       try {
-        log(`Generating FAQs for ${title}…`);
-
         const data = await postAJAX(genAction, {
           post_id: postId,
           allow_links: allowLinks() ? "1" : "0",
@@ -332,13 +344,34 @@
         lastDocxUrl = String(data.doc_url || "").trim();
         lastHtmlUrl = String(data.html_url || "").trim();
 
+        if (LOG && elResults && data.log) {
+          LOG.append(LOG.formatEntry(postId, {
+            status: 'generated',
+            city_state: data.city_state || '',
+            preview: data.preview || '',
+            log: Object.assign({}, data.log, { page_title: data.title || title })
+          }, { index: idx, total: total, handler: 'FAQ Generation' }), elResults);
+        } else {
+          log(`✔ Generated FAQs for ${title}`);
+        }
+        stats.saved++;
+        if (tracker) tracker.track(data);
+
         processed++;
         if (elCount) elCount.textContent = String(processed);
       } catch (e) {
-        log(`❌ Generate error for ${title}: ${e.message}`);
+        if (LOG && elResults) {
+          LOG.append(LOG.formatError(postId, { message: e.message }, { index: idx, total: total }), elResults);
+        } else {
+          log(`❌ Generate error for ${title}: ${e.message}`);
+        }
+        stats.errors++;
       }
     }
 
+    if (LOG && elResults) {
+      LOG.append(LOG.batchSummary(tracker ? tracker.getSummary(stats) : stats), elResults);
+    }
     setBusy(false, STOP ? "Stopped." : "Done.");
   }
 

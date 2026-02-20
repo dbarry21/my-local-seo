@@ -206,8 +206,16 @@
       const dryrun    = $dryrun.is(':checked') ? 1 : 0;
       const prompt    = (kind === 'title') ? ($titlePrompt.val() || '') : ($descPrompt.val() || '');
 
+      const LOG = window.mylsLog;
+      const total = ids.length;
+
       setBusy(true);
-      log(`Starting ${kind === 'title' ? 'Title' : 'Description'} generation for ${ids.length} post(s)...`);
+
+      if (LOG) {
+        LOG.clear($results[0], LOG.batchStart('Meta ' + (kind === 'title' ? 'Titles' : 'Descriptions'), total));
+      } else {
+        log(`Starting ${kind === 'title' ? 'Title' : 'Description'} generation for ${total} post(s)...`);
+      }
 
       ajaxPostJSON(ajaxurl, {
         action: 'myls_ai_generate_meta',
@@ -223,16 +231,52 @@
           log('Generation failed or returned invalid response.');
           return;
         }
-        (res.items || []).forEach(function(row){
+        let stats = { saved: 0, skipped: 0, errors: 0 };
+        var tracker = LOG ? LOG.createTracker() : null;
+        (res.items || []).forEach(function(row, i){
           const id = row.id, title = row.post_title || '(no title)';
           if (row.error) {
-            log(`#${id} ${title} — ERROR: ${row.error}`);
+            if (LOG) {
+              LOG.append(LOG.formatError(id, { message: row.error }, { index: i+1, total: total }), $results[0]);
+            } else {
+              log(`#${id} ${title} — ERROR: ${row.error}`);
+            }
+            stats.errors++;
             return;
           }
-          const savedTxt = row.saved ? 'SAVED' : (row.dryrun ? 'PREVIEW' : 'SKIPPED');
-          log(`#${id} ${title} — ${savedTxt}\n  old: ${row.old || '(empty)'}\n  new: ${row.new || '(empty)'}\n`);
+          if (!row.saved && !row.dryrun) {
+            if (LOG) {
+              LOG.append(LOG.formatSkipped(id, { reason: row.msg || 'exists' }, { index: i+1, total: total }), $results[0]);
+            } else {
+              log(`#${id} ${title} — SKIPPED: ${row.msg || ''}`);
+            }
+            stats.skipped++;
+            return;
+          }
+          if (LOG && row.log) {
+            const entryData = {
+              status: row.saved ? 'saved' : (row.dryrun ? 'dryrun' : 'skipped'),
+              post_id: id,
+              preview: row.new || '',
+              log: Object.assign({}, row.log, {
+                page_title: title,
+                old_value: row.old || '(empty)',
+                new_value: row.new || '(empty)',
+              })
+            };
+            LOG.append(LOG.formatEntry(id, entryData, { index: i+1, total: total, handler: 'Meta ' + kind }), $results[0]);
+            if (tracker) tracker.track(entryData);
+          } else {
+            const savedTxt = row.saved ? 'SAVED' : (row.dryrun ? 'PREVIEW' : 'SKIPPED');
+            log(`#${id} ${title} — ${savedTxt}\n  old: ${row.old || '(empty)'}\n  new: ${row.new || '(empty)'}\n`);
+          }
+          if (row.saved) stats.saved++;
         });
-        if (res.summary) log(res.summary);
+        if (LOG) {
+          LOG.append(LOG.batchSummary(tracker ? tracker.getSummary(stats) : stats), $results[0]);
+        } else if (res.summary) {
+          log(res.summary);
+        }
       }).fail(function(){
         log('AJAX error while generating. Check ajaxurl/nonce.');
       }).always(function(){
@@ -415,11 +459,18 @@
 
       const overwrite = $exOverwrite.is(':checked') ? 1 : 0;
       const dryrun    = $exDryrun.is(':checked') ? 1 : 0;
+      const LOG = window.mylsLog;
+      const total = ids.length;
 
-      $exResults.text('');
+      if (LOG) {
+        LOG.clear($exResults[0], LOG.batchStart('Excerpts', total, { dryrun: dryrun ? 'Yes' : 'No' }));
+      } else {
+        $exResults.text('');
+        exLog('Processing... generating excerpts for ' + total + ' posts...');
+      }
+
       const oldTxt = $exGen.text();
       $exGen.prop('disabled', true).text('Processing...');
-      exLog('Processing... generating excerpts for ' + ids.length + ' posts...');
 
       ajaxPostJSON(ajaxurl, {
         action: 'myls_ai_excerpt_generate_v1',
@@ -435,26 +486,49 @@
         }
 
         const rows = (res.data && Array.isArray(res.data.results)) ? res.data.results : [];
-        exLog('Done. Results: ' + rows.length + '. Dry-run: ' + (dryrun ? 'YES' : 'NO'));
+        let stats = { saved: 0, skipped: 0, errors: 0 };
+        var exTracker = LOG ? LOG.createTracker() : null;
 
-        rows.forEach(function(r){
+        rows.forEach(function(r, i){
           if (r.skipped) {
-            exLog('#' + r.id + ' SKIPPED — ' + (r.reason || ''));
+            if (LOG) {
+              LOG.append(LOG.formatSkipped(r.id, { reason: r.reason || 'exists' }, { index: i+1, total: total }), $exResults[0]);
+            } else {
+              exLog('#' + r.id + ' SKIPPED — ' + (r.reason || ''));
+            }
+            stats.skipped++;
             return;
           }
           if (!r.ok) {
-            exLog('#' + r.id + ' ERROR — ' + (r.error || 'Unknown'));
+            if (LOG) {
+              LOG.append(LOG.formatError(r.id, { message: r.error || 'Unknown' }, { index: i+1, total: total }), $exResults[0]);
+            } else {
+              exLog('#' + r.id + ' ERROR — ' + (r.error || 'Unknown'));
+            }
+            stats.errors++;
             return;
           }
-          const savedTxt = r.saved ? 'SAVED' : (r.dryrun ? 'PREVIEW' : 'OK');
-          exLog('#' + r.id + ' ' + (r.title || '') + ' — ' + savedTxt);
-          exLog('  ' + (r.excerpt || ''));
+          if (LOG && r.log) {
+            var entryData = {
+              status: r.saved ? 'saved' : (r.dryrun ? 'dryrun' : 'ok'),
+              preview: r.preview || r.excerpt || '',
+              log: Object.assign({}, r.log, { page_title: r.title || '' })
+            };
+            LOG.append(LOG.formatEntry(r.id, entryData, { index: i+1, total: total, handler: 'Excerpts' }), $exResults[0]);
+            if (exTracker) exTracker.track(entryData);
+          } else {
+            const savedTxt = r.saved ? 'SAVED' : (r.dryrun ? 'PREVIEW' : 'OK');
+            exLog('#' + r.id + ' ' + (r.title || '') + ' — ' + savedTxt);
+            exLog('  ' + (r.excerpt || ''));
+          }
+          if (r.saved) stats.saved++;
         });
+
+        if (LOG) {
+          LOG.append(LOG.batchSummary(exTracker ? exTracker.getSummary(stats) : stats), $exResults[0]);
+        }
       }).fail(function(xhr){
         exLog('AJAX error generating excerpts.');
-        try {
-          if (xhr && xhr.responseText) exLog(String(xhr.responseText).slice(0, 300));
-        } catch(e){}
       }).always(function(){
         $exGen.prop('disabled', false).text(oldTxt);
       });
@@ -536,11 +610,18 @@
 
       var overwrite = $('#myls_ai_ex_overwrite').is(':checked') ? 1 : 0;
       var dryrun    = $('#myls_ai_ex_dryrun').is(':checked') ? 1 : 0;
+      var LOG = window.mylsLog;
+      var total = ids.length;
 
-      $hexResults.text('');
+      if (LOG) {
+        LOG.clear($hexResults[0], LOG.batchStart('HTML Excerpts', total, { dryrun: dryrun ? 'Yes' : 'No' }));
+      } else {
+        $hexResults.text('');
+        hexLog('Generating HTML excerpts for ' + total + ' post(s)...');
+      }
+
       var oldTxt = $hexGen.text();
       $hexGen.prop('disabled', true).text('Processing...');
-      hexLog('Generating HTML excerpts for ' + ids.length + ' post(s)...');
 
       ajaxPostJSON(ajaxurl, {
         action: 'myls_ai_html_excerpt_generate_bulk',
@@ -556,26 +637,48 @@
         }
 
         var rows = (res.data && Array.isArray(res.data.results)) ? res.data.results : [];
-        hexLog('Done. Results: ' + rows.length + '. Dry-run: ' + (dryrun ? 'YES' : 'NO'));
+        var stats = { saved: 0, skipped: 0, errors: 0 };
+        var hexTracker = LOG ? LOG.createTracker() : null;
 
-        rows.forEach(function(r){
+        rows.forEach(function(r, i){
           if (r.skipped) {
-            hexLog('#' + r.id + ' SKIPPED — ' + (r.reason || ''));
+            if (LOG) {
+              LOG.append(LOG.formatSkipped(r.id, { reason: r.reason || 'exists' }, { index: i+1, total: total }), $hexResults[0]);
+            } else {
+              hexLog('#' + r.id + ' SKIPPED — ' + (r.reason || ''));
+            }
+            stats.skipped++;
             return;
           }
           if (!r.ok) {
-            hexLog('#' + r.id + ' ERROR — ' + (r.error || 'Unknown'));
+            if (LOG) {
+              LOG.append(LOG.formatError(r.id, { message: r.error || 'Unknown' }, { index: i+1, total: total }), $hexResults[0]);
+            } else {
+              hexLog('#' + r.id + ' ERROR — ' + (r.error || 'Unknown'));
+            }
+            stats.errors++;
             return;
           }
-          var savedTxt = r.saved ? 'SAVED' : (r.dryrun ? 'PREVIEW' : 'OK');
-          hexLog('#' + r.id + ' ' + (r.title || '') + ' — ' + savedTxt);
-          hexLog('  ' + (r.html_excerpt || ''));
+          if (LOG && r.log) {
+            var entryData = {
+              status: r.saved ? 'saved' : (r.dryrun ? 'dryrun' : 'ok'),
+              preview: r.preview || '',
+              log: Object.assign({}, r.log, { page_title: r.title || '' })
+            };
+            LOG.append(LOG.formatEntry(r.id, entryData, { index: i+1, total: total, handler: 'HTML Excerpts' }), $hexResults[0]);
+            if (hexTracker) hexTracker.track(entryData);
+          } else {
+            var savedTxt = r.saved ? 'SAVED' : (r.dryrun ? 'PREVIEW' : 'OK');
+            hexLog('#' + r.id + ' ' + (r.title || '') + ' — ' + savedTxt);
+          }
+          if (r.saved) stats.saved++;
         });
+
+        if (LOG) {
+          LOG.append(LOG.batchSummary(hexTracker ? hexTracker.getSummary(stats) : stats), $hexResults[0]);
+        }
       }).fail(function(xhr){
         hexLog('AJAX error generating HTML excerpts.');
-        try {
-          if (xhr && xhr.responseText) hexLog(String(xhr.responseText).slice(0, 300));
-        } catch(e){}
       }).always(function(){
         $hexGen.prop('disabled', false).text(oldTxt);
       });

@@ -59,6 +59,16 @@ if ( ! function_exists('myls_openai_chat') ) {
 			'max_tokens'  => $max_tok,
 		];
 
+		// Penalties reduce pattern-locking across batch generations.
+		// presence_penalty (0–2): penalizes tokens that already appeared, encouraging new topics.
+		// frequency_penalty (0–2): penalizes tokens proportional to frequency, reducing repetition.
+		if ( isset($args['presence_penalty']) && is_numeric($args['presence_penalty']) ) {
+			$body['presence_penalty'] = (float) $args['presence_penalty'];
+		}
+		if ( isset($args['frequency_penalty']) && is_numeric($args['frequency_penalty']) ) {
+			$body['frequency_penalty'] = (float) $args['frequency_penalty'];
+		}
+
 		$resp = wp_remote_post( 'https://api.openai.com/v1/chat/completions', [
 			'timeout' => 45,
 			'headers' => [
@@ -106,22 +116,40 @@ if ( ! function_exists('myls_openai_complete') ) {
 			$model      = $model ?: 'gpt-4o';      // bigger model
 			$max_tokens = $max_tokens ?: 1600;     // enough room for sectioned HTML
 			$system     = 'You write clean, structured, sectioned HTML for local area guides. Use HTML tags like <strong>, <em>, <h3>, <p>, <ul>, <li>. NEVER use markdown syntax such as ** or __ for bold, * for italic, or ### for headings. Output raw HTML only, no code fences.';
+			// Higher temperature + penalties reduce pattern-locking in batch runs
+			$temperature = max( $temperature, 0.85 );
 		} elseif ( $context === 'faqs_generate' ) {
 			$model      = $model ?: 'gpt-4o';      // bigger model for FAQs
 			$max_tokens = $max_tokens ?: 10000;    // enough for 10-15 LONG FAQs with detailed multi-block answers, lists, and sources
 			$system     = 'You are an expert local SEO copywriter. Generate clean, structured HTML for FAQ content. No markdown, no code fences.';
+			$temperature = max( $temperature, 0.85 );
 		} else {
 			$model      = $model ?: 'gpt-4o-mini';
 			$max_tokens = $max_tokens ?: 300;
 			$system     = 'You are a helpful SEO assistant. Keep responses concise and accurate.';
 		}
 
-		return myls_openai_chat( $prompt, [
+		// Apply penalties for batch-heavy contexts to encourage diversity.
+		// These are passed through to myls_openai_chat() which injects them into the API body.
+		$presence_penalty  = isset($args['presence_penalty'])  ? (float)$args['presence_penalty']  : null;
+		$frequency_penalty = isset($args['frequency_penalty']) ? (float)$args['frequency_penalty'] : null;
+
+		// Default penalties for content-heavy contexts (About Area, FAQs)
+		if ( in_array( $context, ['about_the_area', 'faqs_generate'], true ) ) {
+			$presence_penalty  = $presence_penalty  ?? 0.9;
+			$frequency_penalty = $frequency_penalty ?? 0.5;
+		}
+
+		$chat_args = [
 			'model'       => $model,
 			'max_tokens'  => $max_tokens,
 			'temperature' => $temperature,
 			'system'      => $system,
-		] );
+		];
+		if ( $presence_penalty !== null )  $chat_args['presence_penalty']  = $presence_penalty;
+		if ( $frequency_penalty !== null ) $chat_args['frequency_penalty'] = $frequency_penalty;
+
+		return myls_openai_chat( $prompt, $chat_args );
 	}
 	add_filter('myls_ai_complete', 'myls_openai_complete', 10, 2);
 }

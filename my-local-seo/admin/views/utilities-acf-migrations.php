@@ -46,8 +46,11 @@ $nonce = wp_create_nonce( defined('MYLS_UTIL_NONCE_ACTION') ? MYLS_UTIL_NONCE_AC
 
       <input type="hidden" id="myls-util-nonce" value="<?php echo esc_attr($nonce); ?>">
 
-      <h3 style="margin-top: 18px;">Results</h3>
-      <pre id="myls-util-log" style="background:#0b1220;color:#d1e7ff;padding:12px;border-radius:8px;min-height:180px;max-height:420px;overflow:auto;white-space:pre-wrap;">Ready.</pre>
+      <div class="myls-results-header">
+        <h3 style="margin:0;">Results</h3>
+        <button type="button" class="myls-btn-export-pdf" data-log-target="myls-util-log"><i class="bi bi-file-earmark-pdf"></i> PDF</button>
+      </div>
+      <pre id="myls-util-log" class="myls-results-terminal">Ready.</pre>
 
       <p class="description" style="margin-top:12px;">
         FAQ migration reads ACF repeater meta stored as either an array in <code>faq_items</code> or classic ACF row metas like <code>faq_items_0_question</code>.

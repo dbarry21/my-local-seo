@@ -91,10 +91,10 @@ return [
 						<div class="d-flex justify-content-between align-items-center mb-2" style="gap:8px;">
 							<strong>Title Prompt Template</strong>
 							<div>
-								<button type="button" class="button button-secondary" id="myls_ai_reset_title_prompt" data-default="<?php echo esc_attr($default_title_prompt); ?>">Reset to Factory</button>
-								<button type="button" class="button button-primary" id="myls_ai_save_title_prompt">Save</button>
+								<button type="button" class="button button-primary" id="myls_ai_save_title_prompt">Save to DB</button>
 							</div>
 						</div>
+						<?php myls_prompt_toolbar('meta-title', 'myls_ai_title_prompt'); ?>
 						<textarea id="myls_ai_title_prompt" class="form-control" rows="8"><?php echo esc_textarea($saved_title_prompt); ?></textarea>
 						<small style="color:#666;">Saved to: <code>myls_ai_prompt_title</code></small>
 					</div>
@@ -105,10 +105,10 @@ return [
 						<div class="d-flex justify-content-between align-items-center mb-2" style="gap:8px;">
 							<strong>Description Prompt Template</strong>
 							<div>
-								<button type="button" class="button button-secondary" id="myls_ai_reset_desc_prompt" data-default="<?php echo esc_attr($default_desc_prompt); ?>">Reset to Factory</button>
-								<button type="button" class="button button-primary" id="myls_ai_save_desc_prompt">Save</button>
+								<button type="button" class="button button-primary" id="myls_ai_save_desc_prompt">Save to DB</button>
 							</div>
 						</div>
+						<?php myls_prompt_toolbar('meta-description', 'myls_ai_desc_prompt'); ?>
 						<textarea id="myls_ai_desc_prompt" class="form-control" rows="8"><?php echo esc_textarea($saved_desc_prompt); ?></textarea>
 						<small style="color:#666;">Saved to: <code>myls_ai_prompt_desc</code></small>
 					</div>
@@ -122,7 +122,11 @@ return [
 
 				<hr>
 
-				<pre id="myls_ai_results" style="max-height:360px;overflow:auto;background:#f9f9f9;padding:10px;white-space:pre-wrap;"></pre>
+				<div class="myls-results-header">
+					<h3 class="h5 mb-0"><i class="bi bi-terminal"></i> Results</h3>
+					<button type="button" class="myls-btn-export-pdf" data-log-target="myls_ai_results"><i class="bi bi-file-earmark-pdf"></i> PDF</button>
+				</div>
+				<pre id="myls_ai_results" class="myls-results-terminal">Ready.</pre>
 			</div>
 		</div>
 

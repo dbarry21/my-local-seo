@@ -73,6 +73,7 @@ return [
 
       <div class="mb-3">
         <label class="form-label"><strong>Prompt Template</strong></label>
+        <?php myls_prompt_toolbar('taglines', 'myls_ai_taglines_prompt_template'); ?>
         <textarea 
           id="myls_ai_taglines_prompt_template" 
           name="myls_ai_taglines_prompt_template" 
@@ -214,14 +215,14 @@ return [
     <hr class="myls-divider"/>
 
     <div class="mb-3">
-      <label class="form-label"><strong>Results Log</strong></label>
-      <div 
-        id="myls_ai_taglines_log" 
-        class="myls-log-output"
-        style="max-height:400px;overflow-y:auto;background:#f8f9fa;border:1px solid #dee2e6;border-radius:4px;padding:12px;font-family:monospace;font-size:12px;line-height:1.6;"
-      >
-        <div class="text-muted">No taglines generated yet. Select posts and click "Generate Taglines".</div>
+      <div class="myls-results-header">
+        <label class="form-label mb-0"><strong><i class="bi bi-terminal"></i> Results Log</strong></label>
+        <button type="button" class="myls-btn-export-pdf" data-log-target="myls_ai_taglines_log"><i class="bi bi-file-earmark-pdf"></i> PDF</button>
       </div>
+      <pre
+        id="myls_ai_taglines_log" 
+        class="myls-results-terminal"
+      >Ready.</pre>
     </div>
 
     <div class="alert alert-warning">
@@ -381,7 +382,7 @@ jQuery(function($) {
     stopRequested = false;
     processedCount = 0;
     $count.text('0');
-    $log.html('<div class="text-muted">Starting tagline generation...</div>');
+    $log.text('Starting tagline generation...');
 
     // UI state
     $generate.prop('disabled', true);
@@ -467,29 +468,17 @@ jQuery(function($) {
     await new Promise(resolve => setTimeout(resolve, 500));
   }
 
-  // Log message
+  // Log message (terminal-style plain text)
   function logMessage(message, type = 'info') {
-    const colors = {
-      info: '#6c757d',
-      success: '#198754',
-      warning: '#fd7e14',
-      error: '#dc3545'
-    };
-
-    const $line = $('<div>', {
-      css: { 
-        color: colors[type] || colors.info,
-        marginBottom: '4px'
-      },
-      text: message
-    });
-
-    if ($log.find('.text-muted').length) {
-      $log.empty();
+    var el = $log[0];
+    if (!el) return;
+    var current = el.textContent || '';
+    if (current === 'Ready.' || current === 'Starting tagline generation...') {
+      el.textContent = message + '\n';
+    } else {
+      el.textContent += message + '\n';
     }
-
-    $log.append($line);
-    $log.scrollTop($log[0].scrollHeight);
+    el.scrollTop = el.scrollHeight;
   }
 
   // Initial load

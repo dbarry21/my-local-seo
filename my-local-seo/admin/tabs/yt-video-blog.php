@@ -340,7 +340,11 @@ myls_register_admin_tab(array(
 
 				<details style="margin-top:14px;">
 					<summary><strong>Debug Log</strong></summary>
-					<pre id="myls-ytvb-log" style="max-height:300px; overflow:auto; background:#f8fafc; padding:10px; border:1px solid #e5e7eb; border-radius:4px;"></pre>
+					<div class="myls-results-header" style="margin-top:8px;">
+						<strong>Results</strong>
+						<button type="button" class="myls-btn-export-pdf" data-log-target="myls-ytvb-log"><i class="bi bi-file-earmark-pdf"></i> PDF</button>
+					</div>
+					<pre id="myls-ytvb-log" class="myls-results-terminal">Ready.</pre>
 				</details>
 			</div>
 

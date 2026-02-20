@@ -125,6 +125,7 @@ add_action('wp_ajax_myls_ai_excerpt_generate_v1', function () : void {
   if ( ! current_user_can('manage_options') ) {
     wp_send_json_error(['message' => 'Forbidden'], 403);
   }
+  $batch_start = microtime(true);
 
   $post_ids  = isset($_POST['post_ids']) ? (array) $_POST['post_ids'] : [];
   $overwrite = ! empty($_POST['overwrite']);
@@ -144,6 +145,12 @@ add_action('wp_ajax_myls_ai_excerpt_generate_v1', function () : void {
 
   $results = [];
   foreach ( $post_ids as $pid ) {
+    $item_start = microtime(true);
+
+    // Reset VE log per-item
+    if ( class_exists('MYLS_Variation_Engine') ) {
+      MYLS_Variation_Engine::reset_log();
+    }
 
     $post = get_post($pid);
     if ( ! $post ) {
@@ -171,6 +178,12 @@ add_action('wp_ajax_myls_ai_excerpt_generate_v1', function () : void {
     $prompt = str_replace('{primary_category}', $primary_cat, $prompt);
     $prompt = str_replace('{permalink}', (string) get_permalink($pid), $prompt);
 
+    // ── Variation Engine: inject angle + banned phrases for excerpt generation ──
+    if ( class_exists('MYLS_Variation_Engine') ) {
+      $angle  = MYLS_Variation_Engine::next_angle('excerpt');
+      $prompt = MYLS_Variation_Engine::inject_variation( $prompt, $angle, 'excerpt' );
+    }
+
     $gen = myls_ai_generate_excerpt_text($prompt);
 
     if ( $gen === '' ) {
@@ -179,6 +192,19 @@ add_action('wp_ajax_myls_ai_excerpt_generate_v1', function () : void {
     }
 
     $new_excerpt = trim((string) $gen);
+
+    // ── Variation Engine: duplicate guard for excerpts ──
+    if ( $new_excerpt !== '' && class_exists('MYLS_Variation_Engine') ) {
+      $new_excerpt = MYLS_Variation_Engine::guard_duplicates(
+        'excerpt',
+        $new_excerpt,
+        function( $original ) {
+          $rewrite = "Rewrite this excerpt to be structurally distinct. Use a completely different opening sentence.\n\nOriginal: " . $original;
+          return trim( myls_ai_generate_excerpt_text( $rewrite ) );
+        }
+      );
+    }
+
 if ( $new_excerpt === '' ) {
       $results[] = ['id' => $pid, 'ok' => false, 'error' => 'Model returned empty excerpt'];
       continue;
@@ -198,6 +224,13 @@ if ( $new_excerpt === '' ) {
       $saved = true;
     }
 
+    $ve_log = class_exists('MYLS_Variation_Engine') ? MYLS_Variation_Engine::build_item_log($item_start, [
+      'output_words' => str_word_count($new_excerpt),
+      'output_chars' => strlen($new_excerpt),
+      'page_title'   => (string) get_the_title($pid),
+      '_html'        => $new_excerpt,
+    ]) : ['elapsed_ms' => round((microtime(true) - $item_start) * 1000)];
+
     $results[] = [
       'id'      => $pid,
       'ok'      => true,
@@ -205,6 +238,8 @@ if ( $new_excerpt === '' ) {
       'dryrun'  => $dryrun,
       'excerpt' => $new_excerpt,
       'title'   => (string) get_the_title($pid),
+      'preview' => mb_substr($new_excerpt, 0, 120) . (mb_strlen($new_excerpt) > 120 ? '...' : ''),
+      'log'     => $ve_log,
     ];
   }
 
@@ -212,5 +247,6 @@ if ( $new_excerpt === '' ) {
     'count'   => count($results),
     'dryrun'  => $dryrun,
     'results' => $results,
+    'batch_elapsed_ms' => round((microtime(true) - $batch_start) * 1000),
   ]);
 });

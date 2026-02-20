@@ -370,6 +370,8 @@ add_action('wp_ajax_myls_ai_geo_get_posts_v1', function(){
  * ============================================================================= */
 add_action('wp_ajax_myls_ai_geo_analyze_v2', function(){
   myls_ai_check_nonce();
+  $start_time = microtime(true);
+  if ( class_exists('MYLS_Variation_Engine') ) { MYLS_Variation_Engine::reset_log(); }
 
   $post_id = (int) ($_POST['post_id'] ?? 0);
   if ( $post_id <= 0 || get_post_status($post_id) === false ) {
@@ -407,6 +409,12 @@ add_action('wp_ajax_myls_ai_geo_analyze_v2', function(){
     [$title, $url, $page_text, $include],
     $template
   );
+
+  // ── Variation Engine: inject angle + banned phrases for GEO generation ──
+  if ( class_exists('MYLS_Variation_Engine') ) {
+    $angle  = MYLS_Variation_Engine::next_angle('about_the_area'); // reuse about angles for GEO
+    $prompt = MYLS_Variation_Engine::inject_variation( $prompt, $angle, 'about_the_area' );
+  }
 
   $ai = myls_ai_generate_text($prompt, [
     'max_tokens'  => $tokens,
@@ -453,6 +461,20 @@ add_action('wp_ajax_myls_ai_geo_analyze_v2', function(){
     $doc_url = myls_geo_build_docx_from_text($post_id, (string)$title, (string)$doc_text);
   }
 
+  $ve_log = class_exists('MYLS_Variation_Engine') ? MYLS_Variation_Engine::build_item_log($start_time, [
+    'model'          => 'default',
+    'tokens'         => $tokens,
+    'temperature'    => $temperature,
+    'prompt_chars'   => mb_strlen($prompt),
+    'output_words'   => str_word_count(wp_strip_all_tags($clean)),
+    'output_chars'   => strlen($clean),
+    'page_title'     => (string)$title,
+    '_html'          => $clean,
+    'city_state'     => (string)$title,
+    'include_faq'    => $include,
+    'has_doc'        => trim($doc_text) !== '',
+  ]) : ['elapsed_ms' => round((microtime(true) - $start_time) * 1000)];
+
   wp_send_json_success([
     'marker'       => 'geo',
     'status'       => 'ok',
@@ -463,6 +485,8 @@ add_action('wp_ajax_myls_ai_geo_analyze_v2', function(){
     'raw_combined' => (string)$raw_all,
     'page_text'    => (string)$page_text,
     'doc_url'      => (string)$doc_url,
+    'preview'      => mb_substr(wp_strip_all_tags($clean), 0, 120) . (mb_strlen(wp_strip_all_tags($clean)) > 120 ? '...' : ''),
+    'log'          => $ve_log,
   ]);
 });
 
@@ -512,6 +536,12 @@ add_action('wp_ajax_myls_ai_geo_convert_v1', function(){
     [$title, $url, $page_text, $include],
     $template
   );
+
+  // ── Variation Engine: inject angle for GEO convert ──
+  if ( class_exists('MYLS_Variation_Engine') ) {
+    $angle  = MYLS_Variation_Engine::next_angle('about_the_area');
+    $prompt = MYLS_Variation_Engine::inject_variation( $prompt, $angle, 'about_the_area' );
+  }
 
   $ai = myls_ai_generate_text($prompt, [
     'max_tokens'  => $tokens,

@@ -85,10 +85,22 @@
     }
   }
 
+  var LOG = window.mylsLog;
+
   function log(msg) {
     if (!elResults) return;
-    const t = new Date().toLocaleTimeString();
-    elResults.textContent = `[${t}] ${msg}\n` + elResults.textContent;
+    if (LOG) {
+      LOG.append(msg, elResults);
+    } else {
+      var t = new Date().toLocaleTimeString();
+      var current = elResults.textContent || '';
+      if (current === 'Ready.') {
+        elResults.textContent = '[' + t + '] ' + msg + '\n';
+      } else {
+        elResults.textContent += '[' + t + '] ' + msg + '\n';
+      }
+      elResults.scrollTop = elResults.scrollHeight;
+    }
   }
 
   function getSelectedIDs() {
@@ -231,13 +243,26 @@
     resetDownloads();
 
     setBusy(true, "Analyzing…");
-    log(`Analyze queued: ${ids.length} post(s).`);
+
+    const total = ids.length;
+    var tracker = LOG ? LOG.createTracker() : null;
+    var stats = { saved: 0, skipped: 0, errors: 0 };
+
+    if (LOG && elResults) {
+      LOG.clear(elResults, LOG.batchStart('GEO Analysis', total, {
+        tokens: getTokensValue(),
+        temperature: getTempValue()
+      }));
+    } else {
+      log('Analyze queued: ' + ids.length + ' post(s).');
+    }
 
     for (const postId of ids) {
       if (STOP) break;
+      const idx = processed + 1;
 
       try {
-        log(`Analyzing post #${postId}…`);
+        log('Analyzing post #' + postId + '…');
 
         const data = await postAJAX(CFG.action_analyze, {
           post_id: postId,
@@ -272,18 +297,40 @@
         enableDownloads();
 
         if (data.doc_url) {
-          log(`Generated DOCX for post #${postId}: ${data.doc_url}`);
           if (elStatus) elStatus.innerHTML = `<a href="${data.doc_url}" target="_blank" rel="noopener">Download .docx</a>`;
         } else {
           if (btnDocx) btnDocx.disabled = true;
           if (elStatus) elStatus.textContent = includeFaqHowto() ? "No .docx returned (prompt must output DOC section)." : "No .docx returned.";
         }
 
+        // Enterprise log entry
+        if (LOG && elResults && data.log) {
+          var entryData = {
+            status: 'ok',
+            city_state: data.title || '',
+            preview: data.preview || '',
+            log: Object.assign({}, data.log, { page_title: data.title || '' })
+          };
+          LOG.append(LOG.formatEntry(postId, entryData, { index: idx, total: total, handler: 'GEO Analysis' }), elResults);
+          if (tracker) tracker.track(entryData);
+          stats.saved++;
+        }
+
         processed++;
         if (elCount) elCount.textContent = String(processed);
       } catch (e) {
-        log(`Analyze error for #${postId}: ${e.message}`);
+        if (LOG && elResults) {
+          LOG.append(LOG.formatError(postId, { message: e.message }, { index: idx, total: total }), elResults);
+        } else {
+          log('Analyze error for #' + postId + ': ' + e.message);
+        }
+        stats.errors++;
       }
+    }
+
+    // Batch summary
+    if (LOG && elResults) {
+      LOG.append(LOG.batchSummary(tracker ? tracker.getSummary(stats) : stats), elResults);
     }
 
     setBusy(false, STOP ? "Stopped." : "Done.");

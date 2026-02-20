@@ -94,10 +94,10 @@ return [
             <div class="d-flex justify-content-between align-items-center mb-2" style="gap:8px;">
               <strong>Excerpt Prompt Template</strong>
               <div>
-                <button type="button" class="button button-secondary" id="myls_ai_ex_reset_prompt" data-default="<?php echo esc_attr($default_excerpt_prompt); ?>">Reset</button>
-                <button type="button" class="button button-primary" id="myls_ai_ex_save_prompt">Save</button>
+                <button type="button" class="button button-primary" id="myls_ai_ex_save_prompt">Save to DB</button>
               </div>
             </div>
+            <?php myls_prompt_toolbar('excerpt', 'myls_ai_ex_prompt'); ?>
             <textarea id="myls_ai_ex_prompt" class="form-control" rows="8"><?php echo esc_textarea($saved_excerpt_prompt); ?></textarea>
             <small style="color:#666;">Option: <code>myls_ai_prompt_excerpt</code></small>
           </div>
@@ -108,8 +108,11 @@ return [
         </div>
 
         <hr>
-        <label class="form-label mt-2">Results</label>
-        <pre id="myls_ai_ex_results" style="min-height:100px;max-height:280px;overflow:auto;background:#f9f9f9;border:1px solid #ddd;border-radius:8px;padding:10px;white-space:pre-wrap;font-size:11px;"></pre>
+        <div class="myls-results-header">
+          <label class="form-label mt-2 mb-0"><strong>Results</strong></label>
+          <button type="button" class="myls-btn-export-pdf" data-log-target="myls_ai_ex_results"><i class="bi bi-file-earmark-pdf"></i> PDF</button>
+        </div>
+        <pre id="myls_ai_ex_results" class="myls-results-terminal">Ready.</pre>
       </div>
 
       <!-- =============== Column 3: HTML Excerpt Actions =============== -->
@@ -125,10 +128,10 @@ return [
             <div class="d-flex justify-content-between align-items-center mb-2" style="gap:8px;">
               <strong>HTML Excerpt Prompt</strong>
               <div>
-                <button type="button" class="button button-secondary" id="myls_ai_hex_reset_prompt" data-default="<?php echo esc_attr($default_html_excerpt_prompt); ?>">Reset</button>
-                <button type="button" class="button button-primary" id="myls_ai_hex_save_prompt">Save</button>
+                <button type="button" class="button button-primary" id="myls_ai_hex_save_prompt">Save to DB</button>
               </div>
             </div>
+            <?php myls_prompt_toolbar('html-excerpt', 'myls_ai_hex_prompt'); ?>
             <textarea id="myls_ai_hex_prompt" class="form-control" rows="8"><?php echo esc_textarea($saved_html_excerpt_prompt); ?></textarea>
             <small style="color:#666;">Option: <code>myls_ai_prompt_html_excerpt</code></small>
           </div>
@@ -139,8 +142,11 @@ return [
         </div>
 
         <hr>
-        <label class="form-label mt-2">Results</label>
-        <pre id="myls_ai_hex_results" style="min-height:100px;max-height:280px;overflow:auto;background:#f9f9f9;border:1px solid #ddd;border-radius:8px;padding:10px;white-space:pre-wrap;font-size:11px;"></pre>
+        <div class="myls-results-header">
+          <label class="form-label mt-2 mb-0"><strong>Results</strong></label>
+          <button type="button" class="myls-btn-export-pdf" data-log-target="myls_ai_hex_results"><i class="bi bi-file-earmark-pdf"></i> PDF</button>
+        </div>
+        <pre id="myls_ai_hex_results" class="myls-results-terminal">Ready.</pre>
       </div>
 
     </div>

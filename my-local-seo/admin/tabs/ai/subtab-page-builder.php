@@ -140,10 +140,10 @@ return [
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <strong>AI Prompt Template</strong>
                             <div class="d-flex gap-1">
-                                <button type="button" class="button button-secondary" id="myls_pb_reset_prompt">Reset to Default</button>
-                                <button type="button" class="button button-primary" id="myls_pb_save_prompt">Save Template</button>
+                                <button type="button" class="button button-primary" id="myls_pb_save_prompt">Save to DB</button>
                             </div>
                         </div>
+                        <?php myls_prompt_toolbar('page-builder', 'myls_pb_prompt'); ?>
                         <textarea id="myls_pb_prompt" class="form-control font-monospace" rows="12"
                                   style="font-size:12px;"><?php echo esc_textarea($saved_prompt); ?></textarea>
                         <small style="color:#666;">Saved to: <code>myls_pb_prompt_template</code> · Leave blank to use the built-in default.</small>
@@ -233,18 +233,18 @@ return [
 
                 <hr>
 
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <label class="form-label mb-0 fw-bold">Results</label>
-                    <span id="myls_pb_edit_link" style="display:none;">
-                        <a id="myls_pb_edit_url" href="#" target="_blank" class="button button-secondary">
-                            <i class="bi bi-pencil-square"></i> Edit Page
-                        </a>
-                    </span>
+                <div class="myls-results-header">
+                    <label class="form-label mb-0 fw-bold"><i class="bi bi-terminal"></i> Results</label>
+                    <div class="d-flex gap-2 align-items-center">
+                        <button type="button" class="myls-btn-export-pdf" data-log-target="myls_pb_log"><i class="bi bi-file-earmark-pdf"></i> PDF</button>
+                        <span id="myls_pb_edit_link" style="display:none;">
+                            <a id="myls_pb_edit_url" href="#" target="_blank" class="button button-secondary">
+                                <i class="bi bi-pencil-square"></i> Edit Page
+                            </a>
+                        </span>
+                    </div>
                 </div>
-                <pre id="myls_pb_log"
-                     style="min-height:140px; max-height:360px; overflow:auto; background:#f9f9f9;
-                            border:1px solid #ddd; border-radius:8px; padding:12px;
-                            white-space:pre-wrap; font-size:12px;"></pre>
+                <pre id="myls_pb_log" class="myls-results-terminal">Ready.</pre>
 
                 <!-- Image preview area -->
                 <div id="myls_pb_img_preview" style="display:none;" class="mt-3">
@@ -385,11 +385,6 @@ return [
                 promptEl.value = defaultPrompt;
             }
 
-            // Reset to default
-            $('myls_pb_reset_prompt')?.addEventListener('click', () => {
-                promptEl.value = defaultPrompt;
-            });
-
             // Save prompt template
             $('myls_pb_save_prompt')?.addEventListener('click', async () => {
                 const fd = new FormData();
@@ -459,7 +454,7 @@ return [
 
                     if (data?.success) {
                         lastPostId = data.data.post_id || 0;
-                        logEl.textContent = data.data.log || data.data.message || 'Done.';
+                        logEl.textContent = data.data.log_text || data.data.message || 'Done.';
 
                         if (data.data.edit_url) {
                             $('myls_pb_edit_url').href = data.data.edit_url;
@@ -535,7 +530,7 @@ return [
                     const data = await res.json();
 
                     if (data?.success) {
-                        logEl.textContent += '\n\n' + (data.data.log || 'Images done.');
+                        logEl.textContent += '\n\n' + (data.data.log_text || 'Images done.');
 
                         // Show image previews
                         if (data.data.images && data.data.images.length) {

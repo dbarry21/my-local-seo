@@ -136,7 +136,7 @@ add_action('wp_ajax_myls_pb_generate_images', function () {
 
     wp_send_json_success([
         'message' => count($images) . ' image(s) generated.',
-        'log'     => implode("\n", $log),
+        'log_text' => implode("\n", $log),
         'images'  => $images,
     ]);
 });

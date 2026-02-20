@@ -2,6 +2,7 @@
   'use strict';
   if (!window.MYLS_AI_ABOUT) return;
   const CFG = window.MYLS_AI_ABOUT;
+  const LOG = window.mylsLog;
 
   const $pt     = $('#myls_ai_about_pt');
   const $posts  = $('#myls_ai_about_posts');
@@ -14,7 +15,6 @@
 
   let stopping = false;
 
-  function log(line){ $res.text(line + '\n' + $res.text()); }
   function setCount(n){ $count.text(String(n)); }
   function setBusy(on){
     $gen.prop('disabled', !!on);
@@ -32,9 +32,8 @@
       nonce:  CFG.nonce,
       post_type: $pt.val()
     }).done(function(resp){
-      try { console.log('[about_get_posts_v2]', resp); } catch(e){}
       if (!resp || !resp.success || !resp.data || !Array.isArray(resp.data.posts)) {
-        log('Failed to load posts (bad response).');
+        LOG.append('Failed to load posts (bad response).', $res[0]);
         return;
       }
       const posts = resp.data.posts;
@@ -42,9 +41,9 @@
         const p = posts[i];
         $('<option>').val(String(p.id)).text((p.title||'(no title)')+' (ID '+p.id+')').appendTo($posts);
       }
-      log('Loaded '+posts.length+' posts for '+$pt.val()+'.');
+      LOG.append('Loaded '+posts.length+' posts for '+$pt.val()+'.', $res[0]);
     }).fail(function(xhr){
-      log('AJAX error: get_posts ('+(xhr && xhr.status)+')');
+      LOG.append('AJAX error: get_posts ('+(xhr && xhr.status)+')', $res[0]);
     });
   }
 
@@ -57,7 +56,7 @@
 
   function run(){
     const ids = ($posts.val() || []).map(v => parseInt(v, 10)).filter(Boolean);
-    if (!ids.length) { log('Select at least one post.'); return; }
+    if (!ids.length) { LOG.append('\n⚠️  Select at least one post.', $res[0]); return; }
 
     stopping = false;
     setCount(0);
@@ -66,14 +65,24 @@
     const { template, tokens, temperature } = readTemplateParams();
     const skip = $skip.is(':checked');
     let done = 0;
+    let stats = { saved: 0, skipped: 0, errors: 0 };
+    const tracker = LOG.createTracker();
+    const total = ids.length;
+
+    LOG.clear($res[0], LOG.batchStart('About the Area', total, {
+      model: 'gpt-4o',
+      temperature: temperature,
+      tokens: tokens
+    }));
 
     (function next(){
       if (stopping || !ids.length) {
         setBusy(false);
-        log('Done.');
+        LOG.append(LOG.batchSummary(tracker.getSummary(stats)), $res[0]);
         return;
       }
       const id = ids.shift();
+      const idx = total - ids.length;
 
       $.post(CFG.ajaxurl, {
         action:      CFG.action_generate || 'myls_ai_about_generate_v2',
@@ -85,36 +94,29 @@
         temperature: temperature
       })
       .done(function(resp){
-        try { console.log('[about_generate_v2]', resp); } catch(e){}
-        if (!resp || typeof resp !== 'object') { log('ID '+id+' — Unexpected server response.'); return; }
-
+        if (!resp || typeof resp !== 'object') {
+          LOG.append(LOG.formatError(id, { message: 'Unexpected server response' }, { index: idx, total: total }), $res[0]);
+          stats.errors++;
+          return;
+        }
         if (resp.success) {
           const d = resp.data || {};
-          const st = d.status || '(no status)';
-          const mk = d.marker || '(no marker)';
-
-          if (st === 'skipped') {
-            log('ID '+id+' — Skipped (already filled). ['+mk+']');
-          } else if (st === 'saved') {
-            const dbg = d.debug || {};
-            const method = dbg.saved_method || 'unknown_method';
-            const key = dbg.acf_key_used ? (', key='+dbg.acf_key_used) : '';
-            const area = d.city_state || '(n/a)';
-            const prev = d.preview ? (' Preview: '+d.preview) : '';
-            log('ID '+id+' — Saved. Area: '+area+' ['+method+key+']'+prev+' ['+mk+']');
+          if (d.status === 'skipped') {
+            LOG.append(LOG.formatSkipped(id, d, { index: idx, total: total }), $res[0]);
+            stats.skipped++;
           } else {
-            log('ID '+id+' — Success but unexpected status='+st+' ['+mk+']');
+            LOG.append(LOG.formatEntry(id, d, { index: idx, total: total, handler: 'About Area' }), $res[0]);
+            stats.saved++;
+            tracker.track(d);
           }
         } else {
-          const d = resp.data || {};
-          const mk = d.marker || '(no marker)';
-          const msg = d.message || 'server_error';
-          const dbg = d.debug ? (' ['+JSON.stringify(d.debug)+']') : '';
-          log('ID '+id+' — ERROR: '+msg+dbg+' ['+mk+']');
+          LOG.append(LOG.formatError(id, resp.data || {}, { index: idx, total: total }), $res[0]);
+          stats.errors++;
         }
       })
       .fail(function(xhr){
-        log('ID '+id+' — AJAX error: '+(xhr && xhr.status));
+        LOG.append(LOG.formatError(id, { message: 'AJAX error (HTTP ' + (xhr && xhr.status) + ')' }, { index: idx, total: total }), $res[0]);
+        stats.errors++;
       })
       .always(function(){
         done++; setCount(done); next();
