@@ -80,12 +80,12 @@ if ( ! function_exists('myls_ai_build_html_excerpt_prompt') ) {
  * ------------------------------------------------------------------------- */
 if ( ! function_exists('myls_ai_generate_html_excerpt_text') ) {
     function myls_ai_generate_html_excerpt_text( string $prompt ) : string {
-        if ( function_exists('myls_openai_chat') ) {
-            $model = (string) get_option('myls_openai_model', 'gpt-4o');
+        if ( function_exists('myls_ai_chat') ) {
+            $model = (string) get_option('myls_openai_model', '');
             $max   = (int) get_option('myls_ai_html_excerpt_max_tokens', 300);
             $temp  = (float) get_option('myls_ai_html_excerpt_temperature', 0.7);
 
-            $text = myls_openai_chat($prompt, [
+            $text = myls_ai_chat($prompt, [
                 'model'       => $model,
                 'max_tokens'  => $max,
                 'temperature' => $temp,

@@ -86,32 +86,59 @@ if ( ! function_exists('myls_ai_fetch_permalink_text') ) {
     $html = (string) wp_remote_retrieve_body($resp);
     if ( $html === '' ) return '';
 
-    // Remove scripts/styles/comments
+    // ── Phase 1: Strip non-content elements BEFORE extracting main ──
     $html = preg_replace('#<script[^>]*>.*?</script>#si', ' ', $html);
     $html = preg_replace('#<style[^>]*>.*?</style>#si', ' ', $html);
     $html = preg_replace('#<!--.*?-->#s', ' ', $html);
+    // Strip nav, header, footer, sidebar, and form elements (noisy for AI)
+    $html = preg_replace('#<nav[^>]*>.*?</nav>#si', ' ', $html);
+    $html = preg_replace('#<header[^>]*>.*?</header>#si', ' ', $html);
+    $html = preg_replace('#<footer[^>]*>.*?</footer>#si', ' ', $html);
+    $html = preg_replace('#<aside[^>]*>.*?</aside>#si', ' ', $html);
+    $html = preg_replace('#<form[^>]*>.*?</form>#si', ' ', $html);
+    // Strip select/option elements (schema dropdowns, filters, etc.)
+    $html = preg_replace('#<select[^>]*>.*?</select>#si', ' ', $html);
+    // Strip noscript
+    $html = preg_replace('#<noscript[^>]*>.*?</noscript>#si', ' ', $html);
+    // Strip SVG and canvas
+    $html = preg_replace('#<svg[^>]*>.*?</svg>#si', ' ', $html);
+    $html = preg_replace('#<canvas[^>]*>.*?</canvas>#si', ' ', $html);
+    // Strip hidden elements
+    $html = preg_replace('#<[^>]+(?:display\s*:\s*none|visibility\s*:\s*hidden)[^>]*>.*?</[^>]+>#si', ' ', $html);
 
-    // Prefer <main> or <article>
+    // ── Phase 2: Extract main content area ──
     $main = '';
-    if ( preg_match('#<main[^>]*>(.*?)</main>#si', $html, $m) ) {
+    if ( preg_match('#<main[^>]*>(.*)</main>#si', $html, $m) ) {
       $main = (string) $m[1];
-    } elseif ( preg_match('#<article[^>]*>(.*?)</article>#si', $html, $m) ) {
+    } elseif ( preg_match('#<article[^>]*>(.*)</article>#si', $html, $m) ) {
+      $main = (string) $m[1];
+    } elseif ( preg_match('#<div[^>]*(?:id|class)\s*=\s*["\'][^"\']*(?:content|entry|post-body|main)[^"\']*["\'][^>]*>(.*)</div>#si', $html, $m) ) {
       $main = (string) $m[1];
     } else {
-      $main = $html;
+      // Fallback: strip <head> and use body
+      $main = preg_replace('#<head[^>]*>.*?</head>#si', '', $html);
     }
 
-    // Insert spaces before closing block-level tags to prevent word concatenation
-    // e.g. <li>word1</li><li>word2</li> → word1 word2 (not word1word2)
-    $main = preg_replace('#</(p|div|li|h[1-6]|tr|td|th|dd|dt|blockquote|section|article|header|footer|aside|nav|figure|figcaption|option|label|span|a|strong|em|b|i|u)>#i', '</$1> ', $main);
+    // ── Phase 3: Insert spaces at tag boundaries BEFORE stripping ──
+    // This is CRITICAL — prevents <li>word1</li><li>word2</li> → "word1word2"
+    // Insert space BEFORE every opening tag
+    $main = preg_replace('#<(?!/)#', ' <', $main);
+    // Insert space AFTER every closing tag
+    $main = preg_replace('#(</[^>]+>)#', '$1 ', $main);
+    // Ensure <br> produces space
     $main = preg_replace('#<br\s*/?\s*>#i', ' ', $main);
 
+    // ── Phase 4: Strip tags and normalize ──
     $text = wp_strip_all_tags($main);
     $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, get_bloginfo('charset') ?: 'UTF-8');
+    // Normalize all whitespace (including non-breaking spaces) to single spaces
+    $text = str_replace(["\xC2\xA0", '&nbsp;'], ' ', $text);
     $text = preg_replace('/\s+/u', ' ', trim($text));
 
-    // Cap length to keep prompts sane
-    if ( strlen($text) > 20000 ) $text = substr($text, 0, 20000);
+    // ── Phase 5: Cap length to keep prompts under token limits ──
+    // The FAQ prompt template is ~2000 tokens; 12k chars ≈ 3000 tokens of page text
+    // leaves plenty of headroom for the model's output.
+    if ( strlen($text) > 12000 ) $text = substr($text, 0, 12000);
 
     return (string) $text;
   }
@@ -253,32 +280,165 @@ if ( ! function_exists('myls_ai_md_inline') ) {
  * ------------------------------------------------------------------------- */
 if ( ! function_exists('myls_ai_faqs_validate_output') ) {
   /**
-   * Returns true if the output looks like valid FAQ HTML.
-   * Checks for:
-   *  - At least one <h3> tag (question)
-   *  - At least one <p> tag (answer)
-   *  - No excessively long runs of characters without spaces (garbled text)
+   * Validate FAQ HTML output quality.
+   * Returns an array: ['valid' => bool, 'faq_count' => int, 'reason' => string]
    */
-  function myls_ai_faqs_validate_output( string $html ) : bool {
+  function myls_ai_faqs_validate_output( string $html ) : array {
     $html = trim($html);
-    if ( $html === '' ) return false;
+    if ( $html === '' ) return ['valid' => false, 'faq_count' => 0, 'reason' => 'empty_output'];
 
-    // Must have at least one question heading
-    if ( preg_match_all('/<h3\b/i', $html) < 1 ) return false;
+    // Count question headings (raw)
+    $raw_h3_count = (int) preg_match_all('/<h3\b/i', $html);
+    if ( $raw_h3_count < 1 ) return ['valid' => false, 'faq_count' => 0, 'reason' => 'no_h3_questions'];
 
     // Must have at least one paragraph
-    if ( preg_match_all('/<p\b/i', $html) < 1 ) return false;
+    $p_count = (int) preg_match_all('/<p\b/i', $html);
+    if ( $p_count < 1 ) return ['valid' => false, 'faq_count' => $raw_h3_count, 'reason' => 'no_paragraphs'];
 
-    // Check for garbled text: words longer than 60 chars without spaces
-    $text = wp_strip_all_tags($html);
-    if ( preg_match('/[^\s]{60,}/', $text) ) return false;
+    // Check for garbled text: words longer than 60 chars without spaces.
+    // Must inject spaces at tag boundaries BEFORE stripping (prevents <h3>Q?</h3><p>A → Q?A concatenation)
+    // and strip URLs (long URLs are not garbled text).
+    $text_for_garble = preg_replace('#><#', '> <', $html);        // space at every tag boundary
+    $text_for_garble = wp_strip_all_tags($text_for_garble);
+    $text_for_garble = preg_replace('#https?://\S+#', '', $text_for_garble);  // strip URLs
+    $text_for_garble = preg_replace('#[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}#', '', $text_for_garble); // strip emails
+    if ( preg_match('/[^\s]{60,}/', $text_for_garble, $garble_match) ) {
+      $offending = mb_substr($garble_match[0], 0, 80);
+      return ['valid' => false, 'faq_count' => $raw_h3_count, 'reason' => "garbled_text: \"{$offending}\""];
+    }
 
-    return true;
+    // Extract pairs with per-FAQ validation (drops code/errors/garbled individual FAQs)
+    $clean_pairs = myls_ai_faqs_extract_pairs($html);
+    $faq_count   = count($clean_pairs);
+
+    // Minimum FAQ count for a "good" result
+    // 3 is the floor — below this the content isn't useful enough to save.
+    // The fill pass will try to bring it up to the variant target (8 or 10).
+    if ( $faq_count < 3 ) {
+      $dropped = $raw_h3_count - $faq_count;
+      $reason  = ($dropped > 0)
+        ? "too_few_clean_faqs (raw: {$raw_h3_count}, clean: {$faq_count}, dropped: {$dropped})"
+        : 'too_few_faqs';
+      return ['valid' => false, 'faq_count' => $faq_count, 'reason' => $reason];
+    }
+
+    return ['valid' => true, 'faq_count' => $faq_count, 'reason' => 'ok'];
+  }
+}
+
+/* -------------------------------------------------------------------------
+ * Per-FAQ quality validator
+ *
+ * Checks an individual question/answer pair for bad content:
+ *   - Code / error messages (PHP errors, stack traces, function calls)
+ *   - Garbled / concatenated text
+ *   - Too-short answers (< 15 words)
+ *   - Raw HTML/markdown leaking into plain text
+ *   - JSON / data structures
+ *   - Repetitive filler content
+ *
+ * Returns: ['valid' => bool, 'reason' => string]
+ * ------------------------------------------------------------------------- */
+if ( ! function_exists('myls_ai_faq_validate_pair') ) {
+  function myls_ai_faq_validate_pair( string $question, string $answer, string $answer_html = '' ) : array {
+    $question = trim($question);
+    $answer   = trim($answer);
+
+    // ── Basic checks ──
+    if ( $question === '' )                       return ['valid' => false, 'reason' => 'empty_question'];
+    if ( $answer === '' )                         return ['valid' => false, 'reason' => 'empty_answer'];
+    if ( str_word_count($answer) < 15 )           return ['valid' => false, 'reason' => 'answer_too_short'];
+    if ( str_word_count($question) < 3 )          return ['valid' => false, 'reason' => 'question_too_short'];
+
+    // ── Code / error detection ──
+    // Check both the plain text answer AND the raw HTML for code/error patterns
+    $check_text = $answer . ' ' . $answer_html;
+
+    // PHP / server errors
+    if ( preg_match('/\b(Fatal error|Parse error|Warning|Notice|Deprecated|Uncaught|Exception|Stack trace|Traceback|Syntax error|undefined variable|undefined index)\s*:/i', $check_text) ) {
+      return ['valid' => false, 'reason' => 'error_message'];
+    }
+
+    // WordPress-specific errors
+    if ( preg_match('/\b(wp_die|WP_Error|is_wp_error|do_action|apply_filters|add_filter|add_action|wp_remote_|wp_send_json|get_option|update_option)\s*\(/i', $check_text) ) {
+      return ['valid' => false, 'reason' => 'wp_code'];
+    }
+
+    // File paths (Unix or Windows)
+    if ( preg_match('#(/var/www/|/home/|/usr/|C:\\\\|wp-content/|\.php\s+on\s+line|\.php:\d)#i', $check_text) ) {
+      return ['valid' => false, 'reason' => 'file_path'];
+    }
+
+    // Programming constructs — function calls, variable names, code syntax
+    if ( preg_match('/\b(function\s*\(|=>|console\.log|var\s+\w|const\s+\w|let\s+\w|\$\w+\s*=|foreach|array\(|new\s+\w+\(|try\s*\{|catch\s*\(|throw\s+new|import\s+\{|require\s*\(|include\s*\(|echo\s+[\'"]|print_r\s*\()\b/', $check_text) ) {
+      return ['valid' => false, 'reason' => 'code_syntax'];
+    }
+
+    // SQL
+    if ( preg_match('/\b(SELECT\s+\w+\s+FROM|INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM|CREATE\s+TABLE)\b/i', $check_text) ) {
+      return ['valid' => false, 'reason' => 'sql_code'];
+    }
+
+    // JSON / API response structures
+    if ( preg_match('/\{\s*"[^"]+"\s*:\s*["\[\{]/', $check_text) ) {
+      return ['valid' => false, 'reason' => 'json_data'];
+    }
+    if ( preg_match('/\b(status|error|message|response)\s*[=:]\s*["\{]/i', $check_text) && preg_match('/[{}]/', $check_text) ) {
+      return ['valid' => false, 'reason' => 'api_response'];
+    }
+
+    // Code fences / backtick blocks that survived cleanup
+    if ( strpos($check_text, '```') !== false || preg_match('/`[^`]{10,}`/', $check_text) ) {
+      return ['valid' => false, 'reason' => 'code_fence'];
+    }
+
+    // XML / data structure artifacts
+    if ( preg_match('/<\?(?:php|xml)\b/i', $check_text) ) {
+      return ['valid' => false, 'reason' => 'xml_code'];
+    }
+
+    // Prompt echo-back — AI returning its own instructions
+    if ( preg_match('/\b(CRITICAL OUTPUT RULES|Return clean|No markdown|NEVER use markdown|allowed tags|OUTPUT FORMAT)\b/i', $check_text) ) {
+      return ['valid' => false, 'reason' => 'prompt_echo'];
+    }
+
+    // Markdown heading/list syntax that survived conversion
+    if ( preg_match('/^#{1,4}\s+\w/m', $answer) || preg_match('/^\*{1,2}\s+\w/m', $answer) ) {
+      return ['valid' => false, 'reason' => 'markdown_syntax'];
+    }
+
+    // ── Garbled text ──
+    // Words over 40 chars without spaces (URLs are OK, so exclude http)
+    $no_urls = preg_replace('#https?://\S+#', '', $answer);
+    if ( preg_match('/[^\s]{40,}/', $no_urls) ) {
+      return ['valid' => false, 'reason' => 'garbled_text'];
+    }
+
+    // ── Repeated content ──
+    // Same 8+ word phrase appearing 3+ times in the answer
+    $words = preg_split('/\s+/', strtolower($answer));
+    if ( count($words) >= 24 ) {
+      $chunks = [];
+      for ($i = 0; $i <= count($words) - 8; $i++) {
+        $chunk = implode(' ', array_slice($words, $i, 8));
+        $chunks[$chunk] = ($chunks[$chunk] ?? 0) + 1;
+        if ($chunks[$chunk] >= 3) {
+          return ['valid' => false, 'reason' => 'repetitive_content'];
+        }
+      }
+    }
+
+    // ── HTML leaking into question text ──
+    if ( preg_match('/<[a-z]+[\s>]/i', $question) ) {
+      return ['valid' => false, 'reason' => 'html_in_question'];
+    }
+
+    return ['valid' => true, 'reason' => 'ok'];
   }
 }
 
 /* =============================================================================
- * ACF insertion/deletion for generated FAQs
+ * AJAX: Insert generated FAQs into ACF repeater
  *
  * Field Group: "FAQ Schema"
  * Repeater (name: faq_items, key: field_67ecf855edf0b)
@@ -484,6 +644,37 @@ if ( ! function_exists('myls_ai_faqs_extract_pairs') ) {
           }
         }
       }
+    }
+
+    // ── Per-FAQ quality filter ──────────────────────────────────────
+    // Validate each Q/A pair and drop bad ones (code, errors, garbled, etc.)
+    if ( ! empty($pairs) && function_exists('myls_ai_faq_validate_pair') ) {
+      $clean_pairs = [];
+      $rejected    = [];
+      foreach ($pairs as $pair) {
+        $check = myls_ai_faq_validate_pair(
+          (string) ($pair['question'] ?? ''),
+          (string) ($pair['answer'] ?? ''),
+          (string) ($pair['answer_html'] ?? '')
+        );
+        if ( $check['valid'] ) {
+          $clean_pairs[] = $pair;
+        } else {
+          $rejected[] = [
+            'question' => mb_substr((string) ($pair['question'] ?? ''), 0, 80),
+            'reason'   => $check['reason'],
+          ];
+        }
+      }
+
+      // Log rejections for debugging
+      if ( ! empty($rejected) ) {
+        $count_r = count($rejected);
+        $reasons = implode(', ', array_column($rejected, 'reason'));
+        error_log("[MYLS] FAQ pair validation: dropped {$count_r} bad FAQ(s) — reasons: {$reasons}");
+      }
+
+      $pairs = $clean_pairs;
     }
 
     return $pairs;
@@ -1002,7 +1193,7 @@ add_action('wp_ajax_myls_ai_faqs_generate_v1', function(){
   // Permalink-based page text
   $page_text = myls_ai_fetch_permalink_text((string)$url);
   if ( $page_text === '' ) {
-    $page_text = preg_replace('/\s+/u',' ', trim( wp_strip_all_tags( (string) $p->post_content ) ));
+    $page_text = function_exists('myls_get_post_plain_text') ? myls_get_post_plain_text( $post_id ) : preg_replace('/\s+/u',' ', trim( wp_strip_all_tags( (string) $p->post_content ) ));
   }
 
   // Get city/state from post meta (try multiple possible meta keys)
@@ -1055,99 +1246,331 @@ add_action('wp_ajax_myls_ai_faqs_generate_v1', function(){
   $temp   = (float) ($_POST['temperature'] ?? (float) get_option('myls_ai_faqs_temperature', 0.5));
   $model  = isset($_POST['model']) && is_string($_POST['model']) ? trim($_POST['model']) : '';
 
-  $ai = myls_ai_generate_text($prompt, [
+  $ai_opts = [
     'model'       => $model ?: null,
     'max_tokens'  => $tokens,
     'temperature' => $temp,
     'context'     => 'faqs_generate',
     'post_id'     => $post_id,
-  ]);
-
-  $raw = myls_ai_strip_code_fences((string)$ai);
-
-  // ── NEW: Detect and convert markdown → HTML if the AI ignored the HTML-only instruction ──
-  if ( $raw !== '' && myls_ai_detect_markdown($raw) ) {
-    $raw = myls_ai_markdown_to_html($raw);
-    error_log('[MYLS FAQ] AI returned markdown for post #' . $post_id . ' — auto-converted to HTML.');
-  }
-
-  // ── Variation Engine: duplicate guard for FAQs ──
-  if ( $raw !== '' && class_exists('MYLS_Variation_Engine') ) {
-    $raw = MYLS_Variation_Engine::guard_duplicates(
-      'faqs_generate',
-      $raw,
-      function( $original ) use ( $model, $tokens, $temp, $post_id, $city_state ) {
-        $rewrite  = "Rewrite these FAQs to be structurally distinct.\n";
-        $rewrite .= "Replace the first 3 questions entirely with different topics.\n";
-        $rewrite .= "Keep the same city ({$city_state}), same HTML formatting.\n";
-        $rewrite .= "Return clean HTML only.\n\nOriginal:\n" . $original;
-        $result = myls_ai_generate_text( $rewrite, [
-          'model'       => $model ?: null,
-          'max_tokens'  => $tokens,
-          'temperature' => min( 1.0, $temp + 0.1 ),
-          'context'     => 'faqs_generate',
-          'post_id'     => $post_id,
-        ]);
-        return myls_ai_strip_code_fences( (string) $result );
-      }
-    );
-  }
-
-  // Sanitize output HTML
-  $allowed = [
-    'h2'     => [],
-    'h3'     => [],
-    'p'      => [],
-    'ul'     => [],
-    'ol'     => [],
-    'li'     => [],
-    'strong' => [],
-    'em'     => [],
   ];
-  if ( $allow_links ) {
-    $allowed['a'] = ['href'=>true, 'target'=>true, 'rel'=>true, 'title'=>true];
-  }
 
-  // Remove any style/class/data-* attributes if model adds them
-  $raw = preg_replace('/\s+(style|class|data-[a-z0-9_-]+)="[^"]*"/i', '', $raw);
+  // ── Retry loop: attempt generation up to 3 times ──
+  $max_attempts  = 3;
+  $raw           = '';
+  $clean         = '';
+  $validation    = ['valid' => false, 'faq_count' => 0, 'reason' => 'not_started'];
+  $retry_reasons = [];
 
-  // If links are not allowed, strip <a> tags entirely
-  if ( ! $allow_links ) {
-    $raw = preg_replace('#</?a\b[^>]*>#i', '', $raw);
-  } else {
-    // Ensure rel noopener on any external links
-    $raw = preg_replace_callback('#<a\b([^>]*)>#i', function($m){
-      $tag = $m[0];
-      if ( stripos($tag, 'rel=') === false ) {
-        $tag = rtrim(substr($tag,0,-1)) . ' rel="noopener">';
+  for ( $attempt = 1; $attempt <= $max_attempts; $attempt++ ) {
+
+    // On retries, bump temperature slightly to get different output
+    $retry_opts = $ai_opts;
+    if ( $attempt > 1 ) {
+      $retry_opts['temperature'] = min( 1.2, $temp + ( 0.15 * ( $attempt - 1 ) ) );
+      error_log("[MYLS FAQ] Retry #{$attempt} for post #{$post_id} (reason: {$validation['reason']}). Temp: {$retry_opts['temperature']}");
+    }
+
+    $ai = myls_ai_generate_text($prompt, $retry_opts);
+    $raw = myls_ai_strip_code_fences((string)$ai);
+
+    // Detect and convert markdown → HTML if the AI ignored the HTML-only instruction
+    if ( $raw !== '' && myls_ai_detect_markdown($raw) ) {
+      $raw = myls_ai_markdown_to_html($raw);
+      error_log('[MYLS FAQ] AI returned markdown for post #' . $post_id . ' (attempt ' . $attempt . ') — auto-converted to HTML.');
+    }
+
+    // ── Variation Engine: duplicate guard for FAQs ──
+    if ( $raw !== '' && class_exists('MYLS_Variation_Engine') ) {
+      // Only run guard on first attempt to avoid burning extra API calls on retries
+      if ( $attempt === 1 ) {
+        $raw = MYLS_Variation_Engine::guard_duplicates(
+          'faqs_generate',
+          $raw,
+          function( $original ) use ( $model, $tokens, $temp, $post_id, $city_state ) {
+            $rewrite  = "Rewrite these FAQs to be structurally distinct.\n";
+            $rewrite .= "Replace the first 3 questions entirely with different topics.\n";
+            $rewrite .= "Keep the same city ({$city_state}), same HTML formatting.\n";
+            $rewrite .= "Return clean HTML only.\n\nOriginal:\n" . $original;
+            $result = myls_ai_generate_text( $rewrite, [
+              'model'       => $model ?: null,
+              'max_tokens'  => $tokens,
+              'temperature' => min( 1.0, $temp + 0.1 ),
+              'context'     => 'faqs_generate',
+              'post_id'     => $post_id,
+            ]);
+            return myls_ai_strip_code_fences( (string) $result );
+          }
+        );
       }
-      return $tag;
-    }, $raw);
+    }
+
+    // Sanitize output HTML
+    $allowed = [
+      'h2'     => [],
+      'h3'     => [],
+      'p'      => [],
+      'ul'     => [],
+      'ol'     => [],
+      'li'     => [],
+      'strong' => [],
+      'em'     => [],
+    ];
+    if ( $allow_links ) {
+      $allowed['a'] = ['href'=>true, 'target'=>true, 'rel'=>true, 'title'=>true];
+    }
+
+    // Fix malformed HTML tags with spaces inside angle brackets
+    // e.g. "< strong >" → "<strong>", "< /li >" → "</li>", "< h3 >" → "<h3>"
+    $raw = preg_replace('#<\s+(/?\s*[a-z][a-z0-9]*)\s*>#i', '<$1>', $raw);
+    // Also fix partial cases: "< strong>" or "<strong >" or "< /p >"
+    $raw = preg_replace('#<\s+(/?\s*[a-z][a-z0-9]*)(\s+[^>]*)?\s*>#i', '<$1$2>', $raw);
+
+    // Remove any style/class/data-* attributes if model adds them
+    $raw = preg_replace('/\s+(style|class|data-[a-z0-9_-]+)="[^"]*"/i', '', $raw);
+
+    // If links are not allowed, strip <a> tags entirely
+    if ( ! $allow_links ) {
+      $raw = preg_replace('#</?a\b[^>]*>#i', '', $raw);
+    } else {
+      // Ensure rel noopener on any external links
+      $raw = preg_replace_callback('#<a\b([^>]*)>#i', function($m){
+        $tag = $m[0];
+        if ( stripos($tag, 'rel=') === false ) {
+          $tag = rtrim(substr($tag,0,-1)) . ' rel="noopener">';
+        }
+        return $tag;
+      }, $raw);
+    }
+
+    $clean = wp_kses($raw, $allowed);
+
+    // Validate
+    $validation = myls_ai_faqs_validate_output($clean);
+
+    if ( $validation['valid'] ) {
+      // Good output — break out of retry loop
+      if ( $attempt > 1 ) {
+        error_log("[MYLS FAQ] Retry #{$attempt} succeeded for post #{$post_id}. FAQs: {$validation['faq_count']}");
+      }
+      break;
+    }
+
+    // Track why this attempt failed — include stats for debugging
+    $attempt_h3  = (int) preg_match_all('/<h3\b/i', $clean);
+    $attempt_p   = (int) preg_match_all('/<p\b/i', $clean);
+    $attempt_wc  = str_word_count(wp_strip_all_tags($clean));
+    $retry_reasons[] = "attempt {$attempt}: {$validation['reason']} (FAQs: {$validation['faq_count']}, h3: {$attempt_h3}, p: {$attempt_p}, words: {$attempt_wc}, raw_len: " . strlen($raw) . ")";
   }
 
-  $clean = wp_kses($raw, $allowed);
+  // ── After all attempts: if still invalid, return error ──
+  if ( ! $validation['valid'] ) {
+    $reasons_str = implode('; ', $retry_reasons);
+    error_log("[MYLS FAQ] All {$max_attempts} attempts failed for post #{$post_id}. Reasons: {$reasons_str}");
 
-  // ── NEW: Validate the output before accepting it ──
-  if ( $clean !== '' && ! myls_ai_faqs_validate_output($clean) ) {
-    error_log('[MYLS FAQ] Output validation failed for post #' . $post_id . '. Raw length: ' . strlen($raw));
+    // Get what model/provider actually ran
+    $ai_call_info = function_exists('myls_ai_last_call') ? myls_ai_last_call() : [];
+
+    // Build rich diagnostics for the frontend log
+    $raw_text      = wp_strip_all_tags($raw);
+    $raw_h3        = (int) preg_match_all('/<h3\b/i', $raw);
+    $raw_p         = (int) preg_match_all('/<p\b/i', $raw);
+    $clean_pairs   = myls_ai_faqs_extract_pairs($clean);
+
     wp_send_json_error([
-      'status'  => 'error',
-      'message' => 'AI returned malformed FAQ content (no valid question/answer structure detected). Try regenerating this post.',
-      'post_id' => $post_id,
-      'title'   => $title,
-      'raw_preview' => mb_substr(wp_strip_all_tags($raw), 0, 300),
+      'status'       => 'error',
+      'message'      => "FAQ generation failed after {$max_attempts} attempts ({$validation['reason']}). Try regenerating this post.",
+      'post_id'      => $post_id,
+      'title'        => $title,
+      'city_state'   => $city_state,
+      'attempts'     => $max_attempts,
+      'reasons'      => $retry_reasons,
+      'raw_preview'  => mb_substr($raw_text, 0, 500),
+      // Diagnostics
+      'diag' => [
+        'model'          => $ai_call_info['resolved_model'] ?? ($model ?: '(default)'),
+        'provider'       => $ai_call_info['provider'] ?? '(unknown)',
+        'raw_length'     => strlen($raw),
+        'raw_words'      => str_word_count($raw_text),
+        'raw_h3_count'   => $raw_h3,
+        'raw_p_count'    => $raw_p,
+        'clean_pairs'    => count($clean_pairs),
+        'page_text_len'  => strlen($page_text),
+        'tokens'         => $tokens,
+        'temperature'    => $temp,
+        'variant'        => $variant,
+        'validation'     => $validation,
+        'has_markdown'   => (bool) preg_match('/^#{1,3}\s|\*\*[^*]+\*\*/m', $raw),
+        'has_code_fence' => strpos($raw, '```') !== false,
+        'raw_first_500'  => mb_substr($raw, 0, 500),
+      ],
     ], 422);
+  }
+
+  // ── Post-validation: strip bad FAQs and fill gaps ──────────────
+  // Extract validated pairs, ALWAYS rebuild HTML from clean pairs only,
+  // and fill if we're below target count.
+  $fill_count      = 0;
+  $fill_attempts   = 0;
+  $dropped_reasons = [];
+
+  // Extract the validated pairs from the clean HTML
+  $valid_pairs     = myls_ai_faqs_extract_pairs($clean);
+  $raw_h3_count    = (int) preg_match_all('/<h3\b/i', $clean);
+  $dropped_count   = max(0, $raw_h3_count - count($valid_pairs));
+
+  // Determine target FAQ count from variant
+  $target_count = ($variant === 'SHORT') ? 8 : 10;
+
+  // ── ALWAYS rebuild HTML from validated pairs only ──
+  // This ensures bad FAQs are stripped from the output even when fill doesn't run.
+  if ( $dropped_count > 0 || $raw_h3_count !== count($valid_pairs) ) {
+    error_log("[MYLS FAQ] Post #{$post_id}: Rebuilding HTML — dropped {$dropped_count} bad FAQ(s) from {$raw_h3_count} total.");
+
+    $rebuilt_html = '';
+
+    // Preserve any <h2> header from original output
+    if ( preg_match('/<h2\b[^>]*>.*?<\/h2>/is', $clean, $h2_match) ) {
+      $rebuilt_html .= $h2_match[0] . "\n";
+    }
+
+    foreach ( $valid_pairs as $pair ) {
+      $rebuilt_html .= '<h3>' . esc_html($pair['question']) . "</h3>\n";
+      $rebuilt_html .= $pair['answer_html'] . "\n";
+    }
+
+    // Preserve any <h2>Sources</h2> section from original output
+    if ( preg_match('/<h2[^>]*>\s*Sources?\s*<\/h2>.*$/is', $clean, $src_match) ) {
+      $rebuilt_html .= $src_match[0];
+    }
+
+    $clean = wp_kses($rebuilt_html, $allowed);
+  }
+
+  // ── Fill pass: generate replacement FAQs if below target ──
+  if ( count($valid_pairs) < $target_count ) {
+
+    $need = min( $target_count - count($valid_pairs), 5 ); // cap fill at 5
+    $existing_questions = array_map(function($p) { return $p['question']; }, $valid_pairs);
+    $existing_list = implode("\n", array_map(function($q, $i) { return ($i+1) . '. ' . $q; }, $existing_questions, array_keys($existing_questions)));
+
+    // Build targeted fill prompt
+    $fill_prompt  = "Generate exactly {$need} additional FAQ(s) about the specific service: \"{$title}\"";
+    if ( $city_state !== '' ) $fill_prompt .= " in {$city_state}";
+    $fill_prompt .= ".\n\n";
+    $fill_prompt .= "IMPORTANT: Every FAQ MUST be directly related to the service topic \"{$title}\". Do NOT generate generic questions about permits, business registration, or unrelated topics.\n\n";
+    $fill_prompt .= "EXISTING QUESTIONS (do NOT duplicate these):\n{$existing_list}\n\n";
+    $fill_prompt .= "RULES:\n";
+    $fill_prompt .= "- Return clean HTML only. No markdown, no code fences, no backticks.\n";
+    $fill_prompt .= "- No spaces inside HTML angle brackets. Write <h3> not < h3 >.\n";
+    $fill_prompt .= "- Each FAQ must follow this EXACT structure:\n";
+    $fill_prompt .= "  <h3>Question about {$title}?</h3>\n";
+    $fill_prompt .= "  <p>Direct answer sentence. Supporting details for";
+    if ( $city_state !== '' ) $fill_prompt .= " {$city_state}";
+    $fill_prompt .= " customers. At least 60 words total.</p>\n";
+    $fill_prompt .= "- Questions must be different topics from the existing list above.\n";
+    $fill_prompt .= "- Write for homeowners/customers searching in this area.\n";
+    $fill_prompt .= "- Do NOT include any code, error messages, file paths, or technical syntax.\n";
+    if ( $contact_url !== '' ) {
+      $fill_prompt .= "- Every FAQ MUST end with this closing paragraph:\n";
+      $fill_prompt .= "  <p><em>Helpful next step:</em> [action sentence] <a href=\"{$contact_url}\">Contact us</a> [closing phrase].</p>\n";
+    }
+
+    error_log("[MYLS FAQ] Fill pass for post #{$post_id}: need {$need} replacement FAQ(s), {$dropped_count} were dropped from original {$raw_h3_count}.");
+
+    // Try fill up to 2 times
+    for ( $fill_try = 1; $fill_try <= 2; $fill_try++ ) {
+      $fill_attempts++;
+      $fill_opts = $ai_opts;
+      $fill_opts['max_tokens'] = min(3000, $need * 600); // ~600 tokens per FAQ
+      $fill_opts['temperature'] = min(1.0, $temp + 0.1);
+
+      $fill_raw = myls_ai_generate_text($fill_prompt, $fill_opts);
+      $fill_raw = myls_ai_strip_code_fences((string)$fill_raw);
+
+      if ( $fill_raw !== '' && myls_ai_detect_markdown($fill_raw) ) {
+        $fill_raw = myls_ai_markdown_to_html($fill_raw);
+      }
+
+      // Sanitize same as main output
+      // Fix malformed HTML tags with spaces inside angle brackets
+      $fill_raw = preg_replace('#<\s+(/?\s*[a-z][a-z0-9]*)\s*>#i', '<$1>', $fill_raw);
+      $fill_raw = preg_replace('#<\s+(/?\s*[a-z][a-z0-9]*)(\s+[^>]*)?\s*>#i', '<$1$2>', $fill_raw);
+      $fill_raw   = preg_replace('/\s+(style|class|data-[a-z0-9_-]+)="[^"]*"/i', '', $fill_raw);
+      if ( ! $allow_links ) {
+        $fill_raw = preg_replace('#</?a\b[^>]*>#i', '', $fill_raw);
+      }
+      $fill_clean = wp_kses($fill_raw, $allowed);
+
+      // Extract and validate fill pairs
+      $fill_pairs = myls_ai_faqs_extract_pairs($fill_clean);
+
+      if ( ! empty($fill_pairs) ) {
+        // Merge valid fill pairs into the main set
+        foreach ( $fill_pairs as $fp ) {
+          // Skip if this question duplicates an existing one
+          $dup = false;
+          foreach ( $valid_pairs as $vp ) {
+            if ( similar_text( strtolower($fp['question']), strtolower($vp['question']) ) / max(1, strlen($fp['question'])) > 0.7 ) {
+              $dup = true;
+              break;
+            }
+          }
+          if ( ! $dup ) {
+            $valid_pairs[] = $fp;
+            $fill_count++;
+          }
+        }
+
+        error_log("[MYLS FAQ] Fill pass attempt {$fill_try}: got " . count($fill_pairs) . " FAQ(s), kept {$fill_count} after dedup.");
+        break; // Fill succeeded
+      }
+
+      error_log("[MYLS FAQ] Fill pass attempt {$fill_try} produced 0 valid FAQs.");
+    }
+
+    // Rebuild the complete HTML from all valid pairs (original + fill)
+    if ( $fill_count > 0 ) {
+      $rebuilt_html = '';
+
+      // Preserve any <h2> header from original output
+      if ( preg_match('/<h2\b[^>]*>.*?<\/h2>/is', $clean, $h2_match) ) {
+        $rebuilt_html .= $h2_match[0] . "\n";
+      }
+
+      foreach ( $valid_pairs as $pair ) {
+        $rebuilt_html .= '<h3>' . esc_html($pair['question']) . "</h3>\n";
+        $rebuilt_html .= $pair['answer_html'] . "\n";
+      }
+
+      // Preserve any <h2>Sources</h2> section from original output
+      if ( preg_match('/<h2[^>]*>\s*Sources?\s*<\/h2>.*$/is', $clean, $src_match) ) {
+        $rebuilt_html .= $src_match[0];
+      }
+
+      $clean = wp_kses($rebuilt_html, $allowed);
+
+      // Re-validate the rebuilt output
+      $validation = myls_ai_faqs_validate_output($clean);
+
+      error_log("[MYLS FAQ] Post #{$post_id} after fill: {$validation['faq_count']} FAQs (was " . ($validation['faq_count'] - $fill_count) . " + {$fill_count} filled).");
+    }
   }
 
   // Save downloads
   $html_url = myls_ai_faqs_save_html($post_id, (string)$title, (string)$url, (string)$clean);
   $doc_url  = myls_ai_faqs_save_docx($post_id, (string)$title, (string)$clean);
 
-  // Count questions generated
-  $faq_count = preg_match_all('/<h3\b/i', $clean);
+  // Count questions generated (validated = clean pairs after per-FAQ filtering + fill)
+  $faq_count = $validation['faq_count'];
+
+  // Get what model/provider actually ran
+  $ai_call_info = function_exists('myls_ai_last_call') ? myls_ai_last_call() : [];
+  $resolved_model    = $ai_call_info['resolved_model'] ?? ($model ?: 'default');
+  $resolved_provider = $ai_call_info['provider'] ?? 'openai';
 
   $ve_log = class_exists('MYLS_Variation_Engine') ? MYLS_Variation_Engine::build_item_log($start_time, [
-    'model'          => $model ?: 'default',
+    'model'          => $resolved_model,
+    'provider'       => $resolved_provider,
     'tokens'         => $tokens,
     'temperature'    => $temp,
     'prompt_chars'   => mb_strlen($prompt),
@@ -1158,6 +1581,10 @@ add_action('wp_ajax_myls_ai_faqs_generate_v1', function(){
     '_html'          => $clean,
     'variant'        => $variant,
     'faq_count'      => $faq_count ?: 0,
+    'raw_faq_count'  => $raw_h3_count,
+    'dropped_faqs'   => $dropped_count,
+    'filled_faqs'    => $fill_count,
+    'fill_attempts'  => $fill_attempts,
     'has_doc'        => trim($doc_url ?? '') !== '',
     'allow_links'    => $allow_links,
   ]) : ['elapsed_ms' => round((microtime(true) - $start_time) * 1000)];
@@ -1172,6 +1599,12 @@ add_action('wp_ajax_myls_ai_faqs_generate_v1', function(){
     'html_url' => (string) $html_url,
     'doc_url'  => (string) $doc_url,
     'city_state' => $city_state,
+    'faq_count' => $faq_count,
+    'dropped_faqs' => $dropped_count,
+    'filled_faqs'  => $fill_count,
+    'fill_attempts' => $fill_attempts,
+    'attempts' => $attempt,
+    'retries'  => ! empty($retry_reasons) ? $retry_reasons : [],
     'preview'  => mb_substr(wp_strip_all_tags($clean), 0, 120) . (mb_strlen(wp_strip_all_tags($clean)) > 120 ? '...' : ''),
     'log'      => $ve_log,
   ]);
@@ -1385,7 +1818,7 @@ add_action('wp_ajax_myls_ai_faqs_check_existing_myls_v1', function(){
 });
 
 /* =============================================================================
- * AJAX: Delete auto-generated FAQs from MYLS native structure
+ * AJAX: Delete ALL FAQs from MYLS native structure for selected posts
  * Action: myls_ai_faqs_delete_auto_myls_v1
  * ============================================================================= */
 add_action('wp_ajax_myls_ai_faqs_delete_auto_myls_v1', function(){
@@ -1400,62 +1833,15 @@ add_action('wp_ajax_myls_ai_faqs_delete_auto_myls_v1', function(){
     wp_send_json_error(['marker'=>'faqs','status'=>'error','message'=>'cap_denied'], 403);
   }
 
+  // Count existing FAQs before clearing
   $items = myls_ai_faqs_myls_normalize_items(myls_ai_faqs_myls_get_items($post_id));
-  if ( empty($items) ) {
-    wp_send_json_success([
-      'marker'        => 'faqs',
-      'status'        => 'ok',
-      'post_id'       => $post_id,
-      'deleted_count' => 0,
-      'total_rows'    => 0,
-    ]);
-  }
+  $deleted = count($items);
 
+  // Clear the FAQ custom field entirely
+  delete_post_meta($post_id, '_myls_faq_items');
+
+  // Also clear auto-generated hash markers
   $auto_key = myls_ai_faqs_myls_auto_meta_key();
-  $auto_hashes = get_post_meta($post_id, $auto_key, true);
-  if ( ! is_array($auto_hashes) ) $auto_hashes = [];
-  $auto_hashes = array_flip(array_values(array_unique(array_filter($auto_hashes))));
-
-  $kept = [];
-  $deleted = 0;
-
-  foreach ($items as $row) {
-    $q = isset($row['q']) ? (string)$row['q'] : '';
-    $a_plain = isset($row['a']) ? (string)$row['a'] : '';
-
-    // IMPORTANT: Normalize exactly like insert (whitespace + nbsp handling),
-    // otherwise hashes won't match and delete-auto will remove 0 rows.
-    $q = trim(wp_strip_all_tags((string)$q));
-    $q = html_entity_decode((string)$q, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $q = str_replace(["\xC2\xA0", '&nbsp;'], ' ', (string)$q);
-    $q = preg_replace('/\s+/u', ' ', (string)$q);
-    $q = trim((string)$q);
-
-    $a_plain = html_entity_decode((string)$a_plain, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $a_plain = str_replace(["\xC2\xA0", '&nbsp;'], ' ', (string)$a_plain);
-    $a_plain = preg_replace('/\s+/u', ' ', (string)$a_plain);
-    $a_plain = trim(wp_strip_all_tags((string)$a_plain));
-
-    $h = (trim($q) !== '' || $a_plain !== '') ? myls_ai_faqs_hash_row($q, $a_plain) : '';
-
-    if ($h !== '' && isset($auto_hashes[$h])) {
-      $deleted++;
-      continue;
-    }
-
-    $kept[] = [
-      'q' => sanitize_text_field($q),
-      'a' => wp_kses_post((string)($row['a'] ?? '')),
-    ];
-  }
-
-  if ( empty($kept) ) {
-    delete_post_meta($post_id, '_myls_faq_items');
-  } else {
-    update_post_meta($post_id, '_myls_faq_items', array_values($kept));
-  }
-
-  // Clear marker hashes once we've applied deletion.
   delete_post_meta($post_id, $auto_key);
 
   wp_send_json_success([
@@ -1463,6 +1849,6 @@ add_action('wp_ajax_myls_ai_faqs_delete_auto_myls_v1', function(){
     'status'        => 'ok',
     'post_id'       => $post_id,
     'deleted_count' => $deleted,
-    'total_rows'    => count($kept),
+    'total_rows'    => 0,
   ]);
 });

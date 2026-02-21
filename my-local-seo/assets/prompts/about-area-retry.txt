@@ -1,4 +1,4 @@
-The previous draft was too short, missing required sections, or used markdown instead of HTML. Rewrite for {{CITY_STATE}} with these hard requirements:
+The previous draft was too short, incomplete, or used markdown instead of HTML. Rewrite for {{CITY_STATE}} following these requirements exactly.
 
 INPUTS:
 - Page Title: {{PAGE_TITLE}}
@@ -6,36 +6,27 @@ INPUTS:
 - Focus Keyword: {{FOCUS_KEYWORD}}
 - Service Subtype: {{SERVICE_SUBTYPE}}
 
-OUTPUT FORMAT (CRITICAL):
-- CLEAN HTML ONLY. No markdown. No backticks. No code fences.
-- Allowed tags: <h2>, <h3>, <p>, <ul>, <li>, <strong>.
-- NEVER use asterisks (**) for bold. ALWAYS use <strong> tags.
+OUTPUT: Clean HTML only. Tags allowed: <h2>, <h3>, <p>, <ul>, <li>, <strong>. No markdown. No inline styles.
 
-BOLD TEXT RULES:
-- {{CITY_STATE}} and county names MUST use <strong> tags.
-- Major landmarks and parks SHOULD use <strong> tags.
-- Do not overuse bold formatting.
+Bold {{CITY_STATE}} and county names with <strong> tags. Mention {{FOCUS_KEYWORD}} 2–3 times naturally. 400–600 words. No business promotion.
 
-VARIATION REQUIREMENTS:
-- Do NOT begin with: "Nestled in", "Located in", "Welcome to", "Situated in", "Known for its"
-- Avoid: vibrant, charming, thriving, beautiful, bustling
-- Use specific local references, not generic descriptors.
+REQUIRED STRUCTURE (all sections mandatory this time):
 
-REQUIRED STRUCTURE (400–600 words):
+<h2>About <strong>{{SERVICE_SUBTYPE}}</strong> in <strong>{{CITY_STATE}}</strong></h2>
 
-<h2 style="text-align:center;">About <strong>{{SERVICE_SUBTYPE}}</strong> in <strong>{{CITY_STATE}}</strong></h2>
+<p>2–3 sentence intro connecting {{CITY_STATE}} to {{FOCUS_KEYWORD}} and the {{SERVICE_SUBTYPE}} context. Include county name.</p>
 
-<p>2–3 sentence intro connecting <strong>{{CITY_STATE}}</strong> to <strong>{{FOCUS_KEYWORD}}</strong> and {{SERVICE_SUBTYPE}}.</p>
+<h3>[Local area subsection]</h3>
+<ul><li>3–4 items: real neighborhoods, nearby cities, or communities</li></ul>
 
-<h3>Neighborhoods &amp; Surrounding Areas</h3>
-<ul><li>2–4 neighborhoods with 1 detail each</li></ul>
+<h3>[Recreation or landmarks subsection]</h3>
+<ul><li>3–5 items: real parks, venues, attractions, or seasonal highlights</li></ul>
 
-<h3>Things to Do</h3>
-<ul><li>3–5 highlights with brief specifics</li></ul>
+<h3>[Transportation or climate subsection]</h3>
+<p>1–2 sentences about key roads, highways, drive times, or seasonal weather relevant to {{SERVICE_SUBTYPE}}.</p>
 
-<h3>Getting Around</h3>
-<p>1–2 sentences on key roads/highways and typical drive times to nearby cities.</p>
+<p>Closing that ties back to {{SERVICE_SUBTYPE}} and {{FOCUS_KEYWORD}} in {{CITY_STATE}}.</p>
 
-<p>1–2 sentence closing that ties back to {{SERVICE_SUBTYPE}} and <strong>{{FOCUS_KEYWORD}}</strong> in <strong>{{CITY_STATE}}</strong>.</p>
+Do NOT use: "Nestled in", "Located in", "Welcome to", "vibrant", "charming", "thriving". Use specific local details.
 
-No business promotion. No inline styles. No classes. CLEAN HTML with <strong> tags only.
+Now produce the final HTML.

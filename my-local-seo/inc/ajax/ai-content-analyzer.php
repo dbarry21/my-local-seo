@@ -69,9 +69,9 @@ add_action('wp_ajax_myls_content_analyze_v1', function(){
     $post  = get_post($post_id);
     $title = get_the_title($post_id);
     $url   = get_permalink($post_id);
-    $html  = (string) ($post ? $post->post_content : '');
+    $html  = function_exists('myls_get_post_html') ? myls_get_post_html( $post_id ) : (string) ($post ? $post->post_content : '');
 
-    // Strip shortcodes for analysis (they'd skew metrics)
+    // Render shortcodes for analysis (handles DIVI, WPBakery, etc.)
     $html_rendered = do_shortcode($html);
 
     // Get city/state from post meta or title

@@ -1,5 +1,62 @@
 # My Local SEO — Changelog
 
+## 6.3.1.0 — 2026-02-21
+
+### Bugfix: AI Meta Generation Cleanup
+- **CRITICAL FIX:** Regex patterns in `myls_clean_meta_output()` had broken flag concatenation (`'/pattern/i' . '.*$/s'` → invalid regex). `preg_replace` returned `null`, silently destroying all valid API output.
+- Fixed all 13 newline-based cut patterns — flags now self-contained: `'/pattern.*$/is'`
+- Added null-safety on all `preg_replace` calls (keeps previous value if regex fails)
+
+### Bugfix: Reload Default Prompt Button
+- Button now shows "Loading..." state during AJAX call
+- Green flash on textarea confirms successful load
+- Fires `input` and `change` events so watchers know value changed
+- Specific error messages with console logging on failure
+
+### New: Error Diagnostics in Results Log
+- Empty API output now shows WHY: API error details (HTTP code, error message, missing key) or cleanup diagnostic (raw output chars + first 200 chars of stripped content)
+- `openai.php` stores last error in `$GLOBALS['myls_ai_last_error']` for all failure paths
+- New "Meta Output" section in log formatter shows old → new values with character counts
+
+### New: Robust Meta Output Cleanup
+- `myls_clean_meta_output()` function extracts single meta value from verbose AI responses
+- Inline truncation: 15 needle patterns catch single-line multi-option output (`" Or alternative"`, `" **Option 2"`, etc.)
+- Newline truncation: 13 regex patterns catch multiline options/commentary
+- Line-skip filter: skips label/commentary lines, grabs first meaningful content line
+- Artifact stripping: `#` headings, `**bold**`, `"quotes"`, `Title:` labels, `(95 chars)` notes
+
+### Improved: Meta Prompt Templates
+- Title minimum changed from 70 to 90 characters
+- Output instruction strengthened: "Respond with ONLY the title tag text — nothing else. No options, no alternatives, no explanations, no markdown formatting, no numbering, no commentary."
+- Same reinforcement applied to description template
+
+## 6.3.0.8 — 2026-02-21
+
+### New: Universal Page Builder Content Extraction
+- Centralized `inc/page-builder-compat.php` (340 lines) with two public API functions:
+  - `myls_get_post_plain_text( $post_id, $max_words )` — clean text for prompts
+  - `myls_get_post_html( $post_id )` — HTML for analysis
+- **Elementor:** Parses `_elementor_data` JSON, recursively walks widget tree, extracts text from editor/title/description/text/html/content/tab_content keys, handles repeater fields
+- **DIVI / WPBakery:** `myls_strip_shortcode_tags()` strips `[shortcode]` brackets while preserving inner content (unlike WordPress `strip_shortcodes()` which destroys content)
+- **Beaver Builder:** Parses `_fl_builder_data` serialized array, extracts from module settings
+- Builder detection: `myls_detect_page_builder()` returns `'elementor'|'divi'|'beaver_builder'|'wpbakery'|'gutenberg'|'classic'`
+- 11 files updated to use centralized utility with `function_exists()` fallback
+
+### New: Rewritten SEO Meta Prompt Templates
+- 6 structural patterns per context (title: A–F service-location-brand through location-led; description: A–F service-forward through specificity-forward)
+- Comprehensive banned phrase lists (11 title openers, 13 description clichés)
+- Variation Engine updated: new angle arrays, expanded banned phrases, context-aware injection (short-form vs long-form rules)
+- Batch anti-duplication: each item MUST open with different word, no repeated adjective-noun pairings, CTA rotation pool
+
+## 6.3.0.5 — 2026-02-20
+
+### New: AI-Powered llms.txt Generation
+- AI-generated llms.txt with city-specific content and service area organization
+- llms-full.txt endpoint with comprehensive hierarchical structure
+- Parent cities → child service+city combinations
+- Elementor page builder content extraction for source material
+- Enterprise logging with quality metrics and cost tracking
+
 ## 6.0.0 — 2026-02-18
 
 ### New Feature: AI Page Builder

@@ -160,7 +160,7 @@ if ( ! function_exists('myls_video_schema_single') ) {
 		// Description: excerpt > trimmed content > name
 		$desc = has_excerpt($post_id) ? get_the_excerpt($post_id) : '';
 		if ( $desc === '' ) {
-			$desc = wp_trim_words( wp_strip_all_tags( get_post_field('post_content', $post_id) ), 60, '…' );
+			$desc = function_exists('myls_get_post_plain_text') ? myls_get_post_plain_text( $post_id, 60 ) : wp_trim_words( wp_strip_all_tags( get_post_field('post_content', $post_id) ), 60, '…' );
 		}
 		if ( $desc === '' ) $desc = $name;
 

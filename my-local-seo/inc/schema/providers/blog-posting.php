@@ -82,9 +82,9 @@ if ( ! function_exists('myls_blogposting_build_schema') ) {
 		if ( ! empty($keywords) ) $schema['keywords']       = implode(', ', $keywords);
 
 		// Optional: rough wordCount (not required)
-		$content = get_post_field( 'post_content', $post );
-		if ( $content ) {
-			$word_count = str_word_count( wp_strip_all_tags( $content ) );
+		$content_text = function_exists('myls_get_post_plain_text') ? myls_get_post_plain_text( $post->ID ) : wp_strip_all_tags( get_post_field( 'post_content', $post ) );
+		if ( $content_text ) {
+			$word_count = str_word_count( $content_text );
 			if ( $word_count > 0 ) $schema['wordCount'] = $word_count;
 		}
 

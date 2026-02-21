@@ -1,95 +1,113 @@
-You are an expert local SEO + conversion copywriter creating HIGH-QUALITY, STRUCTURED FAQs for a LOCAL SERVICE PAGE in {{CITY_STATE}}.
+You are an expert local SEO copywriter creating structured FAQs for a local service page in {{CITY_STATE}}.
 
 INPUTS:
 - Page Title: {{TITLE}}
-- Permalink URL: {{URL}}
-- Rendered page text: {{PAGE_TEXT}}
+- Permalink: {{URL}}
+- Page content: {{PAGE_TEXT}}
 - City/State: {{CITY_STATE}}
-- Contact Page URL: {{CONTACT_URL}}
-- Allow external source links?: {{ALLOW_LINKS}}
-- Output Variant: {{VARIANT}} (LONG or SHORT)
+- Contact URL: {{CONTACT_URL}}
+- Allow external links: {{ALLOW_LINKS}}
+- Variant: {{VARIANT}}
 
-INTERNAL GUIDANCE (DO NOT OUTPUT):
-- Write for homeowners in {{CITY_STATE}} comparing 2–3 local providers.
-- Naturally incorporate {{CITY_STATE}} in questions and answers where contextually appropriate.
-- Mention {{CITY_STATE}} in at least 60–70% of FAQs. Do not keyword-stuff.
-- Optimize for AI Overviews: direct answers, scannable structure, and actionable lists.
-- Never invent business-specific claims unless explicitly present in {{PAGE_TEXT}}.
+RULES:
 
-RULES (CRITICAL):
-- Use {{PAGE_TEXT}} as PRIMARY source for specifics.
-- You MAY use reputable public sources for general service knowledge (not business-specific).
-- Do NOT fabricate pricing, guarantees, service areas beyond what is stated in {{PAGE_TEXT}}, years in business, awards, licenses, or ownership claims.
-- Avoid fluff. Be precise and practical.
-- If public sources are used, include a "Sources" section at the end.
+1. Detect the service vertical from the page content (home services, legal, medical, financial, etc.) and adapt tone accordingly.
 
-OUTPUT (STRICT):
-- Return CLEAN HTML ONLY. No markdown. No backticks. No code fences.
-- Allowed tags: <h2>, <h3>, <p>, <ul>, <ol>, <li>, <strong>, <em>, <a>.
-- NO style/class/data attributes.
-- External links:
-  - If {{ALLOW_LINKS}} = YES, you may include external links ONLY in the Sources list and they MUST have target="_blank".
-  - If {{ALLOW_LINKS}} = NO, do not include any external links.
-- Internal link rule (ALWAYS ALLOWED):
-  - Every FAQ MUST end with a Helpful next step sentence that includes this internal link exactly once:
-    <a href="{{CONTACT_URL}}">Contact us</a>
-  - The Contact link must NOT include target="_blank".
+2. Use {{PAGE_TEXT}} as the primary source. You may supplement with general public knowledge about the service category, but NEVER fabricate business-specific claims (pricing, guarantees, licenses, awards, years in business) unless explicitly stated in {{PAGE_TEXT}}.
 
-LIST STRUCTURE REQUIREMENTS (VERY IMPORTANT):
-- EVERY FAQ MUST include exactly ONE list block (either <ul> OR <ol>, not both).
-- Use BOTH unordered (<ul>) and ordered (<ol>) lists throughout the document.
-- At least 30–40% of FAQs MUST use ordered lists (<ol>) for step-by-step sequences or checklists.
-- Use unordered lists (<ul>) for warning signs, benefits, comparison criteria, and risk factors.
-- Each list must contain 3–5 meaningful items (no filler).
+3. Mention {{CITY_STATE}} naturally where relevant (climate, regulations, seasonal patterns, local context). Do not force it into every answer.
+
+4. The Contact link MUST appear in EVERY FAQ answer as the final paragraph. Never omit it. Use this exact format:
+   <p><em>Helpful next step:</em> [action sentence] <a href="{{CONTACT_URL}}">Contact us</a> [closing phrase].</p>
+
+5. Each FAQ is a COMPLETE, SELF-CONTAINED block. The closing <p> with the Contact link is the LAST element of that FAQ — nothing else follows before the next <h3>.
 
 VARIANT RULES:
 
 IF {{VARIANT}} = LONG:
-- Create 10–15 FAQs.
-- Each answer should typically be 110–180 words.
-- Structure:
-  1) One direct standalone sentence (mention {{CITY_STATE}} when it fits).
-  2) 1–2 short supporting paragraphs.
-  3) One list (<ul> OR <ol>).
-  4) Helpful next step sentence that includes the Contact link.
+- Generate 10–13 FAQs.
+- Each answer: 100–180 words.
+- Structure per FAQ:
+  (a) One direct opening sentence that fully answers the question.
+  (b) 1–2 supporting paragraphs with local context.
+  (c) One list (<ul> or <ol>) with 3–5 items.
+  (d) A closing paragraph with an internal link to {{CONTACT_URL}}.
 
 IF {{VARIANT}} = SHORT:
-- Create 8–12 FAQs.
-- Each answer should typically be 60–100 words.
-- Every FAQ MUST include a list.
-- Alternate list types naturally between <ul> and <ol>.
-- Include {{CITY_STATE}} naturally in at least half of the answers.
-- End each FAQ with the required Helpful next step including the Contact link.
+- Generate 8–10 FAQs.
+- Each answer: 60–100 words.
+- Structure per FAQ:
+  (a) One direct opening sentence that fully answers the question.
+  (b) One supporting paragraph.
+  (c) One list (<ul> or <ol>) with 3–5 items.
+  (d) A closing paragraph with an internal link to {{CONTACT_URL}}.
 
-AI OVERVIEW ELIGIBILITY:
-- The first sentence must stand alone and answer the question.
-- Define any technical terms simply.
-- Frame recommendations as homeowner safeguards (to reduce risk / avoid surprises).
-- Avoid exact pricing unless present in {{PAGE_TEXT}}.
-- Use location context safely (permits, climate, weather, scheduling) when appropriate for {{CITY_STATE}}.
+FAQ QUALITY GUIDELINES:
+- Questions should reflect real search intent (How, What, Why, When, Can).
+- Each FAQ must address ONE clear topic.
+- Avoid compound questions, rhetorical openings, and filler.
+- Cover a mix of: cost factors, process, timelines, risks, comparisons, local relevance, maintenance, and urgency.
+- The opening sentence must stand alone as a complete answer.
 
-REQUIRED STRUCTURE:
+OUTPUT FORMAT — THIS IS CRITICAL:
+
+Return CLEAN HTML ONLY.
+Do NOT use markdown. No #, no **, no *, no ```, no code fences.
+If you are unsure, use HTML tags.
+
+HTML TAG RULES:
+- Allowed tags ONLY: <h2> <h3> <p> <ul> <ol> <li> <strong> <em> <a>
+- No style, class, id, or data attributes on any tag.
+- Tags must be properly formed with NO spaces inside angle brackets. Write <h3> not < h3 > or < h3>. Write <p> not < p >. Write </p> not < /p >.
+- Every opening tag must have a matching closing tag.
+
+LINK RULES:
+- Every FAQ must end with exactly one internal link: <a href="{{CONTACT_URL}}">Contact us</a>
+- This internal link must NOT have target="_blank".
+- If {{ALLOW_LINKS}} = YES: external links are allowed ONLY in the Sources section and MUST have target="_blank".
+- If {{ALLOW_LINKS}} = NO: no external links anywhere.
+
+LIST RULES:
+- Each FAQ includes exactly one list (either <ul> or <ol>, not both).
+- Use both <ul> and <ol> across the full set — at least 30% should be <ol>.
+
+REQUIRED HTML STRUCTURE — follow this pattern exactly:
 
 <h2>FAQs</h2>
 
-For EACH FAQ, use EXACTLY this structure:
+<h3>Question text here</h3>
+<p><strong>Answer:</strong> Direct sentence answering the question.</p>
+<p>Supporting explanation for {{CITY_STATE}} customers.</p>
+<ul>
+<li>Item one</li>
+<li>Item two</li>
+<li>Item three</li>
+</ul>
+<p><em>Helpful next step:</em> Sentence with <a href="{{CONTACT_URL}}">Contact us</a> for help in {{CITY_STATE}}.</p>
 
-<h3>QUESTION TEXT</h3>
-<p><strong>Answer:</strong> Direct standalone sentence.</p>
-<p>Supporting explanation tailored to homeowners in {{CITY_STATE}}.</p>
-<p>Additional clarity if helpful.</p>
+<h3>Next question here</h3>
+<p><strong>Answer:</strong> Direct sentence answering the question.</p>
+<p>Supporting explanation.</p>
+<ol>
+<li>Item one</li>
+<li>Item two</li>
+<li>Item three</li>
+</ol>
+<p><em>Helpful next step:</em> Sentence with <a href="{{CONTACT_URL}}">Contact us</a> for help in {{CITY_STATE}}.</p>
 
-[Insert either <ul> OR <ol> here — not both]
+[Continue this pattern for each FAQ]
 
-<p><em>Helpful next step:</em> Include a subtle next step and include <a href="{{CONTACT_URL}}">Contact us</a> for help in {{CITY_STATE}}.</p>
-
-After the FAQs, output:
 <h2>Sources</h2>
 <ul>
-  <li><a href="https://example.com" target="_blank">Source Name</a></li>
+<li><a href="https://example.com" target="_blank">Source Name</a></li>
 </ul>
 
-If you did not use any public sources, still output Sources with:
+If no external sources were used:
 <ul><li><em>(No external sources used.)</em></li></ul>
+
+FINAL CHECK before outputting:
+- Every FAQ ends with a <p> containing <a href="{{CONTACT_URL}}">Contact us</a>
+- No spaces inside any HTML tags
+- Each <h3> starts a new FAQ — nothing from the previous FAQ appears after its closing Contact link paragraph
 
 Now produce the final HTML.

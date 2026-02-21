@@ -241,7 +241,7 @@ function myls_pb_insert_hero_image(int $post_id, int $attach_id): void {
  * Use AI to suggest image subjects based on the page description.
  */
 function myls_pb_suggest_image_subjects(string $page_title, string $description, int $count): array {
-    if ( ! function_exists('myls_openai_chat') ) {
+    if ( ! function_exists('myls_ai_chat') && ! function_exists('myls_openai_chat') ) {
         // Fallback: generic subjects
         $fallback = [];
         for ($i = 1; $i <= $count; $i++) {
@@ -257,8 +257,9 @@ function myls_pb_suggest_image_subjects(string $page_title, string $description,
     }
     $prompt .= "Output ONLY the {$count} subjects, one per line, no numbering, no explanation.";
 
-    $result = myls_openai_chat($prompt, [
-        'model'       => 'gpt-4o-mini',
+    $chat_fn = function_exists('myls_ai_chat') ? 'myls_ai_chat' : 'myls_openai_chat';
+    $result = $chat_fn($prompt, [
+        'model'       => '',
         'max_tokens'  => 200,
         'temperature' => 0.8,
         'system'      => 'You suggest concise image subjects for illustrations. Output only the subjects, one per line.',

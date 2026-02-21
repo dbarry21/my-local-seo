@@ -15,9 +15,10 @@ if ( ! defined('ABSPATH') ) exit;
  */
 if ( ! function_exists('myls__call_openai_chat') ) {
   function myls__call_openai_chat( string $prompt, array $args = [] ) {
+    if ( function_exists('myls_ai_chat') )    return myls_ai_chat($prompt, $args);
     if ( function_exists('myls_openai_chat') ) return myls_openai_chat($prompt, $args);
     if ( function_exists('ssseo_openai_chat') ) return ssseo_openai_chat($prompt, $args);
-    return new WP_Error('no_openai_helper', 'No OpenAI chat helper found. Implement myls_openai_chat() or ssseo_openai_chat().');
+    return new WP_Error('no_ai_helper', 'No AI chat helper found.');
   }
 }
 
@@ -35,7 +36,7 @@ if ( ! function_exists('myls_ai_generate_about_area_content') ) {
     if ( trim($prompt) === '' ) return new WP_Error('empty_prompt', 'Prompt template is empty.');
 
     $args = [
-      'model'       => apply_filters('myls_ai_model', 'gpt-4o-mini'),
+      'model'       => apply_filters('myls_ai_model', ''),
       'max_tokens'  => max(1, $tokens),
       'temperature' => (float) $temperature,
     ];

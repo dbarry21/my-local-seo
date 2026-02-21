@@ -77,6 +77,7 @@ if ( ! function_exists('myls_list_prompt_keys') ) {
             'faqs-builder'     => 'FAQs Builder',
             'taglines'         => 'Service Taglines',
             'page-builder'     => 'AI Page Builder',
+            'llms-txt'         => 'llms.txt Generator — {{CITY_NAME}}, {{STATE}}, {{COUNTY}}, {{BUSINESS_NAME}}',
         ];
     }
 }

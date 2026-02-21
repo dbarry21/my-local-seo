@@ -201,6 +201,27 @@ window.mylsLog = (function(){
       }
     }
 
+    // ── Meta Output (old → new) ──
+    if (log.old_value != null || log.new_value != null) {
+      lines.push('');
+      lines.push(section('Meta Output'));
+      if (log.old_value != null) {
+        var oldVal = String(log.old_value || '(empty)');
+        lines.push(row('📤', 'Old:', oldVal));
+        if (oldVal !== '(empty)') lines.push(row('📐', 'Old Length:', oldVal.length + ' chars'));
+      }
+      if (log.new_value != null) {
+        var newVal = String(log.new_value || '(empty)');
+        lines.push(row('📥', 'New:', ''));
+        while (newVal.length > 0) {
+          lines.push('     ' + newVal.substring(0, 64));
+          newVal = newVal.substring(64);
+        }
+        newVal = String(log.new_value || '');
+        if (newVal) lines.push(row('📐', 'New Length:', newVal.length + ' chars'));
+      }
+    }
+
     // Tagline-specific
     if (data.all_taglines && data.all_taglines.length > 1) {
       lines.push('');

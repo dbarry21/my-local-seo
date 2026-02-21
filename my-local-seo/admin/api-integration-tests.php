@@ -54,6 +54,59 @@ add_action('wp_ajax_myls_test_openai_key', function(){
   }
 });
 
+/** ---------------------- Anthropic (Claude) key test ---------------------- */
+add_action('wp_ajax_myls_test_anthropic_key', function(){
+  myls_ajax_guard();
+  $key = sanitize_text_field($_POST['key'] ?? get_option('myls_anthropic_api_key',''));
+  if ($key === '') { wp_send_json_error('No Anthropic API key provided'); }
+
+  // Send a tiny completion to verify the key works end-to-end
+  $body = wp_json_encode([
+    'model'      => 'claude-haiku-4-5-20251001',
+    'max_tokens' => 10,
+    'messages'   => [['role' => 'user', 'content' => 'Say OK']],
+  ]);
+
+  $force = function($h){ if (function_exists('curl_setopt')) @curl_setopt($h, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4); };
+  add_action('http_api_curl', $force, 10, 1);
+  $r = wp_remote_post('https://api.anthropic.com/v1/messages', [
+    'timeout' => 15,
+    'headers' => [
+      'Content-Type'      => 'application/json',
+      'x-api-key'         => $key,
+      'anthropic-version'  => '2023-06-01',
+    ],
+    'body' => $body,
+  ]);
+  remove_action('http_api_curl', $force, 10);
+
+  if (is_wp_error($r)) {
+    $msg = 'HTTP error: '.$r->get_error_code().' — '.$r->get_error_message();
+    update_option('myls_anthropic_test_result', $msg.' @ '.current_time('mysql'));
+    wp_send_json_error($msg);
+  }
+
+  $code = (int) wp_remote_retrieve_response_code($r);
+  $json = json_decode(wp_remote_retrieve_body($r), true);
+
+  if ($code === 200 && is_array($json) && isset($json['content'])) {
+    $model_used = $json['model'] ?? 'unknown';
+    update_option('myls_anthropic_test_result', "OK (200) model: {$model_used} @ ".current_time('mysql'));
+    wp_send_json_success(['message' => "Anthropic OK — model: {$model_used}"]);
+  } elseif ($code === 401) {
+    update_option('myls_anthropic_test_result', 'Unauthorized (401) @ '.current_time('mysql'));
+    wp_send_json_error('Unauthorized (401): check API key');
+  } elseif ($code === 400 || $code === 404) {
+    $err = $json['error']['message'] ?? 'Bad request';
+    update_option('myls_anthropic_test_result', "HTTP {$code}: {$err} @ ".current_time('mysql'));
+    wp_send_json_error("HTTP {$code}: ".myls_snip($err, 120));
+  } else {
+    $err = $json['error']['message'] ?? myls_snip(wp_remote_retrieve_body($r));
+    update_option('myls_anthropic_test_result', "HTTP {$code} @ ".current_time('mysql'));
+    wp_send_json_error("Unexpected HTTP {$code}".($err ? " — ".myls_snip($err, 120) : ''));
+  }
+});
+
 /** ---------------------- Google Places key test ---------------------- */
 add_action('wp_ajax_myls_test_places_key', function(){
   myls_ajax_guard();

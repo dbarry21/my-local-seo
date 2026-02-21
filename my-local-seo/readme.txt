@@ -3,7 +3,7 @@ Contributors: davebarry
 Tags: local seo, schema, ai, faq, utilities, person schema, linkedin
 Requires at least: 6.0
 Tested up to: 6.7
-Stable tag: 6.0.0
+Stable tag: 6.3.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -30,6 +30,15 @@ This plugin provides a modular admin toolkit for local SEO workflows including s
 2. Activate the plugin through the 'Plugins' menu in WordPress.
 
 == Upgrade Notice ==
+
+= 6.3.1.0 =
+Fixes AI meta title/description generation: cleanup regex bug that stripped valid output, full error diagnostics in results log, improved prompt templates with anti-duplication, universal page builder content extraction.
+
+= 6.3.0.8 =
+Universal page builder compatibility (Elementor, DIVI, Beaver Builder, WPBakery). Rewritten SEO meta prompt templates with 6-angle rotation and anti-duplication mechanics.
+
+= 6.3.0.5 =
+AI-powered llms.txt generation with city-specific content and hierarchical service area organization. Full-text llms-full.txt endpoint.
 
 = 4.15.0 =
 Major Person Schema update: LinkedIn AI Import (paste profile content for auto-extraction), fillable PDF export, person labels with live accordion headers. Requires OpenAI API key for LinkedIn import feature.
@@ -99,6 +108,36 @@ FAQ Quick Editor now supports multi-post batch save and WYSIWYG answers.
 Utilities now includes the FAQ Quick Editor and reorganized FAQ migration tools.
 
 == Changelog ==
+
+= 6.3.1.0 =
+* BUGFIX: AI meta cleanup regex was corrupting valid output (broken pattern flags caused preg_replace to return null)
+* BUGFIX: Reload Default prompt button now properly updates textarea with visual confirmation flash
+* NEW: Full error diagnostics in meta generation results log — shows API errors, provider info, or raw output if cleanup stripped it
+* NEW: Meta Output section in results log shows old → new values with character counts
+* NEW: `myls_clean_meta_output()` function — robust single-value extraction from AI responses (strips options, commentary, markdown, labels)
+* Inline + newline-based truncation patterns for multi-option AI output
+* Null-safety on all preg_replace calls
+* API error pipeline: openai.php stores last error in global for diagnostic surfacing
+* Updated meta title prompt: minimum 90 characters, forceful single-output instruction
+* Updated meta description prompt: forceful single-output instruction
+
+= 6.3.0.8 =
+* NEW: Universal page builder content extraction — `myls_get_post_plain_text()` and `myls_get_post_html()`
+* Supports Elementor (_elementor_data JSON), DIVI/WPBakery (shortcode tag stripping), Beaver Builder (_fl_builder_data)
+* NEW: `myls_strip_shortcode_tags()` — strips shortcode brackets while preserving inner content (critical for DIVI)
+* Builder detection helpers: `myls_detect_page_builder()`, `myls_post_uses_elementor()`, etc.
+* 11 files updated to use centralized content extraction
+* NEW: Rewritten SEO meta title/description prompt templates with 6 structural patterns each
+* Variation Engine: new angle arrays for meta_title and meta_description contexts
+* Expanded banned phrase lists for meta generation
+* Context-aware `inject_variation()` — short-form vs long-form rules
+
+= 6.3.0.5 =
+* NEW: AI-powered llms.txt generation with city-specific content
+* NEW: llms-full.txt endpoint with comprehensive service area organization
+* Hierarchical structure: parent cities → child service+city combinations
+* Elementor page builder content extraction for llms.txt source material
+* Enterprise logging with content quality metrics and cost tracking
 
 = 4.15.0 =
 * NEW: LinkedIn Import — paste profile content (text or HTML source), AI extracts structured person data

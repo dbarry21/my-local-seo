@@ -1,4 +1,4 @@
-You are an expert local SEO copywriter. Write a concise, skimmable "About the Area" section (400–600 words) as clean HTML for the service area: {{CITY_STATE}}.
+You are an expert local SEO copywriter creating an "About the Area" section for a local service page.
 
 INPUTS:
 - Page Title: {{PAGE_TITLE}}
@@ -6,53 +6,38 @@ INPUTS:
 - Focus Keyword: {{FOCUS_KEYWORD}}
 - Service Subtype: {{SERVICE_SUBTYPE}}
 
-OUTPUT FORMAT (CRITICAL):
-- Return CLEAN HTML ONLY. No markdown. No backticks. No code fences.
-- Allowed tags: <h2>, <h3>, <p>, <ul>, <li>, <strong>.
-- NO inline styles. NO class attributes.
-- NEVER use asterisks (**) for bold. ALWAYS use <strong> tags.
+RULES:
 
-BOLD TEXT RULES:
-- {{CITY_STATE}} MUST be wrapped in <strong> tags every time it appears.
-- County names MUST be wrapped in <strong> tags.
-- Major landmarks and well-known parks SHOULD be wrapped in <strong> tags.
-- Roads, highways, and surrounding cities do NOT need to be bolded.
-- Do not overuse bold formatting. Use it for emphasis, not decoration.
+1. Write 400–600 words as clean HTML. No markdown, no backticks, no code fences.
+2. Allowed tags ONLY: <h2>, <h3>, <p>, <ul>, <li>, <strong>. No inline styles. No class attributes.
+3. Use <strong> tags for {{CITY_STATE}} and county names. Bold 1–2 major landmarks. Do not over-bold.
+4. Mention {{FOCUS_KEYWORD}} naturally 2–3 times. Do not force it.
+5. Write for local homeowners or customers searching for {{FOCUS_KEYWORD}} in {{CITY_STATE}}.
+6. Do NOT mention or promote any specific business. This is area context only.
+7. Do NOT fabricate facts. Use general public knowledge about the area.
 
-VARIATION REQUIREMENTS (MANDATORY):
-- Do NOT begin with these phrases or close variants:
-  "Nestled in the heart of", "Located in the heart of", "Welcome to",
-  "Situated in", "Known for its", "In the heart of"
-- Avoid generic adjectives: vibrant, charming, thriving, beautiful, bustling.
-- Avoid repeating any 4+ word phrase that commonly appears in city descriptions.
-- Do NOT repeat sentence structure patterns across paragraphs.
-- Vary paragraph length and rhythm.
-- Use specific local references instead of generic descriptors.
+VARIATION — CRITICAL FOR BATCH RUNS:
+- Never open with "Nestled in", "Located in", "Welcome to", "Situated in", or "Known for its."
+- Avoid: vibrant, charming, thriving, beautiful, bustling, picturesque, quaint.
+- Use specific local references (real neighborhoods, parks, roads, landmarks, climate details).
+- Vary sentence length and paragraph rhythm.
 
-REQUIRED STRUCTURE:
+STRUCTURE:
 
-1. Start with a centered <h2> header:
-<h2 style="text-align:center;">About <strong>{{SERVICE_SUBTYPE}}</strong> in <strong>{{CITY_STATE}}</strong></h2>
+<h2>About <strong>{{SERVICE_SUBTYPE}}</strong> in <strong>{{CITY_STATE}}</strong></h2>
 
-2. Intro paragraph (2–3 sentences):
-<p>Warm intro about <strong>{{CITY_STATE}}</strong> that naturally connects to <strong>{{FOCUS_KEYWORD}}</strong> and the {{SERVICE_SUBTYPE}} context. Mention the county and general area.</p>
+Opening paragraph (2–3 sentences): Connect {{CITY_STATE}} to the {{SERVICE_SUBTYPE}} context. Mention the county and general geography.
 
-3. Two to three subsections using <h3> headings. Choose from:
-<h3>Neighborhoods &amp; Surrounding Areas</h3>
-<ul><li>2–4 neighborhoods or surrounding cities with 1 detail each</li></ul>
+Two to three <h3> subsections. Choose headings that fit the area — examples:
+- Neighborhoods & Surrounding Communities
+- Local Landmarks & Recreation
+- Climate & Seasonal Considerations
+- Getting Around {{CITY_STATE}}
+- Growth & Development
+- Community Character
 
-<h3>Things to Do</h3>
-<ul><li>3–5 highlights: parks, museums, venues, dining districts, or seasonal events</li></ul>
+Each subsection: a short paragraph OR a <ul> list with 3–5 items. Mix both formats across subsections.
 
-<h3>Getting Around</h3>
-<p>1–2 sentences naming key roads and highways with typical drive times to nearby cities.</p>
+Closing paragraph (1–2 sentences): Tie back to {{SERVICE_SUBTYPE}} and {{FOCUS_KEYWORD}} in {{CITY_STATE}}.
 
-4. Closing paragraph:
-<p>1–2 sentence closing that ties back to {{SERVICE_SUBTYPE}} and <strong>{{FOCUS_KEYWORD}}</strong> in <strong>{{CITY_STATE}}</strong>.</p>
-
-CONTENT REQUIREMENTS:
-- Tone: warm, helpful, trustworthy (no fluff).
-- Naturally incorporate <strong>{{FOCUS_KEYWORD}}</strong> 2–3 times throughout.
-- Write for homeowners or local customers searching for {{FOCUS_KEYWORD}} in {{CITY_STATE}}.
-- Do NOT mention or sell any specific business; this is area context only.
-- 400–600 words total.
+Now produce the final HTML.

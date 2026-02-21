@@ -3,7 +3,7 @@
  * Plugin Name:       My Local SEO
  * Plugin URI:        https://mylocalseo.ai/
  * Description:       Modular local SEO toolkit with schema, AI tools, bulk operations, and shortcode utilities.
- * Version: 6.3.0
+ * Version: 6.3.1.0
  * Author:            Dave Barry
  * Author URI:        https://davebarry.io/
  * Text Domain:       my-local-seo
@@ -16,7 +16,7 @@ if ( ! defined('ABSPATH') ) exit;
  * Canonical constants & helpers (single source of truth)
  * ───────────────────────────────────────────────────────────────────────── */
 // Keep in sync with plugin header above.
-if ( ! defined('MYLS_VERSION') )     define('MYLS_VERSION','6.3.0');
+if ( ! defined('MYLS_VERSION') )     define('MYLS_VERSION','6.3.1.0');
 if ( ! defined('MYLS_MAIN_FILE') )   define('MYLS_MAIN_FILE', __FILE__);
 if ( ! defined('MYLS_PATH') )        define('MYLS_PATH', plugin_dir_path(MYLS_MAIN_FILE));
 if ( ! defined('MYLS_URL') )         define('MYLS_URL',  plugins_url('', MYLS_MAIN_FILE));
@@ -83,7 +83,10 @@ require_once MYLS_PATH . 'inc/cpt-registration.php';
 require_once MYLS_PATH . 'inc/faq-schemas.php';
 require_once MYLS_PATH . 'inc/service-area-city-state.php';
 
-/** Serve /llms.txt (AI discovery file) */
+/** Page Builder compatibility — centralized content extraction for Elementor, DIVI, BB, WPBakery */
+require_once MYLS_PATH . 'inc/page-builder-compat.php';
+
+/** Serve /llms.txt and /llms-full.txt (AI discovery files) */
 require_once MYLS_PATH . 'inc/llms-txt.php';
 
 /** Serve /llm-info (HTML page for AI assistants) */
@@ -157,6 +160,7 @@ require_once MYLS_PATH . 'inc/ajax/ai-page-builder.php';
 require_once MYLS_PATH . 'inc/ajax/prompt-history.php';
 require_once MYLS_PATH . 'inc/ajax/ai-image-gen.php';
 require_once MYLS_PATH . 'inc/ajax/ai-content-analyzer.php';
+require_once MYLS_PATH . 'inc/ajax/ai-llms-txt.php';
 require_once MYLS_PATH . 'inc/pb-wpautop-fix.php';
 
 /** Service FAQ Page generator AJAX */

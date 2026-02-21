@@ -122,15 +122,38 @@
     btnReload.addEventListener('click', async function () {
       if (!confirm('Replace the current prompt with the factory default from file?\n\nThis will NOT affect saved versions.')) return;
 
+      var origText = btnReload.textContent;
+      btnReload.textContent = ' Loading...';
+      btnReload.disabled = true;
+
       try {
         const data = await post('myls_prompt_get_default', { prompt_key: promptKey });
-        if (data && data.success && data.data.content) {
+        if (data && data.success && data.data && data.data.content) {
           const ta = getTA();
-          if (ta) ta.value = data.data.content;
+          if (ta) {
+            ta.value = data.data.content;
+            // Trigger input event so any listeners know the value changed
+            ta.dispatchEvent(new Event('input', { bubbles: true }));
+            ta.dispatchEvent(new Event('change', { bubbles: true }));
+            // Visual flash to confirm
+            ta.style.transition = 'background-color 0.3s';
+            ta.style.backgroundColor = '#d4edda';
+            setTimeout(function(){ ta.style.backgroundColor = ''; }, 1200);
+          } else {
+            alert('Could not find textarea "#' + textareaId + '" in the DOM.');
+          }
         } else {
-          alert('Could not load default. File may be missing.');
+          var msg = (data && data.data && data.data.message) ? data.data.message : 'Unknown error';
+          alert('Could not load default prompt.\n' + msg);
+          console.error('[MYLS Prompt Toolbar] Reload default failed:', data);
         }
-      } catch (e) { alert('Error: ' + e.message); }
+      } catch (e) {
+        alert('Error loading default: ' + e.message);
+        console.error('[MYLS Prompt Toolbar] Reload default error:', e);
+      } finally {
+        btnReload.textContent = origText;
+        btnReload.disabled = false;
+      }
     });
 
     /* Initial load */

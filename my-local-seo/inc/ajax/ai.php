@@ -35,7 +35,7 @@ if ( ! function_exists('myls_ai_context_for_post') ) {
 		$post = get_post( $post_id );
 		if ( ! $post ) return [];
 		$site_name = get_bloginfo('name');
-		$excerpt = has_excerpt($post_id) ? get_the_excerpt($post_id) : wp_trim_words( wp_strip_all_tags( $post->post_content ), 40, '…' );
+		$excerpt = has_excerpt($post_id) ? get_the_excerpt($post_id) : ( function_exists('myls_get_post_plain_text') ? myls_get_post_plain_text( $post_id, 40 ) : wp_trim_words( wp_strip_all_tags( $post->post_content ), 40, '…' ) );
 		$primary_category = '';
 		$cats = get_the_category( $post_id );
 		if ( is_array($cats) && !empty($cats) ) $primary_category = $cats[0]->name;
@@ -78,6 +78,107 @@ if ( ! function_exists('myls_ai_generate_text') ) {
 		if ( is_string($resp) && $resp !== '' ) return $resp;
 
 		return '';
+	}
+}
+
+/* ---------------------- Meta output cleanup ------------------- */
+/**
+ * Extract a single, clean meta value from AI output.
+ *
+ * AI models often return multiple options, explanations, markdown formatting,
+ * or commentary alongside the requested title/description. This function
+ * aggressively strips everything except the first usable line.
+ *
+ * @since 6.3.0.9
+ */
+if ( ! function_exists('myls_clean_meta_output') ) {
+	function myls_clean_meta_output( string $raw ) : string {
+		$raw = trim( $raw );
+		if ( $raw === '' ) return '';
+
+		// ── 1a. Inline truncation (no newlines — all on one line) ──
+		// The AI sometimes outputs everything on a single line.
+		// Cut at first inline signal of multi-option/commentary content.
+		$inline_cuts = [
+			' Or alternative',
+			' **Option 2',
+			' Option 2:',
+			' Option 2 ',
+			' Here are ',
+			' Here\'s another',
+			' Alternative version',
+			' Which direction',
+			' Each version',
+			' I\'ve created',
+			' I\'ve written',
+			' Let me know',
+			' Would you',
+			' Do you prefer',
+			' Note:',
+		];
+		foreach ( $inline_cuts as $needle ) {
+			$pos = stripos( $raw, $needle );
+			if ( $pos !== false && $pos > 20 ) {
+				$raw = substr( $raw, 0, $pos );
+			}
+		}
+
+		// ── 1b. Truncate at newline-based multi-option signals ──
+		$cut_patterns = [
+			'/\n\s*(\*\*)?Option\s*[2-9].*$/is',
+			'/\n\s*Or\s+alternative.*$/is',
+			'/\n\s*Alternative\s*(version|option)?.*$/is',
+			'/\n\s*Which\s+(direction|option|version|one).*$/is',
+			'/\n\s*Each\s+(version|option|title).*$/is',
+			'/\n\s*Here\s+(are|is|\'s).*$/is',
+			'/\n\s*I\'ve\s+(created|written|provided|generated).*$/is',
+			'/\n\s*This\s+(title|description|version|option).*$/is',
+			'/\n\s*Let\s+me\s+know.*$/is',
+			'/\n\s*Would\s+you.*$/is',
+			'/\n\s*Do\s+you\s+prefer.*$/is',
+			'/\n\s*Note:.*$/is',
+			'/\n\s*Explanation:.*$/is',
+		];
+		foreach ( $cut_patterns as $pattern ) {
+			$result = preg_replace( $pattern, '', $raw );
+			if ( $result !== null ) {
+				$raw = $result;
+			}
+		}
+
+		// ── 2. Split into lines, grab the first non-empty meaningful line ──
+		$lines = preg_split( '/\r?\n/', $raw );
+		$best  = '';
+		foreach ( $lines as $line ) {
+			$line = trim( $line );
+			if ( $line === '' ) continue;
+
+			// Skip lines that are clearly labels/commentary, not the actual meta value
+			if ( preg_match( '/^(Option\s*\d|Version\s*\d|Alternative\s*(version|option)|Note\s*:|Explanation\s*:|Here\s+(are|is|\'s)\s+(your|the|my|a|some)|This\s+(title|description)\s+(is|was|uses|follows)|Each\s+(version|option|title)|Which\s+(direction|option|version|one)|Would\s+you|Do\s+you\s+prefer|I\'ve\s+(created|written|provided|generated)|Let\s+me\s+know)/i', $line ) ) {
+				continue;
+			}
+
+			$best = $line;
+			break;
+		}
+
+		if ( $best === '' ) return '';
+
+		// ── 3. Strip markdown/formatting artifacts from the chosen line ──
+		// Markdown heading prefixes
+		$best = preg_replace( '/^#{1,3}\s+/', '', $best );
+		// Bold markdown wrappers
+		$best = preg_replace( '/^\*\*(.+)\*\*$/', '$1', $best );
+		// Wrapping quotes
+		$best = trim( $best, "\"'" );
+		// Prefix labels: "Title:", "SEO Title:", "Meta Description:", etc.
+		$best = preg_replace( '/^(Title|Meta\s*Title|Meta\s*Description|Description|SEO\s*Title|Output)\s*:\s*/i', '', $best );
+		// Trailing character count notes: "(95 chars)", "(120 characters)"
+		$best = preg_replace( '/\s*\(\d+\s*char(acter)?s?\)\s*$/', '', $best );
+		// Collapse multiple spaces
+		$best = preg_replace( '/\s{2,}/', ' ', $best );
+
+		return trim( $best );
 	}
 }
 
@@ -180,12 +281,19 @@ add_action('wp_ajax_myls_ai_generate_meta', function(){
 
 		// ── Variation Engine: inject angle + banned phrases for meta generation ──
 		if ( class_exists('MYLS_Variation_Engine') ) {
-			$ve_context = ( stripos($final_prompt, 'Title only') !== false ) ? 'meta_title' : 'meta_description';
+			$ve_context = ( $kind === 'title' ) ? 'meta_title' : 'meta_description';
 			$angle = MYLS_Variation_Engine::next_angle( $ve_context );
 			$final_prompt = MYLS_Variation_Engine::inject_variation( $final_prompt, $angle, $ve_context );
 		}
 
+		// Call AI — no max_tokens override; let openai.php context defaults handle it
 		$new = trim( myls_ai_generate_text( $final_prompt ) );
+
+		// ── Clean up AI output: extract single meta value ──
+		$raw_output = $new; // keep original for logging
+		if ( $new !== '' ) {
+			$new = myls_clean_meta_output( $new );
+		}
 
 		// ── Variation Engine: duplicate guard for meta fields ──
 		// Checks this output against previous batch outputs; rewrites if >60% similar.
@@ -193,21 +301,46 @@ add_action('wp_ajax_myls_ai_generate_meta', function(){
 			$new = MYLS_Variation_Engine::guard_duplicates(
 				$ve_context ?? 'meta_title',
 				$new,
-				function( $original ) use ( $final_prompt ) {
-					$rewrite = "Rewrite this to be structurally distinct. Use a different opening word and sentence structure.\n\nOriginal: " . $original;
-					return trim( myls_ai_generate_text( $rewrite ) );
+				function( $original ) use ( $final_prompt, $kind ) {
+					$rewrite = "Rewrite this to be structurally distinct. Use a different opening word and sentence structure. Respond with ONLY the rewritten text — no options, no commentary.\n\nOriginal: " . $original;
+					$out = trim( myls_ai_generate_text( $rewrite ) );
+					if ( $out !== '' ) {
+						$out = myls_clean_meta_output( $out );
+					}
+					return $out;
 				}
 			);
 		}
 
 		if ($new === '') {
+			// Diagnose: was it the API or the cleanup?
+			$diag = '';
+			if ( $raw_output === '' ) {
+				$diag = 'API returned empty.';
+				// Check for stored API error
+				if ( ! empty( $GLOBALS['myls_ai_last_error'] ) ) {
+					$diag .= ' Error: ' . mb_substr( $GLOBALS['myls_ai_last_error'], 0, 300 );
+				}
+				// Check for last call info
+				if ( function_exists('myls_ai_last_call') ) {
+					$lc = myls_ai_last_call();
+					$diag .= ' | Provider: ' . ($lc['provider'] ?? '?');
+					$diag .= ', Model: ' . ($lc['resolved_model'] ?? $lc['requested_model'] ?? '?');
+				}
+			} else {
+				$diag = 'API returned ' . strlen($raw_output) . ' chars but cleanup stripped it. Raw: ' . mb_substr($raw_output, 0, 200);
+			}
 			$row['old']   = $old;
 			$row['new']   = '';
 			$row['saved'] = false;
-			$row['msg']   = 'No output from AI provider.';
+			$row['error'] = 'No output. ' . $diag;
 			$items[] = $row;
+			// Clear the error for next iteration
+			$GLOBALS['myls_ai_last_error'] = '';
 			continue;
 		}
+		// Clear error on success
+		$GLOBALS['myls_ai_last_error'] = '';
 
 		$row['old']    = $old;
 		$row['new']    = $new;

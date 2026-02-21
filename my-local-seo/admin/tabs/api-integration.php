@@ -81,6 +81,15 @@ myls_register_admin_tab([
 			// OpenAI
 			update_option( 'myls_openai_api_key',             sanitize_text_field( $_POST['myls_openai_api_key']             ?? '' ) );
 
+			// Anthropic (Claude)
+			update_option( 'myls_anthropic_api_key',          sanitize_text_field( $_POST['myls_anthropic_api_key']          ?? '' ) );
+
+			// AI Provider + Model
+			$provider_val = sanitize_text_field( $_POST['myls_ai_provider'] ?? 'openai' );
+			if ( ! in_array($provider_val, ['openai', 'anthropic'], true) ) $provider_val = 'openai';
+			update_option( 'myls_ai_provider', $provider_val );
+			update_option( 'myls_ai_default_model',           sanitize_text_field( $_POST['myls_ai_default_model']           ?? '' ) );
+
 			// YouTube (API key + Channel)
 			update_option( 'myls_youtube_api_key',            sanitize_text_field( $_POST['myls_youtube_api_key']            ?? '' ) );
 			update_option( 'myls_youtube_channel_id',         sanitize_text_field( $_POST['myls_youtube_channel_id']         ?? '' ) );
@@ -105,6 +114,12 @@ myls_register_admin_tab([
 		$places_pid   = get_option('myls_google_places_place_id', '');
 		$maps_api     = get_option('myls_google_static_maps_api_key', '');
 		$openai_key   = get_option('myls_openai_api_key', '');
+		$anthro_key   = get_option('myls_anthropic_api_key', '');
+		$ai_provider  = get_option('myls_ai_provider', 'openai');
+		$ai_model     = get_option('myls_ai_default_model', '');
+
+		// Get available models for active provider
+		$available_models = function_exists('myls_ai_get_models') ? myls_ai_get_models($ai_provider) : [];
 
 		$yt_api_key   = get_option('myls_youtube_api_key', '');
 		$yt_channel   = get_option('myls_youtube_channel_id', '');
@@ -122,6 +137,7 @@ myls_register_admin_tab([
 		$last_pid_test     = get_option('myls_places_pid_test_result', 'No test run yet.');
 		$last_maps_test    = get_option('myls_maps_test_result',    'No test run yet.');
 		$last_openai_test  = get_option('myls_openai_test_result',  'No test run yet.');
+		$last_anthro_test  = get_option('myls_anthropic_test_result', 'No test run yet.');
 		$last_youtube_test = get_option('myls_youtube_test_result', 'No test run yet.');
 		$last_ytoauth_test = get_option('myls_ytoauth_test_result', 'No test run yet.');
 		$last_gsc_test     = get_option('myls_gsc_test_result',     'No check run yet.');
@@ -213,18 +229,81 @@ myls_register_admin_tab([
 						</div>
 					</div>
 
-					<!-- OpenAI -->
+					<!-- AI Provider (OpenAI + Anthropic) -->
 					<div class="card" style="flex:1 1 460px; min-width:460px;">
 						<div class="card-body">
-							<h2 class="title">OpenAI</h2>
-							<label for="myls_openai_api_key" class="form-label">API Key</label>
-							<div class="input-group" style="display:flex; gap:8px; align-items:center;">
-								<input type="text" class="regular-text" id="myls_openai_api_key" name="myls_openai_api_key" value="<?php echo esc_attr($openai_key); ?>" placeholder="sk-...">
-								<button type="button" class="button" id="myls-test-openai-api" data-nonce="<?php echo esc_attr($ajax_nonce); ?>">Test</button>
+							<h2 class="title">AI Provider</h2>
+
+							<label class="form-label"><strong>Active Provider</strong></label>
+							<div style="display:flex; gap:12px; margin-bottom:12px;">
+								<label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+									<input type="radio" name="myls_ai_provider" value="openai" <?php checked($ai_provider, 'openai'); ?> id="myls_ai_prov_openai">
+									<strong>OpenAI</strong> <span class="description">(GPT-4o)</span>
+								</label>
+								<label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+									<input type="radio" name="myls_ai_provider" value="anthropic" <?php checked($ai_provider, 'anthropic'); ?> id="myls_ai_prov_anthropic">
+									<strong>Anthropic</strong> <span class="description">(Claude)</span>
+								</label>
 							</div>
-							<p class="description">Used for AI-powered features.</p>
-							<p class="description">Last test: <em><?php echo esc_html($last_openai_test); ?></em></p>
-							<div id="myls-openai-api-test-result" class="notice inline" style="margin-top:8px;"></div>
+
+							<hr style="margin:12px 0;">
+
+							<div id="myls-openai-fields">
+								<label for="myls_openai_api_key" class="form-label">OpenAI API Key</label>
+								<div class="input-group" style="display:flex; gap:8px; align-items:center;">
+									<input type="text" class="regular-text" id="myls_openai_api_key" name="myls_openai_api_key" value="<?php echo esc_attr($openai_key); ?>" placeholder="sk-...">
+									<button type="button" class="button" id="myls-test-openai-api" data-nonce="<?php echo esc_attr($ajax_nonce); ?>">Test</button>
+								</div>
+								<?php if ($openai_key): ?>
+									<p class="description">Current: <code><?php echo esc_html( myls_mask_key_simple($openai_key) ); ?></code></p>
+								<?php endif; ?>
+								<p class="description">Last test: <em><?php echo esc_html($last_openai_test); ?></em></p>
+								<div id="myls-openai-api-test-result" class="notice inline" style="margin-top:8px;"></div>
+							</div>
+
+							<div id="myls-anthropic-fields" style="margin-top:12px;">
+								<label for="myls_anthropic_api_key" class="form-label">Anthropic API Key</label>
+								<div class="input-group" style="display:flex; gap:8px; align-items:center;">
+									<input type="text" class="regular-text" id="myls_anthropic_api_key" name="myls_anthropic_api_key" value="<?php echo esc_attr($anthro_key); ?>" placeholder="sk-ant-...">
+									<button type="button" class="button" id="myls-test-anthropic-api" data-nonce="<?php echo esc_attr($ajax_nonce); ?>">Test</button>
+								</div>
+								<?php if ($anthro_key): ?>
+									<p class="description">Current: <code><?php echo esc_html( myls_mask_key_simple($anthro_key) ); ?></code></p>
+								<?php endif; ?>
+								<p class="description">Last test: <em><?php echo esc_html($last_anthro_test); ?></em></p>
+								<div id="myls-anthropic-api-test-result" class="notice inline" style="margin-top:8px;"></div>
+							</div>
+
+							<hr style="margin:16px 0;">
+
+							<label class="form-label"><strong>Default Model</strong></label>
+							<select name="myls_ai_default_model" id="myls_ai_default_model" class="regular-text" style="min-width:280px;">
+								<?php
+								// OpenAI models
+								$openai_models = [
+									'gpt-4o'      => 'GPT-4o (Recommended)',
+									'gpt-4o-mini' => 'GPT-4o Mini (Fast / Light)',
+									'gpt-4-turbo' => 'GPT-4 Turbo',
+								];
+								// Anthropic models
+								$anthropic_models = [
+									'claude-sonnet-4-20250514'  => 'Claude Sonnet 4 (Recommended)',
+									'claude-haiku-4-5-20251001' => 'Claude Haiku 4.5 (Fast / Light)',
+								];
+								?>
+								<optgroup label="OpenAI" id="myls-models-openai">
+									<?php foreach ($openai_models as $val => $label): ?>
+										<option value="<?php echo esc_attr($val); ?>" <?php selected($ai_model, $val); ?>><?php echo esc_html($label); ?></option>
+									<?php endforeach; ?>
+								</optgroup>
+								<optgroup label="Anthropic" id="myls-models-anthropic">
+									<?php foreach ($anthropic_models as $val => $label): ?>
+										<option value="<?php echo esc_attr($val); ?>" <?php selected($ai_model, $val); ?>><?php echo esc_html($label); ?></option>
+									<?php endforeach; ?>
+								</optgroup>
+							</select>
+							<p class="description">Used as the default for all AI features. Individual tabs can override per-request if needed.</p>
+							<p class="description" style="margin-top:4px;"><strong>Tip:</strong> Use the full model (Sonnet/GPT-4o) for FAQs, About Area, and GEO. Use the light model (Haiku/Mini) for meta titles and taglines.</p>
 						</div>
 					</div>
 
@@ -396,6 +475,39 @@ myls_register_admin_tab([
 			  .fail(()=>paint($box,false,'Network error during OpenAI test'));
 		  });
 
+		  // --- Anthropic ---
+		  $('#myls-test-anthropic-api').on('click', function(){
+			const key = $('#myls_anthropic_api_key').val();
+			const $box = $('#myls-anthropic-api-test-result').removeClass('notice-success notice-error').html('<em>Testing…</em>');
+			$.post(POST_URL, { action:'myls_test_anthropic_key', key, nonce })
+			  .done(r=>paint($box, !!(r&&r.success), (r&&r.data&&r.data.message) || (r&&r.data) || (r&&r.success?'Anthropic OK':'Anthropic test failed')))
+			  .fail(()=>paint($box,false,'Network error during Anthropic test'));
+		  });
+
+		  // --- AI Provider Toggle ---
+		  function updateProviderUI() {
+			const prov = $('input[name="myls_ai_provider"]:checked').val() || 'openai';
+			const isAnthro = (prov === 'anthropic');
+
+			// Highlight active key field
+			$('#myls-openai-fields').css('opacity', isAnthro ? 0.5 : 1);
+			$('#myls-anthropic-fields').css('opacity', isAnthro ? 1 : 0.5);
+
+			// Show matching model optgroup, select first if current is wrong provider
+			const $select = $('#myls_ai_default_model');
+			const curVal = $select.val() || '';
+			const curIsAnthro = curVal.indexOf('claude') === 0;
+
+			if (isAnthro && !curIsAnthro) {
+			  $select.val('claude-sonnet-4-20250514');
+			} else if (!isAnthro && curIsAnthro) {
+			  $select.val('gpt-4o');
+			}
+		  }
+
+		  $('input[name="myls_ai_provider"]').on('change', updateProviderUI);
+		  updateProviderUI();
+
 		  // --- YouTube (API key) ---
 		  $('#myls-test-youtube-api').on('click', function(){
 			const $box = $('#myls-youtube-api-test-result').removeClass('notice-success notice-error').html('<em>Testing…</em>');
@@ -436,6 +548,11 @@ if ( ! function_exists('myls_get_google_places_api_key') ) {
 if ( ! function_exists('myls_get_openai_api_key') ) {
 	function myls_get_openai_api_key() : string {
 		return (string) get_option('myls_openai_api_key', '');
+	}
+}
+if ( ! function_exists('myls_get_anthropic_api_key') ) {
+	function myls_get_anthropic_api_key() : string {
+		return (string) get_option('myls_anthropic_api_key', '');
 	}
 }
 if ( ! function_exists('myls_get_youtube_api_key') ) {

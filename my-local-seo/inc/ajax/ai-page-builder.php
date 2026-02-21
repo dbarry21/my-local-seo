@@ -193,9 +193,9 @@ add_action('wp_ajax_myls_pb_create_page', function () {
         $prompt = MYLS_Variation_Engine::inject_variation( $prompt, $angle, 'about_the_area' );
     }
 
-    if ( function_exists('myls_openai_chat') ) {
-        $model = (string) get_option('myls_openai_model', 'gpt-4o');
-        $html = myls_openai_chat($prompt, [
+    if ( function_exists('myls_ai_chat') ) {
+        $model = (string) get_option('myls_openai_model', '');
+        $html = myls_ai_chat($prompt, [
             'model'       => $model,
             'max_tokens'  => 4000,
             'temperature' => 0.7,

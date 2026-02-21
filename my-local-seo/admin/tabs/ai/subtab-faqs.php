@@ -243,48 +243,32 @@ return [
       <span class="small text-muted" id="myls_ai_faqs_loaded_hint"></span>
     </div>
 
-    <div class="mt-3 myls-actions">
-      <label style="display:flex;align-items:center;gap:8px;margin:0;">
-        <strong>Variant</strong>
-        <select id="myls_ai_faqs_variant" class="form-select" style="width:auto;min-width:140px;">
-          <option value="LONG">LONG</option>
-          <option value="SHORT">SHORT</option>
-        </select>
-      </label>
-
-      <label style="display:flex;align-items:center;gap:8px;margin:0;">
-        <input type="checkbox" id="myls_ai_faqs_allow_links">
+    <!-- Options -->
+    <div class="mt-3 d-flex flex-wrap align-items-center gap-3">
+      <label style="display:flex;align-items:center;gap:6px;margin:0;">
+        <input type="checkbox" id="myls_ai_faqs_allow_links" checked>
         <strong>Allow source links (target="_blank")</strong>
       </label>
 
-      <label style="display:flex;align-items:center;gap:8px;margin:0;">
+      <label style="display:flex;align-items:center;gap:6px;margin:0;">
         <input type="checkbox" id="myls_ai_faqs_skip_existing" checked>
         <strong>Skip posts with existing MYLS FAQs</strong>
       </label>
 
-      <label style="display:flex;align-items:center;gap:8px;margin:0;">
+      <label style="display:flex;align-items:center;gap:6px;margin:0;">
         <input type="checkbox" id="myls_ai_faqs_acf_replace">
         <strong>Replace existing MYLS FAQs (overwrite)</strong>
       </label>
+    </div>
 
-      <button type="button" class="button button-primary" id="myls_ai_faqs_generate">
-        <i class="bi bi-stars"></i> Generate FAQs (Preview)
-      </button>
-
-      <button type="button" class="button" id="myls_ai_faqs_docx" disabled>
-        <i class="bi bi-file-earmark-word"></i> Download .docx
-      </button>
-      <button type="button" class="button" id="myls_ai_faqs_html" disabled>
-        <i class="bi bi-filetype-html"></i> Download .html
-      </button>
-
+    <!-- Row 1: Insert / Delete / Stop -->
+    <div class="mt-2 d-flex flex-wrap align-items-center gap-2">
       <button type="button" class="button" id="myls_ai_faqs_insert_acf" disabled>
         <i class="bi bi-plus-circle"></i> Insert into MYLS FAQs
       </button>
       <button type="button" class="button" id="myls_ai_faqs_delete_auto" disabled>
-        <i class="bi bi-trash"></i> Delete Auto-Generated FAQs (MYLS)
+        <i class="bi bi-trash"></i> Delete MYLS FAQs
       </button>
-
       <button type="button" class="button" id="myls_ai_faqs_stop" disabled>
         <i class="bi bi-stop-circle"></i> Stop
       </button>
@@ -293,8 +277,20 @@ return [
         <span class="dashicons dashicons-update"></span>
         <span class="myls-text-small">Processing…</span>
       </span>
-
       <span id="myls_ai_faqs_status" class="myls-text-muted"></span>
+    </div>
+
+    <!-- Row 2: Generate & Downloads (slim) -->
+    <div class="mt-1 d-flex flex-wrap align-items-center gap-2">
+      <button type="button" class="button button-primary" id="myls_ai_faqs_generate">
+        <i class="bi bi-stars"></i> Generate FAQs (Preview)
+      </button>
+      <button type="button" class="button" id="myls_ai_faqs_docx" disabled>
+        <i class="bi bi-file-earmark-word"></i> Download .docx
+      </button>
+      <button type="button" class="button" id="myls_ai_faqs_html" disabled>
+        <i class="bi bi-filetype-html"></i> Download .html
+      </button>
     </div>
 
     <hr class="myls-divider"/>

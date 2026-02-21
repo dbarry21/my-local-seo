@@ -432,10 +432,16 @@ Requirements:
 
     // Try AI generation first
     $html = '';
-    if (function_exists('myls_openai_chat')) {
-      $model = (string) get_option('myls_openai_model', 'gpt-4o');
+    if (function_exists('myls_ai_chat')) {
+      $html = myls_ai_chat($prompt, [
+        'model'       => '',
+        'max_tokens'  => 3000,
+        'temperature' => 0.7,
+        'system'      => 'You are an expert web content writer. Write clean, structured HTML for WordPress pages. Use HTML tags like <section>, <h2>, <h3>, <p>, <ul>, <li>, <strong>, <em>. Use Bootstrap 5 utility classes for layout. NEVER use markdown. Output raw HTML only, no code fences.',
+      ]);
+    } elseif (function_exists('myls_openai_chat')) {
       $html = myls_openai_chat($prompt, [
-        'model'       => $model,
+        'model'       => '',
         'max_tokens'  => 3000,
         'temperature' => 0.7,
         'system'      => 'You are an expert web content writer. Write clean, structured HTML for WordPress pages. Use HTML tags like <section>, <h2>, <h3>, <p>, <ul>, <li>, <strong>, <em>. Use Bootstrap 5 utility classes for layout. NEVER use markdown. Output raw HTML only, no code fences.',

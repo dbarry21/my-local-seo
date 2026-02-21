@@ -1,5 +1,5 @@
 /* ========================================================================
- * MYLS – AI FAQs Subtab JS (v1.3 - FIXED)
+ * MYLS – AI FAQs Subtab JS (v1.4)
  * File: assets/js/myls-ai-faqs.js
  *
  * Features:
@@ -105,10 +105,175 @@
     if (btnDeleteAuto) btnDeleteAuto.disabled = isBusy || !hasSel;
   }
 
-  function log(msg) {
+  /** Update status bar with live progress */
+  function setProgress(current, total, title) {
+    if (elStatus) {
+      const pct = total > 0 ? Math.round((current / total) * 100) : 0;
+      elStatus.textContent = `Processing ${current}/${total} (${pct}%) — ${title || ''}`;
+    }
+  }
+
+  function log(msg, level) {
     if (!elResults) return;
     const t = new Date().toLocaleTimeString();
-    elResults.textContent = `[${t}] ${msg}\n` + elResults.textContent;
+    const prefix = level === 'error' ? '❌' : level === 'warn' ? '⚠' : level === 'success' ? '✔' : level === 'skip' ? '⏭' : level === 'info' ? 'ℹ' : '';
+    elResults.textContent = `[${t}] ${prefix} ${msg}\n` + elResults.textContent;
+  }
+
+  /** Detailed log for generation results — shows everything the server returns */
+  function logGenerationResult(data, title, postId, index, total) {
+    if (!elResults) return;
+    const t = new Date().toLocaleTimeString();
+    const faqCount   = data.faq_count ?? '?';
+    const attempts   = data.attempts ?? 1;
+    const cityState  = data.city_state || '';
+    const elapsed    = data.log?.elapsed_ms ? `${(data.log.elapsed_ms / 1000).toFixed(1)}s` : '';
+    const model      = data.log?.model || '';
+    const tokens     = data.log?.tokens || '';
+    const temp       = data.log?.temperature || '';
+    const words      = data.log?.output_words || '';
+    const chars      = data.log?.output_chars || '';
+    const variant    = data.log?.variant || currentVariant();
+    const retries    = data.retries && data.retries.length ? data.retries : [];
+
+    let lines = [];
+    lines.push(`[${t}] ✔ ${title} — ${faqCount} FAQs generated [${index}/${total}]`);
+
+    // Detail line
+    let details = [];
+    if (model)   details.push(`Model: ${model}`);
+    const provider = data.log?.provider || '';
+    if (provider) details.push(`Provider: ${provider}`);
+    if (elapsed) details.push(`Time: ${elapsed}`);
+    if (words)   details.push(`Words: ${words}`);
+    if (chars)   details.push(`Chars: ${chars}`);
+    if (tokens)  details.push(`Max tokens: ${tokens}`);
+    if (temp)    details.push(`Temp: ${temp}`);
+    if (variant) details.push(`Variant: ${variant}`);
+    if (details.length) lines.push(`    ${details.join(' · ')}`);
+
+    // City/state
+    if (cityState) lines.push(`    City: ${cityState}`);
+
+    // Retry info
+    if (attempts > 1) {
+      lines.push(`    ⚠ Required ${attempts} attempt(s)`);
+      retries.forEach(r => lines.push(`      → ${r}`));
+    }
+
+    // Dropped FAQs
+    const dropped = data.dropped_faqs || 0;
+    if (dropped > 0) {
+      lines.push(`    ⚠ Dropped ${dropped} bad FAQ(s) (code/error/garbled)`);
+    }
+
+    // Filled FAQs (replacements generated)
+    const filled = data.filled_faqs || 0;
+    if (filled > 0) {
+      lines.push(`    ✔ Replaced with ${filled} fresh FAQ(s) via fill pass`);
+    } else if (dropped > 0) {
+      lines.push(`    ℹ Fill pass did not generate replacements — ${faqCount} FAQs kept`);
+    }
+
+    // Preview snippet
+    if (data.preview) {
+      lines.push(`    Preview: ${data.preview}`);
+    }
+
+    elResults.textContent = lines.join('\n') + '\n' + elResults.textContent;
+  }
+
+  /** Detailed log for generation errors */
+  function logGenerationError(title, postId, errorMsg, index, total, responseData) {
+    if (!elResults) return;
+    const t = new Date().toLocaleTimeString();
+    let lines = [];
+    lines.push(`[${t}] ❌ FAILED: ${title} [${index}/${total}]`);
+    lines.push(`    Error: ${errorMsg}`);
+
+    const rd = responseData || {};
+
+    // Always log full error data to console for debugging
+    console.warn('[MYLS FAQ] Generation failed:', { title, postId, errorMsg, responseData: rd });
+
+    // Retry reasons (per-attempt breakdown)
+    const reasons = rd.reasons || [];
+    if (reasons.length > 0) {
+      lines.push(`    Attempts: ${reasons.length}`);
+      reasons.forEach(r => lines.push(`      → ${r}`));
+    }
+
+    // Rich diagnostics from the server
+    const d = rd.diag || {};
+    if (d.model || d.provider) {
+      let detail = `    Model: ${d.model || '?'}`;
+      if (d.provider) detail += ` · Provider: ${d.provider}`;
+      lines.push(detail);
+    }
+    if (d.raw_h3_count !== undefined) {
+      lines.push(`    Raw output: ${d.raw_words || 0} words · ${d.raw_length || 0} chars · ${d.raw_h3_count} h3s · ${d.raw_p_count} p tags · ${d.clean_pairs} clean pairs`);
+    }
+    if (d.tokens || d.variant) {
+      lines.push(`    Settings: tokens=${d.tokens || '?'} · temp=${d.temperature || '?'} · variant=${d.variant || '?'} · page_text=${d.page_text_len || 0} chars`);
+    }
+    if (d.has_markdown) lines.push(`    ⚠ Raw output contained markdown`);
+    if (d.has_code_fence) lines.push(`    ⚠ Raw output contained code fences`);
+
+    // Validation detail
+    const v = d.validation || {};
+    if (v.reason) {
+      lines.push(`    Validation: ${v.reason} (faq_count: ${v.faq_count})`);
+    }
+
+    // Raw preview (first 300 chars of what the AI actually returned)
+    const preview = rd.raw_preview || '';
+    if (preview) {
+      lines.push(`    Preview: ${preview.substring(0, 300)}${preview.length > 300 ? '…' : ''}`);
+    }
+
+    // Raw HTML preview (shows tags to see if HTML was malformed)
+    const rawHtml = (d.raw_first_500 || '').substring(0, 300);
+    if (rawHtml && rawHtml !== preview) {
+      lines.push(`    Raw HTML: ${rawHtml}${rawHtml.length >= 300 ? '…' : ''}`);
+    }
+
+    elResults.textContent = lines.join('\n') + '\n' + elResults.textContent;
+  }
+
+  /** Batch summary line */
+  function logBatchSummary(stats, totalTime) {
+    if (!elResults) return;
+    const t = new Date().toLocaleTimeString();
+    const parts = [];
+    if (stats.generated) parts.push(`${stats.generated} generated`);
+    if (stats.inserted)  parts.push(`${stats.inserted} inserted`);
+    if (stats.skipped)   parts.push(`${stats.skipped} skipped`);
+    if (stats.errors)    parts.push(`${stats.errors} errors`);
+    const timeStr = totalTime ? ` in ${(totalTime / 1000).toFixed(1)}s` : '';
+    const divider = '═'.repeat(50);
+    elResults.textContent = `[${t}] ${divider}\n[${t}] BATCH COMPLETE: ${parts.join(', ')}${timeStr}\n[${t}] ${divider}\n` + elResults.textContent;
+  }
+
+  /** Batch start header */
+  function logBatchStart(action, count, settings) {
+    if (!elResults) return;
+    const t = new Date().toLocaleTimeString();
+    const divider = '═'.repeat(50);
+    let lines = [];
+    lines.push(`[${t}] ${divider}`);
+    lines.push(`[${t}] BATCH START: ${action} — ${count} post(s)`);
+
+    let details = [];
+    if (settings.variant)     details.push(`Variant: ${settings.variant}`);
+    if (settings.tokens)      details.push(`Max tokens: ${settings.tokens}`);
+    if (settings.temperature) details.push(`Temp: ${settings.temperature}`);
+    if (settings.allowLinks)  details.push(`Links: yes`);
+    if (settings.replace)     details.push(`Replace existing: yes`);
+    if (settings.skipExisting) details.push(`Skip existing: yes`);
+    if (details.length) lines.push(`[${t}]    Settings: ${details.join(' · ')}`);
+
+    lines.push(`[${t}] ${divider}`);
+    elResults.textContent = lines.join('\n') + '\n' + elResults.textContent;
   }
 
   function getSelectedIDs() {
@@ -171,6 +336,26 @@
   }
 
   // -----------------------------
+  // Checkbox persistence (localStorage)
+  // -----------------------------
+  const STORAGE_PREFIX = "myls_ai_faqs_";
+
+  function persistCheckbox(cb, key) {
+    if (!cb) return;
+    const stored = localStorage.getItem(STORAGE_PREFIX + key);
+    if (stored !== null) {
+      cb.checked = stored === "1";
+    }
+    cb.addEventListener("change", () => {
+      localStorage.setItem(STORAGE_PREFIX + key, cb.checked ? "1" : "0");
+    });
+  }
+
+  persistCheckbox(cbAllowLinks, "allow_links");
+  persistCheckbox(cbSkipExisting, "skip_existing");
+  persistCheckbox(cbReplaceExisting, "acf_replace");
+
+  // -----------------------------
   // Local Ctrl+A inside preview panes
   // -----------------------------
   function wireLocalSelectAll(el) {
@@ -226,7 +411,11 @@
 
     const json = await resp.json().catch(() => null);
     if (!json || typeof json !== "object") throw new Error("Bad JSON response.");
-    if (!json.success) throw new Error((json.data && json.data.message) || json.message || "Request failed.");
+    if (!json.success) {
+      const err = new Error((json.data && json.data.message) || json.message || "Request failed.");
+      err.responseData = json.data || {};  // carry full response for error logging
+      throw err;
+    }
     return json.data || {};
   }
 
@@ -303,19 +492,16 @@
     clearPreviewPanes();
     setBusy(true, "Generating…");
 
-    const LOG = window.mylsLog;
     const total = ids.length;
-    let stats = { saved: 0, skipped: 0, errors: 0 };
-    const tracker = LOG ? LOG.createTracker() : null;
+    let stats = { generated: 0, skipped: 0, errors: 0 };
+    const batchStart = Date.now();
 
-    if (LOG && elResults) {
-      LOG.clear(elResults, LOG.batchStart('FAQ Generation', total, {
-        tokens: currentTokens(),
-        temperature: currentTemperature()
-      }));
-    } else {
-      log(`Generate queued: ${ids.length} post(s).`);
-    }
+    logBatchStart('FAQ Generation (Preview)', total, {
+      variant: currentVariant(),
+      tokens: currentTokens(),
+      temperature: currentTemperature(),
+      allowLinks: allowLinks(),
+    });
 
     const genAction = CFG.action_generate;
     if (!genAction) throw new Error("Missing AJAX action for generate.");
@@ -325,6 +511,9 @@
 
       const title = getTitleForPost(postId);
       const idx = processed + 1;
+
+      log(`Generating FAQs for ${title}… [${idx}/${total}]`, 'info');
+      setProgress(idx, total, title);
 
       try {
         const data = await postAJAX(genAction, {
@@ -339,39 +528,22 @@
         const outHtml = String(data.html || "").trim();
         appendPreviewBlock(postId, title, outHtml, String(data.raw || "").trim());
 
-        // Most recent output gets download buttons
         lastHtml = outHtml;
         lastDocxUrl = String(data.doc_url || "").trim();
         lastHtmlUrl = String(data.html_url || "").trim();
 
-        if (LOG && elResults && data.log) {
-          LOG.append(LOG.formatEntry(postId, {
-            status: 'generated',
-            city_state: data.city_state || '',
-            preview: data.preview || '',
-            log: Object.assign({}, data.log, { page_title: data.title || title })
-          }, { index: idx, total: total, handler: 'FAQ Generation' }), elResults);
-        } else {
-          log(`✔ Generated FAQs for ${title}`);
-        }
-        stats.saved++;
-        if (tracker) tracker.track(data);
+        logGenerationResult(data, title, postId, idx, total);
+        stats.generated++;
 
         processed++;
         if (elCount) elCount.textContent = String(processed);
       } catch (e) {
-        if (LOG && elResults) {
-          LOG.append(LOG.formatError(postId, { message: e.message }, { index: idx, total: total }), elResults);
-        } else {
-          log(`❌ Generate error for ${title}: ${e.message}`);
-        }
+        logGenerationError(title, postId, e.message, idx, total, e.responseData);
         stats.errors++;
       }
     }
 
-    if (LOG && elResults) {
-      LOG.append(LOG.batchSummary(tracker ? tracker.getSummary(stats) : stats), elResults);
-    }
+    logBatchSummary(stats, Date.now() - batchStart);
     setBusy(false, STOP ? "Stopped." : "Done.");
   }
 
@@ -391,10 +563,21 @@
 
     clearPreviewPanes();
     setBusy(true, "Generating + inserting…");
-    log(`Auto-insert queued: ${ids.length} post(s).`);
 
     const replaceExisting = !!(cbReplaceExisting && cbReplaceExisting.checked);
     const skipExisting = !!(cbSkipExisting && cbSkipExisting.checked) && !replaceExisting;
+    const total = ids.length;
+    let stats = { generated: 0, inserted: 0, skipped: 0, errors: 0, totalFaqs: 0 };
+    const batchStart = Date.now();
+
+    logBatchStart('FAQ Generate + Insert', total, {
+      variant: currentVariant(),
+      tokens: currentTokens(),
+      temperature: currentTemperature(),
+      allowLinks: allowLinks(),
+      replace: replaceExisting,
+      skipExisting: skipExisting,
+    });
 
     const genAction = CFG.action_generate;
     const insertAction = CFG.action_insert_myls || CFG.action_insert_acf;
@@ -406,25 +589,30 @@
       if (STOP) break;
 
       const title = getTitleForPost(postId);
+      const idx = processed + 1;
 
       // Optional: skip if existing MYLS FAQs are present
       if (skipExisting && checkAction) {
         try {
           const chk = await postAJAX(checkAction, { post_id: postId });
           if (chk && chk.has_faqs) {
-            log(`⏭ Skipped ${title}: existing MYLS FAQs found (${chk.count}).`);
+            log(`Skipped ${title}: ${chk.count} existing FAQs found [${idx}/${total}]`, 'skip');
+            stats.skipped++;
             processed++;
             if (elCount) elCount.textContent = String(processed);
             continue;
           }
         } catch (e) {
-          log(`⚠ Existing-FAQ check failed for ${title}: ${e.message}`);
+          log(`Existing-FAQ check failed for ${title}: ${e.message}`, 'warn');
         }
       }
 
-      try {
-        log(`Generating FAQs for ${title}…`);
+      // ── Step 1: Generate ──
+      log(`Generating FAQs for ${title}… [${idx}/${total}]`, 'info');
+      setProgress(idx, total, title);
+      const genStart = Date.now();
 
+      try {
         const data = await postAJAX(genAction, {
           post_id: postId,
           allow_links: allowLinks() ? "1" : "0",
@@ -437,28 +625,49 @@
         const outHtml = String(data.html || "").trim();
         appendPreviewBlock(postId, title, outHtml, String(data.raw || "").trim());
 
-        // Most recent output gets download buttons
         lastHtml = outHtml;
         lastDocxUrl = String(data.doc_url || "").trim();
         lastHtmlUrl = String(data.html_url || "").trim();
 
-        log(`Inserting into MYLS FAQs for ${title}…`);
+        // Log generation details
+        logGenerationResult(data, title, postId, idx, total);
+        stats.generated++;
+        stats.totalFaqs += (data.faq_count || 0);
+
+        // ── Step 2: Insert ──
+        log(`Inserting ${data.faq_count || '?'} FAQs into MYLS for ${title}…`, 'info');
+
         const ins = await postAJAX(insertAction, {
           post_id: postId,
           html: outHtml,
           replace_existing: replaceExisting ? "1" : "0",
         });
 
-        const inserted = ins.inserted_count ?? 0;
-        const skipped = ins.skipped_count ?? 0;
-        const total = ins.total_rows ?? 0;
-        log(`✔ ${title}: inserted ${inserted}, skipped ${skipped}, total rows now ${total}.`);
+        const insertCount = ins.inserted_count ?? 0;
+        const skipCount   = ins.skipped_count ?? 0;
+        const totalRows   = ins.total_rows ?? 0;
+
+        log(`Inserted ${insertCount} FAQs, skipped ${skipCount}, total rows: ${totalRows} for ${title}`, 'success');
+        stats.inserted++;
 
         processed++;
         if (elCount) elCount.textContent = String(processed);
       } catch (e) {
-        log(`❌ Auto-insert error for ${title}: ${e.message}`);
+        logGenerationError(title, postId, e.message, idx, total, e.responseData);
+        stats.errors++;
       }
+    }
+
+    // Final summary
+    const elapsed = Date.now() - batchStart;
+    logBatchSummary(stats, elapsed);
+
+    // Extra summary details
+    if (elResults) {
+      const t = new Date().toLocaleTimeString();
+      const avgTime = stats.generated ? ((elapsed / 1000) / stats.generated).toFixed(1) : '0';
+      const avgFaqs = stats.generated ? (stats.totalFaqs / stats.generated).toFixed(1) : '0';
+      elResults.textContent = `[${t}]    Avg: ${avgTime}s/post · ${avgFaqs} FAQs/post · Total FAQs: ${stats.totalFaqs}\n` + elResults.textContent;
     }
 
     setBusy(false, STOP ? "Stopped." : "Done.");
@@ -474,14 +683,14 @@
       return;
     }
 
-    if (!confirm("Delete auto-generated MYLS FAQ items for the selected post(s)?")) return;
+    if (!confirm("Delete ALL MYLS FAQ items for the selected post(s)? This cannot be undone.")) return;
 
     STOP = false;
     processed = 0;
     if (elCount) elCount.textContent = "0";
 
-    setBusy(true, "Deleting auto-generated MYLS FAQs…");
-    log(`Delete-auto queued: ${ids.length} post(s).`);
+    setBusy(true, "Deleting MYLS FAQs…");
+    log(`Delete FAQs queued: ${ids.length} post(s).`);
 
     const deleteAction = CFG.action_delete_auto_myls || CFG.action_delete_auto_acf; // back-compat
     if (!deleteAction) throw new Error("Missing AJAX action for delete-auto.");
@@ -493,11 +702,11 @@
         const data = await postAJAX(deleteAction, { post_id: postId });
         const deleted = data.deleted_count ?? 0;
         const total = data.total_rows ?? 0;
-        log(`MYLS delete-auto OK for #${postId}: deleted ${deleted}, rows remaining ${total}.`);
+        log(`MYLS delete OK for #${postId}: deleted ${deleted} FAQ(s).`);
         processed++;
         if (elCount) elCount.textContent = String(processed);
       } catch (e) {
-        log(`Delete-auto error for #${postId}: ${e.message}`);
+        log(`Delete error for #${postId}: ${e.message}`);
       }
     }
 

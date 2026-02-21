@@ -59,6 +59,13 @@ if ( ! function_exists('myls_get_best_description') ) {
 			return myls_plaintext_from_content($excerpt);
 		}
 
+		// Use centralized utility for page builder compatibility.
+		if ( function_exists('myls_get_post_plain_text') ) {
+			$text = myls_get_post_plain_text( $post_id, 45 );
+			if ( $text !== '' ) return $text;
+		}
+
+		// Fallback: original approach.
 		$post = get_post($post_id);
 		if ( ! $post ) return '';
 

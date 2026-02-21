@@ -401,7 +401,7 @@ add_action('wp_ajax_myls_ai_geo_analyze_v2', function(){
   $page_text = myls_geo_fetch_permalink_text((string)$url);
   if ($page_text === '') {
     $p = get_post($post_id);
-    $page_text = preg_replace('/\s+/u',' ', trim( wp_strip_all_tags( (string) ($p ? $p->post_content : '') ) ));
+    $page_text = function_exists('myls_get_post_plain_text') ? myls_get_post_plain_text( $post_id ) : preg_replace('/\s+/u',' ', trim( wp_strip_all_tags( (string) ($p ? $p->post_content : '') ) ));
   }
 
   $prompt = str_replace(
@@ -528,7 +528,7 @@ add_action('wp_ajax_myls_ai_geo_convert_v1', function(){
 
   $page_text = myls_geo_fetch_permalink_text((string)$url);
   if ($page_text === '') {
-    $page_text = preg_replace('/\s+/u',' ', trim( wp_strip_all_tags( (string) $src->post_content ) ));
+    $page_text = function_exists('myls_get_post_plain_text') ? myls_get_post_plain_text( $src->ID ) : preg_replace('/\s+/u',' ', trim( wp_strip_all_tags( (string) $src->post_content ) ));
   }
 
   $prompt = str_replace(

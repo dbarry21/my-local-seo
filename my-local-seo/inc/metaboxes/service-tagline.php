@@ -274,7 +274,7 @@ add_action('wp_ajax_myls_generate_service_tagline', function() {
     // Get excerpt or content for context
     $content = get_the_excerpt($post_id);
     if (empty($content)) {
-        $content = wp_trim_words(strip_shortcodes($post->post_content), 50);
+        $content = function_exists('myls_get_post_plain_text') ? myls_get_post_plain_text( $post_id, 50 ) : wp_trim_words(strip_shortcodes($post->post_content), 50);
     }
     
     // Build prompt

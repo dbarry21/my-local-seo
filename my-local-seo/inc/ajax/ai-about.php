@@ -175,7 +175,7 @@ add_action('wp_ajax_myls_ai_about_generate_v2', function(){
   $tokens      = max(1, (int) ($_POST['tokens'] ?? 1600));
   $temperature = (float) ($_POST['temperature'] ?? 0.7);
   // allow a model override here if your provider supports it; default to gpt-4o
-  $model       = isset($_POST['model']) && is_string($_POST['model']) ? trim($_POST['model']) : 'gpt-4o';
+  $model       = isset($_POST['model']) && is_string($_POST['model']) ? trim($_POST['model']) : '';
 
   if ( $post_id <= 0 || get_post_status($post_id) === false ) {
     wp_send_json_error(['marker'=>'about_v2','status'=>'error','message'=>'bad_post'], 400);
@@ -354,8 +354,14 @@ add_action('wp_ajax_myls_ai_about_generate_v2', function(){
   // ── Build enterprise log ─────────────────────────────────────────
   $output_plain = wp_strip_all_tags( $clean );
 
+  // Get what model/provider actually ran (resolved by router, not input param)
+  $ai_call_info = function_exists('myls_ai_last_call') ? myls_ai_last_call() : [];
+  $resolved_model    = $ai_call_info['resolved_model'] ?? $model;
+  $resolved_provider = $ai_call_info['provider'] ?? 'openai';
+
   $ve_log = class_exists('MYLS_Variation_Engine') ? MYLS_Variation_Engine::build_item_log($start_time, [
-    'model'           => $model,
+    'model'           => $resolved_model,
+    'provider'        => $resolved_provider,
     'tokens'          => $tokens,
     'temperature'     => $temperature,
     'prompt_chars'    => mb_strlen( $prompt_1 ),

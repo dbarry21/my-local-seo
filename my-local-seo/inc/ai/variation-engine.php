@@ -120,24 +120,24 @@ class MYLS_Variation_Engine {
             'cost-roi',               // "Property values in this area..."
         ],
 
-        // Meta Titles: controls title framing approach
+        // Meta Titles: structural patterns from prompt template (A–F)
         'meta_title' => [
-            'benefit-focused',     // "Save Time with {Service} in {City}"
-            'urgency',             // "Need {Service} in {City}? Fast Turnaround"
-            'authority',           // "Licensed {Service} Experts in {City}"
-            'local-trust',         // "{City}'s Go-To {Service} Team"
-            'problem-solution',    // "Damaged Fence? {Service} in {City}"
-            'cost-value',          // "Affordable {Service} in {City}"
+            'service-location-brand',   // A) "Vinyl Fence Installation in Tampa FL | BrandName"
+            'benefit-led',              // B) "Durable Wood Fencing Built for Florida Weather | BrandName"
+            'qualifier-service',        // C) "Licensed Fence Repair Contractors Serving Lutz FL"
+            'problem-solution',         // D) "Storm-Damaged Fence? Same-Day Repair in Wesley Chapel FL"
+            'specific-detail',          // E) "6-Foot Privacy Fence Installation in Pasco County"
+            'location-led',             // F) "Tampa Bay's Full-Service Fence Contractor Since 2005"
         ],
 
-        // Meta Descriptions: controls description opening
+        // Meta Descriptions: opening approaches from prompt template (A–F)
         'meta_description' => [
-            'benefit-focused',
-            'urgency',
-            'authority',
-            'local-trust',
-            'problem-solution',
-            'cost-value',
+            'service-forward',          // A) "Custom vinyl fence installation designed for..."
+            'location-forward',         // B) "Serving Tampa Bay homeowners with..."
+            'benefit-forward',          // C) "Get a fence that handles Florida storms..."
+            'problem-forward',          // D) "Tired of a sagging fence? We replace and repair..."
+            'social-proof-forward',     // E) "Trusted by 500+ Pasco County homeowners for..."
+            'specificity-forward',      // F) "4-, 5-, and 6-foot privacy fence options..."
         ],
 
         // Excerpts: controls excerpt lead-in
@@ -202,10 +202,33 @@ class MYLS_Variation_Engine {
         ],
 
         'meta_title' => [
-            'Best',
+            'Your Trusted',
             'Top Rated',
+            'Best',
             '#1',
             'Premier',
+            'Quality',
+            'Professional',
+            'Expert',
+            'Reliable',
+            'Affordable',
+            'Top',
+        ],
+
+        'meta_description' => [
+            'Look no further',
+            'We are your go-to',
+            'We pride ourselves',
+            'second to none',
+            'Whether you need',
+            'From X to Y, we do it all',
+            'Our team of experts',
+            'We are committed to',
+            'high-quality',
+            'top-notch',
+            'state-of-the-art',
+            'world-class',
+            'cutting-edge',
         ],
 
         'taglines' => [
@@ -284,14 +307,25 @@ class MYLS_Variation_Engine {
      */
     public static function inject_variation( string $prompt, string $angle, string $context = '' ) : string {
 
+        $is_short_form = in_array( $context, ['meta_title', 'meta_description', 'taglines'], true );
+
         // Build the variation block
         $block = "\n\n";
         $block .= "VARIATION REQUIREMENTS (MANDATORY):\n";
-        $block .= "- Opening Angle: {$angle}\n";
-        $block .= "- The first paragraph MUST follow the Opening Angle above.\n";
-        $block .= "- Do NOT repeat sentence structure patterns across paragraphs.\n";
-        $block .= "- Vary paragraph length and rhythm.\n";
-        $block .= "- Use specific local references instead of generic descriptors.\n";
+        $block .= "- Structural Pattern: {$angle}\n";
+
+        if ( $is_short_form ) {
+            // Short-form rules (titles, descriptions, taglines)
+            $block .= "- You MUST follow the Structural Pattern above for this output.\n";
+            $block .= "- Use a different opening word than any previous output in this batch.\n";
+            $block .= "- Use specific, concrete language — not generic filler.\n";
+        } else {
+            // Long-form rules (about areas, excerpts, page builder, etc.)
+            $block .= "- The first paragraph MUST follow the Structural Pattern above.\n";
+            $block .= "- Do NOT repeat sentence structure patterns across paragraphs.\n";
+            $block .= "- Vary paragraph length and rhythm.\n";
+            $block .= "- Use specific local references instead of generic descriptors.\n";
+        }
 
         // Context-specific banned phrases
         $banned = self::$banned_phrases[ $context ] ?? [];
@@ -302,9 +336,13 @@ class MYLS_Variation_Engine {
             }
         }
 
-        // General anti-duplication rules
-        $block .= "- Avoid generic adjectives: vibrant, charming, thriving, beautiful, bustling.\n";
-        $block .= "- Avoid repeating any 4+ word phrase that commonly appears in city descriptions.\n";
+        // General anti-duplication rules (tailored by form length)
+        if ( $is_short_form ) {
+            $block .= "- Do not use the same adjective-noun or verb-noun pairing as other outputs in this batch.\n";
+        } else {
+            $block .= "- Avoid generic adjectives: vibrant, charming, thriving, beautiful, bustling.\n";
+            $block .= "- Avoid repeating any 4+ word phrase that commonly appears in city descriptions.\n";
+        }
 
         // Log
         self::$log['banned_count']   = count( $banned );

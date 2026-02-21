@@ -38,7 +38,7 @@ add_action('wp_ajax_myls_person_import_linkedin', function () : void {
   }
 
   // Ensure AI is available
-  if ( ! function_exists('myls_openai_chat') ) {
+  if ( ! function_exists('myls_ai_chat') && ! function_exists('myls_openai_chat') ) {
     wp_send_json_error(['message' => 'OpenAI integration not available. Check your API key under Settings.'], 500);
   }
 
@@ -59,7 +59,7 @@ add_action('wp_ajax_myls_person_import_linkedin', function () : void {
   /* ──────────────────────────────────────────────
    *  Step 2: Send to AI
    * ────────────────────────────────────────────── */
-  $model = (string) get_option('myls_openai_model', 'gpt-4o');
+  $model = (string) get_option('myls_openai_model', '');
 
   $system_prompt = <<<'SYSPROMPT'
 You are a data extraction assistant. You will receive content copied from a LinkedIn profile page.
@@ -108,7 +108,8 @@ SYSPROMPT;
     . "\n=== END CONTENT ===\n\n"
     . "Extract all person/professional data from the above into the JSON structure.";
 
-  $result = myls_openai_chat($user_prompt, [
+  $chat_fn = function_exists('myls_ai_chat') ? 'myls_ai_chat' : 'myls_openai_chat';
+  $result = $chat_fn($user_prompt, [
     'model'       => $model,
     'max_tokens'  => 2000,
     'temperature' => 0.2,
