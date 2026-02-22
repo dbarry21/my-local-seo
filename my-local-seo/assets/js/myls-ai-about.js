@@ -12,6 +12,7 @@
   const $res    = $('#myls_ai_about_results');
   const $count  = $('#myls_ai_about_count');
   const $status = $('#myls_ai_about_status');
+  const $prog   = $('#myls_ai_about_progress');
 
   let stopping = false;
 
@@ -22,7 +23,16 @@
     $pt.prop('disabled', !!on);
     $posts.prop('disabled', !!on);
     $skip.prop('disabled', !!on);
-    $status.text(on ? 'Working…' : '');
+    if (!on) {
+      $status.text('');
+      $prog.text('');
+    }
+  }
+
+  function setProgress(current, total, title){
+    const pct = total > 0 ? Math.round((current / total) * 100) : 0;
+    $status.text('Processing ' + current + ' of ' + total + ' (' + pct + '%)');
+    $prog.text(title ? '— ' + title : '');
   }
 
   function loadPosts(){
@@ -69,8 +79,14 @@
     const tracker = LOG.createTracker();
     const total = ids.length;
 
+    // Build title lookup from the select options
+    const titleMap = {};
+    $posts.find('option').each(function(){
+      titleMap[$(this).val()] = $(this).text().replace(/\s*\(ID \d+\)\s*$/, '');
+    });
+
     LOG.clear($res[0], LOG.batchStart('About the Area', total, {
-      model: 'gpt-4o',
+      model: CFG.model || 'default',
       temperature: temperature,
       tokens: tokens
     }));
@@ -78,11 +94,15 @@
     (function next(){
       if (stopping || !ids.length) {
         setBusy(false);
+        if (stopping) $status.text('Stopped.');
         LOG.append(LOG.batchSummary(tracker.getSummary(stats)), $res[0]);
         return;
       }
       const id = ids.shift();
       const idx = total - ids.length;
+      const title = titleMap[String(id)] || '#' + id;
+
+      setProgress(idx, total, title);
 
       $.post(CFG.ajaxurl, {
         action:      CFG.action_generate || 'myls_ai_about_generate_v2',

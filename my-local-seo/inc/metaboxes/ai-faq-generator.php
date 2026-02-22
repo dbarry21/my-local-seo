@@ -47,9 +47,8 @@ function myls_ai_faq_generator_render($post) {
     // The generate endpoint uses the shared AI nonce (myls_ai_ops).
     $ai_nonce = wp_create_nonce('myls_ai_ops');
     
-    // Check if OpenAI API key is configured
-    $api_key = trim(get_option('myls_openai_api_key', ''));
-    $has_api_key = !empty($api_key);
+    // Check if AI API key is configured (provider-agnostic)
+    $has_api_key = function_exists('myls_ai_has_key') ? myls_ai_has_key() : !empty(trim(get_option('myls_openai_api_key', '')));
     
     // Get current FAQ count
     $faqs = get_post_meta($post->ID, '_myls_faq_items', true);
@@ -67,7 +66,7 @@ function myls_ai_faq_generator_render($post) {
         <?php if (!$has_api_key): ?>
             <div class="notice notice-warning inline" style="margin: 10px 0; padding: 8px;">
                 <p style="margin: 0;">
-                    <strong>OpenAI API Key Required:</strong><br>
+                    <strong>AI API Key Required:</strong><br>
                     Configure your API key in 
                     <a href="<?php echo admin_url('admin.php?page=my-local-seo&tab=api-integration'); ?>">
                         API Integration

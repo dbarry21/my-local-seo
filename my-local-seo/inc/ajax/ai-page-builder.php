@@ -195,6 +195,9 @@ add_action('wp_ajax_myls_pb_create_page', function () {
 
     if ( function_exists('myls_ai_chat') ) {
         $model = (string) get_option('myls_openai_model', '');
+        if ( function_exists('myls_ai_set_usage_context') ) {
+            myls_ai_set_usage_context( 'page_builder', $post_id ?? 0 );
+        }
         $html = myls_ai_chat($prompt, [
             'model'       => $model,
             'max_tokens'  => 4000,

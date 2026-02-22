@@ -82,6 +82,9 @@ add_action('wp_ajax_myls_ai_taglines_generate_single', function() {
     
     // Get parameters
     $prompt_template = isset($_POST['prompt_template']) ? wp_kses_post($_POST['prompt_template']) : '';
+    if ( empty($prompt_template) && function_exists('myls_get_default_prompt') ) {
+        $prompt_template = myls_get_default_prompt('taglines');
+    }
     $tokens = isset($_POST['tokens']) ? intval($_POST['tokens']) : 100;
     $temperature = isset($_POST['temperature']) ? floatval($_POST['temperature']) : 0.7;
     
@@ -148,6 +151,7 @@ add_action('wp_ajax_myls_ai_taglines_generate_single', function() {
         wp_send_json_error(['message' => 'AI function not available']);
     }
     
+    if (function_exists("myls_ai_set_usage_context")) myls_ai_set_usage_context("taglines", $post_id);
     $response = myls_ai_generate_text($prompt, [
         'max_tokens' => $tokens,
         'temperature' => $temperature,

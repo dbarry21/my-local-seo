@@ -242,17 +242,20 @@ add_action('wp_ajax_myls_test_gsc_client', function(){
     if (function_exists('myls_gsc_oauth_call') && function_exists('myls_gsc_is_connected') && myls_gsc_is_connected()) {
       $r = myls_gsc_oauth_call('https://www.googleapis.com/webmasters/v3/sites', 'GET');
       if (is_wp_error($r)) {
-        $msg = 'OAuth HTTP error: '.$r->get_error_message();
+        $msg = 'OAuth error: '.$r->get_error_message();
         update_option('myls_gsc_test_result', $msg.' @ '.current_time('mysql'));
         wp_send_json_error($msg);
       }
-      $code = wp_remote_retrieve_response_code($r);
-      if ($code === 200) {
-        update_option('myls_gsc_test_result', 'OK (200) @ '.current_time('mysql'));
-        wp_send_json_success('GSC OAuth OK (200)');
+      // myls_gsc_oauth_call returns decoded JSON on success
+      $sites = [];
+      if ( ! empty($r['siteEntry']) ) {
+        foreach ($r['siteEntry'] as $s) $sites[] = $s['siteUrl'] ?? '';
       }
-      update_option('myls_gsc_test_result', 'HTTP '.$code.' @ '.current_time('mysql'));
-      wp_send_json_error('Unexpected HTTP '.$code);
+      $count = count($sites);
+      $msg = 'OK: '.$count.' site'.($count!==1?'s':'').' found';
+      if ($count > 0) $msg .= ' ('.implode(', ', array_slice($sites, 0, 3)).')';
+      update_option('myls_gsc_test_result', $msg.' @ '.current_time('mysql'));
+      wp_send_json_success($msg);
     } else {
       update_option('myls_gsc_test_result', 'Client configured; not connected @ '.current_time('mysql'));
       wp_send_json_success('Client configured. Connect Google to fully test.');

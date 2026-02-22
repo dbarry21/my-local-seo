@@ -2,8 +2,8 @@
 Contributors: davebarry
 Tags: local seo, schema, ai, faq, utilities, person schema, linkedin
 Requires at least: 6.0
-Tested up to: 6.7
-Stable tag: 6.3.1.0
+Tested up to: 6.7.2
+Stable tag: 7.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -23,6 +23,11 @@ This plugin provides a modular admin toolkit for local SEO workflows including s
 * FAQ accordion with schema markup
 * Google Maps integration for service areas
 * Divi Builder module support
+* Plugin Stats — AI usage analytics, cost tracking, handler breakdown with Chart.js
+* Search Stats — Focus keyword & FAQ tracking, Google Autocomplete suggestions, GSC metrics, AI Overview detection, per-post SERP rank with history tracking
+* Google Search Console OAuth integration
+* 35+ shortcodes for location data, service grids, schema, social sharing, YouTube, and utilities
+* Enterprise logging with quality control and batch processing
 
 == Installation ==
 
@@ -30,6 +35,44 @@ This plugin provides a modular admin toolkit for local SEO workflows including s
 2. Activate the plugin through the 'Plugins' menu in WordPress.
 
 == Upgrade Notice ==
+
+= 7.0 =
+Major release: Search Stats dashboard with GSC integration, per-post SERP rank tracking with history, AI Overview detection, Focus Keyword + FAQ autocomplete expansion, Google Search Console OAuth, Plugin Stats dashboard, enterprise AI logging, comprehensive shortcode documentation update.
+
+= 6.3.2.2 =
+Fix: Excerpt and HTML Excerpt batch generation no longer fails with AJAX errors. Changed from 5-at-a-time to 1-at-a-time processing to prevent server timeout. Better error messages.
+
+= 6.3.2.1 =
+Rewritten: PDF export now uses print-friendly HTML window instead of jsPDF. Clean white layout, perfect Unicode/emoji, color-coded sections, zero dependencies.
+
+= 6.3.2.0 =
+Fix: Ctrl+A in results terminals now selects only terminal contents, not entire page. Covers all 8 AI result panels.
+
+= 6.3.1.9 =
+Improved: About the Area now shows live progress text during batch generation ("Processing 3 of 228 — Post Title…").
+
+= 6.3.1.8 =
+New: Plugin Stats dashboard — AI usage analytics, cost tracking, handler breakdown, activity log with Chart.js visualizations. Auto-logs every AI call.
+
+= 6.3.1.7 =
+Fix: Browser hangs on large batches (200+ posts). Meta, Excerpt, and HTML Excerpt generation now process 5 posts at a time with live progress and Stop button.
+
+= 6.3.1.6 =
+Fix: About the Area log header showed hardcoded "gpt-4o" instead of actual configured model.
+
+= 6.3.1.5 =
+Fix: Empty model string caused Anthropic API 400 error on all AI generation. Now falls back to provider default model when no model is configured.
+
+= 6.3.1.4 =
+New Prompt Reset utility (Utilities tab). Rewrote all 11 prompt templates with structural patterns, anti-duplication, banned phrases, and output enforcement. Use Prompt Reset to flush DB and pick up new defaults.
+
+= 6.3.1.3 =
+Rewritten excerpt prompts with 6 structural patterns, content_snippet context, banned phrases, CTA rotation. Expanded Variation Engine for both excerpt contexts. Added VE injection to HTML excerpt bulk handler.
+
+= 6.3.1.2 =
+
+= 6.3.1.1 =
+Added "Generate Both for Selected" button to AI → Meta subtab. Runs titles then descriptions in one click.
 
 = 6.3.1.0 =
 Fixes AI meta title/description generation: cleanup regex bug that stripped valid output, full error diagnostics in results log, improved prompt templates with anti-duplication, universal page builder content extraction.
@@ -108,6 +151,119 @@ FAQ Quick Editor now supports multi-post batch save and WYSIWYG answers.
 Utilities now includes the FAQ Quick Editor and reorganized FAQ migration tools.
 
 == Changelog ==
+
+= 7.0 =
+* NEW: Search Stats — standalone dashboard for keyword performance tracking
+* NEW: Google Search Console OAuth integration (connect/disconnect/test in API Integration tab)
+* NEW: Focus Keyword + FAQ autocomplete expansion — 5 query types (exact, expanded, how, what, best)
+* NEW: GSC Search Analytics enrichment — impressions, clicks, CTR, average position per keyword
+* NEW: AI Overview detection — identifies queries appearing in Google AI Overviews
+* NEW: Per-post SERP rank — weighted average position for specific post/keyword combinations
+* NEW: Rank history tracking — daily snapshots with movement arrows (▲ improved / ▼ dropped)
+* NEW: History panel — click to view chronological rank, impressions, clicks over time
+* NEW: Custom DB tables — wp_myls_search_demand + wp_myls_search_demand_history
+* NEW: Refresh All workflow — sequential Scan → AC → GSC with 1s throttle (gentle on Google)
+* NEW: Post type filter pills — client-side filtering by page, post, service, etc.
+* NEW: Freshness badges — FRESH (green), STALE (yellow), OLD (red), NOT RUN (gray)
+* NEW: FAQ questions included in Search Stats alongside focus keywords
+* NEW: 6 KPI cards — Keywords Tracked, AC Suggestions, GSC Queries, Avg Rank, AI Overview, Last Refreshed
+* NEW: Expandable sub-grid rows with AC/GSC match highlighting and bonus GSC queries
+* NEW: Print-friendly layout with colored backgrounds preserved
+* NEW: 7 shortcodes added to interactive documentation
+* IMPROVED: Shortcode documentation now covers all 35+ registered shortcodes with aliases noted
+* FIX: HTML sanitization shared function prevents inconsistent cleanup across handlers
+
+= 6.3.2.6 =
+* REFACTOR: Extracted shared `myls_ai_faqs_sanitize_raw_html()` function — main generation and fill pass now use identical cleanup logic
+* FIX: Added 6 new tag cleanup regexes: closing tag spaces (< / p >), tag name spaces (h 3), attribute spaces (href = "url"), missing angle brackets
+* FIX: Per-FAQ validator now catches raw HTML attributes as text (href="..."), multiple consecutive tag fragments, and escaped HTML entities in answers
+* IMPROVED: Fill pass prompt hardened with explicit HTML formatting rules, proper FAQ structure template with `<ul>` list, and tag integrity examples
+
+= 6.3.2.5 =
+* IMPROVED: FAQ batch AJAX error handling now shows HTTP status and actionable messages instead of generic "Bad JSON response"
+* FIX: Server timeouts (504) during FAQ generation now display clear message with troubleshooting guidance
+
+= 6.3.2.4 =
+* FIX: Metabox AI buttons (HTML Excerpt, Service Tagline, FAQ Generator) now use provider-agnostic API key check — works with both OpenAI and Anthropic
+* NEW: `myls_ai_has_key()` helper function for provider-agnostic key detection
+* FIX: Updated "Configure OpenAI API key" messages to "Configure AI API key" across all metaboxes
+
+= 6.3.2.3 =
+* FIX: FAQ validator — global garbled_text check downgraded from hard rejection to warning; per-FAQ filter now handles individually
+* FIX: FAQ sanitizer — leaked HTML tag names as text (e.g. "Answer : strong >") cleaned before wp_kses
+* FIX: FAQ sanitizer — malformed closing tags with wrong brackets (</a] </a) </a}) fixed to proper HTML
+* FIX: FAQ validator — new keyword_soup check rejects incoherent keyword-stuffed content (function-word ratio < 15%)
+* FIX: FAQ validator — new malformed_html_tag and leaked_html_tag checks catch escaped broken tags
+* IMPROVED: FAQ prompt — added WRITING QUALITY section with good/bad examples, no-nesting rule for HTML tags
+
+= 6.3.2.2 =
+* FIX: Excerpt and HTML Excerpt batch generation changed to process 1 post per AJAX call (was 5, caused server timeout)
+* FIX: AJAX error handlers now show HTTP status code and response text for debugging
+* FIX: Usage context $post_id scope issue in excerpt handlers
+
+= 6.3.2.1 =
+* REWRITE: PDF export replaced jsPDF with print-friendly HTML popup window
+* Clean white background, perfect Unicode/emoji support, color-coded log sections
+* Zero CDN dependencies — no more loading jsPDF from Cloudflare
+* Toolbar with Print/Save as PDF and Copy All buttons
+* Section headers render as dark banners, errors in red, success in green
+
+= 6.3.2.0 =
+* FIX: Ctrl+A in results terminals now selects only terminal text, not entire page
+* All 8 results panels covered (Meta, Excerpts, HTML Excerpts, About Area, FAQs, GEO, Page Builder, Content Analyzer)
+* Focus outline added so users can see when terminal is active
+
+= 6.3.1.9 =
+* IMPROVED: About the Area batch generation now shows live progress with post title and percentage
+* Stop button styled red with icon for consistency across all AI handlers
+
+= 6.3.1.8 =
+* NEW: Plugin Stats submenu — comprehensive AI usage analytics dashboard
+* NEW: 4-tab dashboard: Overview, Cost Analysis, Handlers, Activity Log
+* NEW: Auto-logging of every AI call with handler, model, tokens, cost, duration
+* NEW: Content coverage progress bars (titles, descriptions, excerpts)
+* NEW: Cost projection, per-call cost breakdown, cumulative cost trend
+* NEW: Data management with purge functionality
+
+= 6.3.1.7 =
+* FIX: Browser hung unresponsive when generating meta/excerpts for 200+ posts — now chunks 5 posts per AJAX call with live progress
+* NEW: Stop button on Meta subtab to cancel mid-batch
+* Excerpt and HTML Excerpt handlers also chunked for same fix
+
+= 6.3.1.6 =
+* FIX: About the Area batch log header showed hardcoded "gpt-4o" — now reads actual configured model via myls_ai_get_default_model()
+
+= 6.3.1.5 =
+* FIX: Empty model string passed to Anthropic API caused HTTP 400 on all AI generation (excerpts, HTML excerpts, taglines)
+* myls_ai_chat() now strips empty model so provider functions fall back to built-in defaults
+
+= 6.3.1.4 =
+* NEW: Prompt Reset utility (Utilities → Prompt Reset) — status table + one-click reset of all 11 prompt templates
+* REWRITE: about-area.txt — 6 structural patterns, anti-duplication for batch, banned openers
+* REWRITE: about-area-retry.txt — aligned with main prompt, mandatory structure template
+* REWRITE: faqs-builder.txt — anti-duplication rules, varied interrogatives, output enforcement
+* REWRITE: geo-rewrite.txt — AI citation framing, full jump links, ol for steps, expanded Q&A
+* REWRITE: page-builder.txt — 6-section spec, Bootstrap icon/color requirements, banned phrases
+* REWRITE: taglines.txt — 4 structural patterns, varied pattern per tagline, banned phrases
+* REWRITE: llms-txt.txt — AI citation optimization, quotable fact-statements, search intent queries
+* FIX: All AJAX handlers now fall back to factory default files when DB option is empty (fixes "missing template" after reset)
+
+= 6.3.1.3 =
+* REWRITE: WP excerpt prompt — 6 structural patterns, {content_snippet} + {city_state} tokens, 16 banned phrases, anti-duplication
+* REWRITE: HTML excerpt prompt — 6 structural patterns, card-context awareness, CTA rotation pool, 19 banned phrases
+* Variation Engine: expanded excerpt/html_excerpt angles to 6 each, new medium-form rules, banned phrase lists
+* WP excerpt handler: added content_snippet + city_state tokens, error diagnostics, output cleanup
+* HTML excerpt handler: added content_snippet token, VE angle injection in bulk loop, error diagnostics
+* Both handlers: added old/new values to results for log display
+
+= 6.3.1.2 =
+* NEW: "Export to CSV" button on Meta Bulk Editor — exports all rows across all pages
+* CSV includes ID, Post Title, Yoast Title, Yoast Description, Focus Keyword
+* Respects current post type and search filter
+
+= 6.3.1.1 =
+* NEW: "Generate Both for Selected" button — runs titles then descriptions sequentially
+* Results log shows both batches with separator between them
 
 = 6.3.1.0 =
 * BUGFIX: AI meta cleanup regex was corrupting valid output (broken pattern flags caused preg_replace to return null)

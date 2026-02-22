@@ -151,6 +151,10 @@ return [
       </div>
     </div>
 
+    <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
+      <button id="myls_meta_csv" class="button"><i class="bi bi-filetype-csv"></i> Export to CSV</button>
+    </div>
+
     <div class="myls-meta-table-wrap">
       <table class="myls-list-table striped">
         <thead>
@@ -203,6 +207,43 @@ return [
       $$('.myls_field_toggle').forEach(cb=>cb.addEventListener('change',()=>{if(cb.checked)visible.add(cb.value);else visible.delete(cb.value);setCols();}));
       search.addEventListener('input',()=>{if(typingTimer)clearTimeout(typingTimer);typingTimer=setTimeout(()=>fetchPage(1),350);});
       pt.addEventListener('change',()=>fetchPage(1));prev.addEventListener('click',e=>{e.preventDefault();if(page>1)fetchPage(page-1);});next.addEventListener('click',e=>{e.preventDefault();if(page<maxPages)fetchPage(page+1);});save.addEventListener('click',e=>{e.preventDefault();saveAll();});
+
+      // CSV Export — exports ALL rows across all pages
+      const csvBtn=$('#myls_meta_csv');
+      csvBtn.addEventListener('click', async function(e){
+        e.preventDefault();
+        csvBtn.disabled=true;csvBtn.textContent='Exporting…';
+        try {
+          let allRows=[], pg=1, maxPg=1;
+          do {
+            const r=await post({action:'myls_meta_editor_fetch',nonce:BOOT.nonce,pt:pt.value,search:search.value,page:String(pg),per_page:'100'});
+            if(!r.success) throw new Error(r.data);
+            allRows=allRows.concat(r.data.rows||[]);
+            maxPg=r.data.max_pages||1;
+            pg++;
+          } while(pg<=maxPg);
+
+          // Build CSV
+          const csvEsc=v=>{v=String(v??'');return v.includes(',')||v.includes('"')||v.includes('\n')?'"'+v.replace(/"/g,'""')+'"':v;};
+          const headers=['ID','Post Title','Yoast Title','Yoast Description','Focus Keyword'];
+          const lines=[headers.join(',')];
+          allRows.forEach(r=>{
+            lines.push([r.id,csvEsc(r.post_title),csvEsc(r.yoast_title),csvEsc(r.yoast_desc),csvEsc(r.yoast_focus)].join(','));
+          });
+
+          // Download
+          const blob=new Blob(['\uFEFF'+lines.join('\r\n')],{type:'text/csv;charset=utf-8;'});
+          const url=URL.createObjectURL(blob);
+          const a=document.createElement('a');
+          a.href=url;a.download='meta-editor-'+pt.value+'-'+new Date().toISOString().slice(0,10)+'.csv';
+          document.body.appendChild(a);a.click();document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        } catch(e) {
+          alert('CSV export failed: '+e.message);
+        } finally {
+          csvBtn.disabled=false;csvBtn.innerHTML='<i class="bi bi-filetype-csv"></i> Export to CSV';
+        }
+      });
       fetchPage(1);
     })();
     </script>

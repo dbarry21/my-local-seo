@@ -86,7 +86,7 @@ return [
         <h4 class="mb-2">AI Actions</h4>
         <p class="mb-3" style="color:#555;font-size:12px;">
           Generates the standard WP <code>post_excerpt</code>.<br>
-          Placeholders: <code>{post_title}</code>, <code>{site_name}</code>, <code>{excerpt}</code>, <code>{primary_category}</code>, <code>{permalink}</code>.
+          Placeholders: <code>{post_title}</code>, <code>{site_name}</code>, <code>{excerpt}</code>, <code>{primary_category}</code>, <code>{permalink}</code>, <code>{city_state}</code>, <code>{content_snippet}</code>.
         </p>
 
         <div class="card mb-3" style="border:1px solid #ddd;">
@@ -120,7 +120,7 @@ return [
         <h4 class="mb-2">HTML Excerpt Actions</h4>
         <p class="mb-3" style="color:#555;font-size:12px;">
           Generates the <code>html_excerpt</code> meta field used by <code>[service_area_grid]</code>.<br>
-          Extra placeholder: <code>{city_state}</code>.
+          Placeholders: <code>{post_title}</code>, <code>{site_name}</code>, <code>{excerpt}</code>, <code>{primary_category}</code>, <code>{city_state}</code>, <code>{permalink}</code>, <code>{content_snippet}</code>.
         </p>
 
         <div class="card mb-3" style="border:1px solid #ddd;">

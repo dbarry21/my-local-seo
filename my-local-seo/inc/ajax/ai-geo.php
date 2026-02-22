@@ -388,6 +388,9 @@ add_action('wp_ajax_myls_ai_geo_analyze_v2', function(){
   if ( trim($template) === '' ) {
     $template = (string) get_option('myls_ai_geo_prompt_template', '');
   }
+  if ( trim($template) === '' && function_exists('myls_get_default_prompt') ) {
+    $template = myls_get_default_prompt('geo-rewrite');
+  }
   if ( trim($template) === '' ) {
     wp_send_json_error(['marker'=>'geo','status'=>'error','message'=>'missing_template'], 400);
   }
@@ -515,6 +518,9 @@ add_action('wp_ajax_myls_ai_geo_convert_v1', function(){
   $template = isset($_POST['template']) ? (string) wp_unslash($_POST['template']) : '';
   if ( trim($template) === '' ) {
     $template = (string) get_option('myls_ai_geo_prompt_template', '');
+  }
+  if ( trim($template) === '' && function_exists('myls_get_default_prompt') ) {
+    $template = myls_get_default_prompt('geo-rewrite');
   }
   if ( trim($template) === '' ) {
     wp_send_json_error(['marker'=>'geo','status'=>'error','message'=>'missing_template'], 400);

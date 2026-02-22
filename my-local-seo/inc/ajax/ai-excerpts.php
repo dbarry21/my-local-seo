@@ -79,6 +79,9 @@ if ( ! function_exists('myls_ai_generate_excerpt_text') ) {
       $max   = (int) get_option('myls_ai_excerpt_max_tokens', 180);
       $temp  = (float) get_option('myls_ai_excerpt_temperature', 0.7);
 
+      if ( function_exists('myls_ai_set_usage_context') ) {
+        myls_ai_set_usage_context( 'excerpts' );
+      }
       $text = myls_ai_chat($prompt, [
         'model'       => $model,
         'max_tokens'  => $max,
@@ -137,6 +140,9 @@ add_action('wp_ajax_myls_ai_excerpt_generate_v1', function () : void {
   }
 
   $tpl = (string) get_option('myls_ai_prompt_excerpt', '');
+  if ( trim($tpl) === '' && function_exists('myls_get_default_prompt') ) {
+    $tpl = myls_get_default_prompt('excerpt');
+  }
   if ( trim($tpl) === '' ) {
     wp_send_json_error(['message' => 'Missing excerpt prompt template (option: myls_ai_prompt_excerpt).'], 400);
   }
@@ -171,12 +177,28 @@ add_action('wp_ajax_myls_ai_excerpt_generate_v1', function () : void {
       $primary_cat = (string) $cats[0]->name;
     }
 
+    // City/State from meta (multiple fallback keys)
+    $city_state = '';
+    if ( function_exists('get_field') ) $city_state = (string) get_field('city_state', $pid);
+    if ( $city_state === '' ) $city_state = (string) get_post_meta($pid, 'city_state', true);
+    if ( $city_state === '' ) $city_state = (string) get_post_meta($pid, '_myls_city', true);
+
+    // Content snippet — first 200 words of page content via page builder compat
+    $content_snippet = '';
+    if ( function_exists('myls_get_post_plain_text') ) {
+      $content_snippet = myls_get_post_plain_text( $pid, 200 );
+    } else {
+      $content_snippet = wp_trim_words( wp_strip_all_tags( $post->post_content ), 200, '…' );
+    }
+
     $prompt = $tpl;
-    $prompt = str_replace('{post_title}', (string) get_the_title($pid), $prompt);
-    $prompt = str_replace('{site_name}', $site_name, $prompt);
-    $prompt = str_replace('{excerpt}', $current_excerpt, $prompt);
+    $prompt = str_replace('{post_title}',       (string) get_the_title($pid), $prompt);
+    $prompt = str_replace('{site_name}',        $site_name, $prompt);
+    $prompt = str_replace('{excerpt}',          $current_excerpt, $prompt);
     $prompt = str_replace('{primary_category}', $primary_cat, $prompt);
-    $prompt = str_replace('{permalink}', (string) get_permalink($pid), $prompt);
+    $prompt = str_replace('{permalink}',        (string) get_permalink($pid), $prompt);
+    $prompt = str_replace('{city_state}',       $city_state, $prompt);
+    $prompt = str_replace('{content_snippet}',  $content_snippet, $prompt);
 
     // ── Variation Engine: inject angle + banned phrases for excerpt generation ──
     if ( class_exists('MYLS_Variation_Engine') ) {
@@ -184,14 +206,32 @@ add_action('wp_ajax_myls_ai_excerpt_generate_v1', function () : void {
       $prompt = MYLS_Variation_Engine::inject_variation( $prompt, $angle, 'excerpt' );
     }
 
+    if ( function_exists('myls_ai_set_usage_context') ) {
+      myls_ai_set_usage_context( 'excerpts', $pid );
+    }
     $gen = myls_ai_generate_excerpt_text($prompt);
 
     if ( $gen === '' ) {
-      $results[] = ['id' => $pid, 'ok' => false, 'error' => 'OpenAI returned empty text (check API key/model).'];
+      $diag = 'AI returned empty.';
+      if ( ! empty( $GLOBALS['myls_ai_last_error'] ) ) {
+        $diag .= ' Error: ' . mb_substr( $GLOBALS['myls_ai_last_error'], 0, 300 );
+        $GLOBALS['myls_ai_last_error'] = '';
+      }
+      if ( function_exists('myls_ai_last_call') ) {
+        $lc = myls_ai_last_call();
+        $diag .= ' | Provider: ' . ($lc['provider'] ?? '?') . ', Model: ' . ($lc['resolved_model'] ?? '?');
+      }
+      $results[] = ['id' => $pid, 'ok' => false, 'error' => $diag];
       continue;
     }
 
+    // Clean up: strip commentary, options, labels (reuse meta cleanup if available)
     $new_excerpt = trim((string) $gen);
+    if ( function_exists('myls_clean_meta_output') ) {
+      $new_excerpt = myls_clean_meta_output( $new_excerpt );
+    }
+    // Always strip HTML for WP excerpt
+    $new_excerpt = trim( wp_strip_all_tags( $new_excerpt, true ) );
 
     // ── Variation Engine: duplicate guard for excerpts ──
     if ( $new_excerpt !== '' && class_exists('MYLS_Variation_Engine') ) {
@@ -237,6 +277,8 @@ if ( $new_excerpt === '' ) {
       'saved'   => $saved,
       'dryrun'  => $dryrun,
       'excerpt' => $new_excerpt,
+      'old'     => $current_excerpt,
+      'new'     => $new_excerpt,
       'title'   => (string) get_the_title($pid),
       'preview' => mb_substr($new_excerpt, 0, 120) . (mb_strlen($new_excerpt) > 120 ? '...' : ''),
       'log'     => $ve_log,

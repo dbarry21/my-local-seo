@@ -3,7 +3,7 @@
  * Plugin Name:       My Local SEO
  * Plugin URI:        https://mylocalseo.ai/
  * Description:       Modular local SEO toolkit with schema, AI tools, bulk operations, and shortcode utilities.
- * Version: 6.3.1.0
+ * Version: 7.0
  * Author:            Dave Barry
  * Author URI:        https://davebarry.io/
  * Text Domain:       my-local-seo
@@ -16,7 +16,7 @@ if ( ! defined('ABSPATH') ) exit;
  * Canonical constants & helpers (single source of truth)
  * ───────────────────────────────────────────────────────────────────────── */
 // Keep in sync with plugin header above.
-if ( ! defined('MYLS_VERSION') )     define('MYLS_VERSION','6.3.1.0');
+if ( ! defined('MYLS_VERSION') )     define('MYLS_VERSION','7.0');
 if ( ! defined('MYLS_MAIN_FILE') )   define('MYLS_MAIN_FILE', __FILE__);
 if ( ! defined('MYLS_PATH') )        define('MYLS_PATH', plugin_dir_path(MYLS_MAIN_FILE));
 if ( ! defined('MYLS_URL') )         define('MYLS_URL',  plugins_url('', MYLS_MAIN_FILE));
@@ -69,6 +69,8 @@ if ( function_exists('myls_load_all_admin_tabs') ) {
 /** Admin renderer (uses myls_get_admin_tabs() internally) */
 require_once MYLS_PATH . 'inc/admin.php';
 require_once MYLS_PATH . 'admin/admin-docs-menu.php';
+require_once MYLS_PATH . 'admin/admin-stats-menu.php';
+require_once MYLS_PATH . 'admin/admin-search-stats-menu.php';
 
 /** Release notes helpers (Docs → Release Notes + optional changelog queue) */
 require_once MYLS_PATH . 'inc/release-notes.php';
@@ -114,6 +116,9 @@ require_once MYLS_PATH . 'inc/utilities/faq-editor.php';
 require_once MYLS_PATH . 'inc/load-cpt-modules.php';
 require_once MYLS_PATH . 'inc/tools/inherit-city-state.php';
 
+/** Search Demand DB table + CRUD */
+require_once MYLS_PATH . 'inc/db/search-demand-table.php';
+
 
 /** Schema */
 require_once MYLS_PATH . 'inc/schema/helpers.php';
@@ -141,6 +146,7 @@ require_once MYLS_PATH . 'inc/ajax/ai-about.php';
 require_once MYLS_PATH . 'inc/ajax/ai-geo.php';
 
 require_once MYLS_PATH . 'inc/ajax/ai-faqs.php';
+require_once MYLS_PATH . 'inc/ajax/ai-faq-search-check.php';
 // Content Quality Analyzer for enterprise logging (optional - degrades gracefully)
 $_myls_ca_path = MYLS_PATH . 'inc/ai/content-analyzer.php';
 if ( file_exists( $_myls_ca_path ) ) {
@@ -152,6 +158,20 @@ if ( file_exists( $_myls_ve_path ) ) {
 	require_once $_myls_ve_path;
 }
 require_once MYLS_PATH . 'inc/openai.php';
+require_once MYLS_PATH . 'inc/class-ai-usage-logger.php';
+MYLS_AI_Usage_Logger::init();
+
+// Helper: set AI usage context before making AI calls in AJAX handlers
+if ( ! function_exists('myls_ai_set_usage_context') ) {
+	function myls_ai_set_usage_context( string $handler, int $post_id = 0, ?string $batch_id = null ) {
+		global $myls_ai_usage_context;
+		$myls_ai_usage_context = [
+			'handler'  => $handler,
+			'post_id'  => $post_id,
+			'batch_id' => $batch_id,
+		];
+	}
+}
 require_once MYLS_PATH . 'inc/ajax/ai-excerpts.php';
 require_once MYLS_PATH . 'inc/ajax/ai-html-excerpts.php';
 require_once MYLS_PATH . 'inc/ajax/ai-person-linkedin.php';

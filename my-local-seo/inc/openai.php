@@ -59,6 +59,19 @@ if ( ! function_exists('myls_ai_get_api_key') ) {
 	}
 }
 
+/**
+ * Check if an AI API key is configured for the active provider.
+ * Use this instead of checking myls_openai_api_key directly.
+ *
+ * @since 6.3.2.3
+ * @return bool True if the active provider has an API key configured.
+ */
+if ( ! function_exists('myls_ai_has_key') ) {
+	function myls_ai_has_key() : bool {
+		return trim( myls_ai_get_api_key() ) !== '';
+	}
+}
+
 if ( ! function_exists('myls_openai_get_api_key') ) {
 	function myls_openai_get_api_key() : string {
 		$keys = [
@@ -252,8 +265,13 @@ if ( ! function_exists('myls_anthropic_chat') ) {
  * ========================================================================= */
 if ( ! function_exists('myls_ai_chat') ) {
 	function myls_ai_chat( string $prompt, array $args = [] ) : string {
-		$model    = $args['model'] ?? '';
+		$model    = isset($args['model']) && trim((string)$args['model']) !== '' ? trim((string)$args['model']) : '';
 		$provider = ($model !== '') ? myls_ai_provider_from_model($model) : myls_ai_get_provider();
+
+		// Strip empty model so downstream functions use their built-in defaults
+		if ( $model === '' ) {
+			unset($args['model']);
+		}
 
 		// Track last call for debugging/logging
 		global $myls_ai_last_call;
@@ -262,13 +280,37 @@ if ( ! function_exists('myls_ai_chat') ) {
 			'requested_model'=> $model,
 		];
 
+		$t_start = microtime(true);
+
 		if ( $provider === 'anthropic' ) {
 			$result = myls_anthropic_chat($prompt, $args);
 		} else {
 			$result = myls_openai_chat($prompt, $args);
 		}
 
-		$myls_ai_last_call['resolved_model'] = $args['model'] ?? $model;
+		$resolved = $args['model'] ?? ($model !== '' ? $model : ($provider === 'anthropic' ? 'claude-sonnet-4-20250514' : 'gpt-4o'));
+		$myls_ai_last_call['resolved_model'] = $resolved;
+		$duration_ms = (int) round( ( microtime(true) - $t_start ) * 1000 );
+
+		// ── Auto-log to AI Usage table ──
+		if ( class_exists('MYLS_AI_Usage_Logger') ) {
+			global $myls_ai_usage_context;
+			$ctx = is_array($myls_ai_usage_context) ? $myls_ai_usage_context : [];
+			MYLS_AI_Usage_Logger::log([
+				'handler'              => $ctx['handler'] ?? 'unknown',
+				'model'                => $resolved,
+				'provider'             => $provider,
+				'post_id'              => $ctx['post_id'] ?? 0,
+				'prompt_chars'         => strlen($prompt),
+				'output_chars'         => is_string($result) ? strlen($result) : 0,
+				'max_tokens_requested' => $args['max_tokens'] ?? 0,
+				'temperature'          => $args['temperature'] ?? 0.7,
+				'duration_ms'          => $duration_ms,
+				'status'               => ( is_string($result) && $result !== '' ) ? 'ok' : 'error',
+				'error_message'        => ( is_string($result) && $result !== '' ) ? null : 'Empty response',
+				'batch_id'             => $ctx['batch_id'] ?? null,
+			]);
+		}
 
 		return $result;
 	}
@@ -375,6 +417,21 @@ if ( ! function_exists('myls_openai_complete') ) {
 			'resolved_model'  => $model,
 			'context'         => $context,
 		];
+
+		// Set usage logger context (maps context string to handler name)
+		global $myls_ai_usage_context;
+		$handler_map = [
+			'about_the_area'   => 'about_area',
+			'faqs_generate'    => 'faqs',
+			'geo_rewrite'      => 'geo',
+			'html_excerpt'     => 'html_excerpt',
+			'tagline'          => 'taglines',
+			'llms_txt_generate'=> 'llms_txt',
+		];
+		if ( ! is_array($myls_ai_usage_context) ) $myls_ai_usage_context = [];
+		if ( empty($myls_ai_usage_context['handler']) && $context !== '' ) {
+			$myls_ai_usage_context['handler'] = $handler_map[$context] ?? $context;
+		}
 
 		return myls_ai_chat($prompt, $chat_args);
 	}

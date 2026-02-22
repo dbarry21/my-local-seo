@@ -44,9 +44,8 @@ function myls_service_tagline_render($post) {
     // Get current tagline
     $tagline = get_post_meta($post->ID, '_myls_service_tagline', true);
     
-    // Check if OpenAI API key is configured
-    $api_key = trim(get_option('myls_openai_api_key', ''));
-    $has_api_key = !empty($api_key);
+    // Check if AI API key is configured (provider-agnostic)
+    $has_api_key = function_exists('myls_ai_has_key') ? myls_ai_has_key() : !empty(trim(get_option('myls_openai_api_key', '')));
     
     // Get city/state for context
     $location_data = function_exists('myls_get_city_state_values') 
@@ -125,7 +124,7 @@ function myls_service_tagline_render($post) {
             <div style="margin-top: 15px; padding: 8px; background: #fff3cd; border-left: 3px solid #ffc107; font-size: 12px;">
                 <strong>💡 AI Generation Available</strong><br>
                 <a href="<?php echo admin_url('admin.php?page=my-local-seo&tab=api-integration'); ?>">
-                    Configure OpenAI API key
+                    Configure AI API key
                 </a> to auto-generate taglines.
             </div>
         <?php endif; ?>

@@ -117,8 +117,10 @@ return [
 				<div class="d-flex flex-wrap gap-2 mb-2">
 					<button class="button button-primary" id="myls_ai_gen_title">Generate SEO Titles for Selected</button>
 					<button class="button" id="myls_ai_gen_desc">Generate Meta Descriptions for Selected</button>
+					<button class="button button-primary" id="myls_ai_gen_both" style="background:#2e7d32;border-color:#2e7d32;">Generate Both for Selected</button>
+					<button class="button" id="myls_ai_stop" style="background:#b32d2e;border-color:#b32d2e;color:#fff;display:none;">⏹ Stop</button>
 				</div>
-				<small style="color:#666;">Actions run on all selected posts. Respect “Dry-run” to preview without saving.</small>
+				<small style="color:#666;">Actions run on all selected posts. Respect “Dry-run” to preview without saving. <span id="myls_ai_progress" style="font-weight:600;"></span></small>
 
 				<hr>
 

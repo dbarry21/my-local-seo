@@ -409,8 +409,30 @@
       body: body.toString(),
     });
 
-    const json = await resp.json().catch(() => null);
-    if (!json || typeof json !== "object") throw new Error("Bad JSON response.");
+    // Capture raw text first so we can diagnose non-JSON responses
+    const rawText = await resp.text();
+    let json;
+    try {
+      json = JSON.parse(rawText);
+    } catch (parseErr) {
+      // Build a useful error message based on what we got back
+      const status = resp.status;
+      let detail = "Bad JSON response";
+      if (status === 504 || status === 524) {
+        detail = "Server timeout (HTTP " + status + "). Try reducing batch size or increasing server max_execution_time.";
+      } else if (status === 502 || status === 503) {
+        detail = "Server unavailable (HTTP " + status + "). The server may be overloaded — try again in a moment.";
+      } else if (status === 500) {
+        detail = "Server error (HTTP 500). Check PHP error logs for details.";
+      } else if (status === 0 || !resp.ok) {
+        detail = "HTTP " + status + ": " + (rawText.substring(0, 200) || "(empty response)");
+      } else {
+        detail = "Non-JSON response (HTTP " + status + "): " + rawText.substring(0, 200);
+      }
+      throw new Error(detail);
+    }
+
+    if (!json || typeof json !== "object") throw new Error("Bad JSON response (HTTP " + resp.status + ").");
     if (!json.success) {
       const err = new Error((json.data && json.data.message) || json.message || "Request failed.");
       err.responseData = json.data || {};  // carry full response for error logging

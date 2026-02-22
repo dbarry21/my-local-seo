@@ -38,6 +38,34 @@ My Local SEO is a comprehensive WordPress plugin designed for local businesses a
 - **Bulk Tagline Generation**: Generate taglines for services
 - **Google Maps Bulk**: Generate maps for multiple locations
 
+### Search Stats (v7.0)
+- **Keyword Tracking**: Scan focus keywords from Yoast, Rank Math, AIOSEO plus FAQ questions
+- **Google Autocomplete Expansion**: 5 query types per keyword (exact, expanded, how, what, best)
+- **GSC Search Analytics**: Impressions, clicks, CTR, average position per keyword
+- **AI Overview Detection**: Identify queries appearing in Google AI Overviews
+- **Per-Post SERP Rank**: Weighted average position filtered by specific page URL
+- **Rank History**: Daily snapshots with movement arrows and chronological history view
+- **Dashboard**: 6 KPI cards, post type filters, freshness badges, print-friendly layout
+
+### Plugin Stats
+- **AI Usage Analytics**: Track every API call with cost, tokens, and success rate
+- **Handler Breakdown**: See which AI features (FAQs, Meta, Excerpts, etc.) use the most resources
+- **Activity Log**: Searchable log of all AI operations with Chart.js visualizations
+- **Cost Tracking**: Monitor OpenAI/Anthropic API spend over time
+
+### YouTube Video Blog
+- **Auto-Import**: Pull videos from YouTube channel and create draft blog posts
+- **Transcripts**: AI-generated transcripts with accordion display
+- **Shortcodes**: [myls_youtube_panel], [myls_youtube_with_transcript], [youtube_channel_list_detailed]
+
+### Shortcodes (35+)
+- **Location**: city_state, city_only, county_name, acf_field
+- **Services**: service_grid, service_posts, service_area_grid, service_area_list, and more
+- **Schema**: faq_schema_accordion, yoast_title, post_author
+- **Social**: social_share, social_share_icon
+- **YouTube**: myls_youtube_panel, myls_youtube_with_transcript, youtube_channel_list_detailed
+- **Utility**: gmb_address, gmb_hours, ssseo_places_status, ssseo_map_embed, myls_ajax_search
+
 ## Quick Start Guide
 
 ### Step 1: Configure Organization Settings
@@ -54,12 +82,13 @@ My Local SEO is a comprehensive WordPress plugin designed for local businesses a
 ### Step 2: Set Up API Integration
 
 1. Go to **My Local SEO → API Integration**
-2. Enter your **OpenAI API Key**
+2. Enter your **OpenAI** or **Anthropic API Key**
 3. Configure default settings:
-   - Model: claude-sonnet-4-20250514 (recommended)
+   - Model: gpt-4o or claude-sonnet (recommended)
    - Temperature: 0.7
    - Max Tokens: 4000
-4. Click **Save Settings**
+4. (Optional) Connect **Google Search Console** via OAuth for Search Stats
+5. Click **Save Settings**
 
 ### Step 3: Create Services
 
@@ -122,11 +151,14 @@ Common shortcodes:
 
 ## System Requirements
 
-- WordPress 5.8 or higher
+- WordPress 6.0 or higher
 - PHP 7.4 or higher
 - MySQL 5.6 or higher
-- OpenAI API key (for AI features)
+- OpenAI or Anthropic API key (for AI features)
 - Google Maps API key (for map features)
+- Google Search Console OAuth credentials (for Search Stats GSC integration)
+- YouTube Data API key (for video blog features)
+- Google Places API key (for open/closed status shortcode)
 
 ## Support & Documentation
 
@@ -141,9 +173,11 @@ Common shortcodes:
 2. **Use AI Features Wisely**: Generate content for 2-3 posts first to test quality
 3. **Test Shortcodes**: Preview pages before publishing
 4. **Backup Settings**: Export your configuration regularly
-5. **Monitor Token Usage**: Track OpenAI API usage to stay within budget
-6. **Enable Caching**: Use caching plugins for better performance
-7. **Mobile Testing**: Always test on mobile devices
+5. **Monitor Token Usage**: Use Plugin Stats to track API costs and usage
+6. **Track Rankings**: Run Search Stats weekly to build rank history over time
+7. **Enable Caching**: Use caching plugins for better performance
+8. **Mobile Testing**: Always test on mobile devices
+9. **Connect GSC**: Link Google Search Console for real search performance data
 
 ## Getting Help
 

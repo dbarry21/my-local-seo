@@ -45,9 +45,8 @@ function myls_html_excerpt_render( $post ) {
         $html_excerpt = (string) get_post_meta($post->ID, 'html_excerpt', true);
     }
 
-    // Check if OpenAI API key is configured
-    $api_key     = trim(get_option('myls_openai_api_key', ''));
-    $has_api_key = ! empty($api_key);
+    // Check if AI API key is configured (provider-agnostic)
+    $has_api_key = function_exists('myls_ai_has_key') ? myls_ai_has_key() : ! empty( trim( get_option('myls_openai_api_key', '') ) );
 
     // Editor ID must be lowercase, no hyphens
     $editor_id = 'myls_html_excerpt';
@@ -97,7 +96,7 @@ function myls_html_excerpt_render( $post ) {
             <div style="margin-top: 12px; padding: 8px; background: #fff3cd; border-left: 3px solid #ffc107; font-size: 12px;">
                 <strong>💡 AI Generation Available</strong><br>
                 <a href="<?php echo admin_url('admin.php?page=my-local-seo&tab=api-integration'); ?>">
-                    Configure OpenAI API key
+                    Configure AI API key
                 </a> to auto-generate HTML excerpts.
             </div>
         <?php endif; ?>

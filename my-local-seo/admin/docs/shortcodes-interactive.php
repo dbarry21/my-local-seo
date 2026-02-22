@@ -23,6 +23,7 @@ $categories = [
     'content'  => ['label' => 'Content',         'icon' => '📄', 'color' => '#FF9800'],
     'schema'   => ['label' => 'Schema & SEO',    'icon' => '🏷️', 'color' => '#9C27B0'],
     'social'   => ['label' => 'Social',          'icon' => '🔗', 'color' => '#00BCD4'],
+    'youtube'  => ['label' => 'YouTube',         'icon' => '🎥', 'color' => '#FF0000'],
     'utility'  => ['label' => 'Utility & Tools', 'icon' => '⚙️', 'color' => '#607D8B'],
 ];
 

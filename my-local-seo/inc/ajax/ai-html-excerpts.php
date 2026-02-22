@@ -49,10 +49,11 @@ if ( ! function_exists('myls_ai_build_html_excerpt_prompt') ) {
 
         $site_name = (string) get_bloginfo('name');
 
-        // City/State from meta
+        // City/State from meta (multiple fallback keys)
         $city_state = '';
         if ( function_exists('get_field') ) $city_state = (string) get_field('city_state', $post_id);
         if ( $city_state === '' ) $city_state = (string) get_post_meta($post_id, 'city_state', true);
+        if ( $city_state === '' ) $city_state = (string) get_post_meta($post_id, '_myls_city', true);
 
         // Primary category
         $primary_cat = '';
@@ -63,6 +64,14 @@ if ( ! function_exists('myls_ai_build_html_excerpt_prompt') ) {
 
         $current_excerpt = (string) $post->post_excerpt;
 
+        // Content snippet — first 200 words via page builder compat
+        $content_snippet = '';
+        if ( function_exists('myls_get_post_plain_text') ) {
+            $content_snippet = myls_get_post_plain_text( $post_id, 200 );
+        } else {
+            $content_snippet = wp_trim_words( wp_strip_all_tags( $post->post_content ), 200, '…' );
+        }
+
         $prompt = $template;
         $prompt = str_replace('{post_title}',       (string) get_the_title($post_id), $prompt);
         $prompt = str_replace('{site_name}',        $site_name, $prompt);
@@ -70,6 +79,7 @@ if ( ! function_exists('myls_ai_build_html_excerpt_prompt') ) {
         $prompt = str_replace('{primary_category}', $primary_cat, $prompt);
         $prompt = str_replace('{city_state}',       $city_state, $prompt);
         $prompt = str_replace('{permalink}',        (string) get_permalink($post_id), $prompt);
+        $prompt = str_replace('{content_snippet}',  $content_snippet, $prompt);
 
         return $prompt;
     }
@@ -134,6 +144,9 @@ add_action('wp_ajax_myls_ai_html_excerpt_generate_single', function() : void {
         $prompt = MYLS_Variation_Engine::inject_variation( $prompt, $angle, 'html_excerpt' );
     }
 
+    if ( function_exists('myls_ai_set_usage_context') ) {
+        myls_ai_set_usage_context( 'html_excerpts', $post_id );
+    }
     $generated = myls_ai_generate_html_excerpt_text($prompt);
 
     if ( $generated === '' ) {
@@ -222,10 +235,28 @@ add_action('wp_ajax_myls_ai_html_excerpt_generate_bulk', function() : void {
             continue;
         }
 
+        // ── Variation Engine: inject angle + banned phrases ──
+        if ( class_exists('MYLS_Variation_Engine') ) {
+            $angle  = MYLS_Variation_Engine::next_angle('html_excerpt');
+            $prompt = MYLS_Variation_Engine::inject_variation( $prompt, $angle, 'html_excerpt' );
+        }
+
+        if ( function_exists('myls_ai_set_usage_context') ) {
+            myls_ai_set_usage_context( 'html_excerpts', $pid );
+        }
         $generated = myls_ai_generate_html_excerpt_text($prompt);
 
         if ( $generated === '' ) {
-            $results[] = ['id' => $pid, 'ok' => false, 'error' => 'AI returned empty (check API key/model)'];
+            $diag = 'AI returned empty.';
+            if ( ! empty( $GLOBALS['myls_ai_last_error'] ) ) {
+                $diag .= ' Error: ' . mb_substr( $GLOBALS['myls_ai_last_error'], 0, 300 );
+                $GLOBALS['myls_ai_last_error'] = '';
+            }
+            if ( function_exists('myls_ai_last_call') ) {
+                $lc = myls_ai_last_call();
+                $diag .= ' | Provider: ' . ($lc['provider'] ?? '?') . ', Model: ' . ($lc['resolved_model'] ?? '?');
+            }
+            $results[] = ['id' => $pid, 'ok' => false, 'error' => $diag];
             continue;
         }
 
@@ -265,6 +296,8 @@ add_action('wp_ajax_myls_ai_html_excerpt_generate_bulk', function() : void {
             'saved'        => $saved,
             'dryrun'       => $dryrun,
             'html_excerpt' => $generated,
+            'old'          => $existing,
+            'new'          => $generated,
             'title'        => (string) get_the_title($pid),
             'preview'      => mb_substr(wp_strip_all_tags($generated), 0, 120) . (mb_strlen(wp_strip_all_tags($generated)) > 120 ? '...' : ''),
             'log'          => $ve_log,

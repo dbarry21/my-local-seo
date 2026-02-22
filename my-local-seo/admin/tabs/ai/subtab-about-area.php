@@ -81,10 +81,11 @@ return [
           </label>
         </div>
 
-        <div class="mt-3 d-flex gap-2">
+        <div class="mt-3 d-flex gap-2 align-items-center flex-wrap">
           <button id="myls_ai_about_generate" class="button button-primary">Generate for Selected</button>
-          <button id="myls_ai_about_stop" class="button">Stop</button>
-          <span id="myls_ai_about_status" style="margin-left:10px;"></span>
+          <button id="myls_ai_about_stop" class="button" style="color:#d63638;border-color:#d63638;" disabled>⏹ Stop</button>
+          <span id="myls_ai_about_status" style="margin-left:10px;font-weight:500;"></span>
+          <span id="myls_ai_about_progress" style="margin-left:4px;color:#787c82;font-size:13px;"></span>
         </div>
 
         <hr/>
@@ -114,6 +115,7 @@ return [
         ajaxurl: "<?php echo esc_js( admin_url('admin-ajax.php') ); ?>",
         nonce:   "<?php echo esc_js( $nonce ); ?>",
         defaultType: "<?php echo esc_js( $default_pt ); ?>",
+        model: "<?php echo esc_js( function_exists('myls_ai_get_default_model') ? myls_ai_get_default_model() : '' ); ?>",
         // Use the v2 endpoints explicitly:
         action_get_posts: "myls_ai_about_get_posts_v2",
         action_generate:  "myls_ai_about_generate_v2"

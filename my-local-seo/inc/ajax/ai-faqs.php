@@ -276,6 +276,70 @@ if ( ! function_exists('myls_ai_md_inline') ) {
 }
 
 /* -------------------------------------------------------------------------
+ * Shared FAQ HTML sanitizer
+ *
+ * Cleans up common AI-generated HTML malformations. Used by both the
+ * main generation handler and the fill pass to ensure consistent cleanup.
+ *
+ * @since 6.3.2.5
+ * ------------------------------------------------------------------------- */
+if ( ! function_exists('myls_ai_faqs_sanitize_raw_html') ) {
+  function myls_ai_faqs_sanitize_raw_html( string $raw, bool $allow_links = true ) : string {
+    // ── Fix malformed HTML tags with spaces ──
+
+    // "< strong >" → "<strong>", "< /li >" → "</li>"
+    $raw = preg_replace('#<\s+(/?\s*[a-z][a-z0-9]*)\s*>#i', '<$1>', $raw);
+    // "< strong>" or "<strong >" with optional attributes
+    $raw = preg_replace('#<\s+(/?\s*[a-z][a-z0-9]*)(\s+[^>]*)?\s*>#i', '<$1$2>', $raw);
+
+    // "< / p >" or "</  p>" → "</p>"
+    $raw = preg_replace('#<\s*/\s*([a-z][a-z0-9]*)\s*>#i', '</$1>', $raw);
+
+    // "< h 3 >" → "<h3>", "< / h 3 >" → "</h3>" (space in tag name before digit)
+    $raw = preg_replace_callback('#<\s*(/?)\s*([a-z])\s+(\d)\s*>#i', function($m) {
+      return '<' . $m[1] . $m[2] . $m[3] . '>';
+    }, $raw);
+
+    // 'href = "url"' → 'href="url"' (spaces around = in attributes)
+    $raw = preg_replace('#(\w+)\s*=\s*"#', '$1="', $raw);
+
+    // Broken closing tags missing <: ". / p >" or ". /p>" after punctuation
+    $raw = preg_replace('#([.!?;])\s*/\s*([a-z][a-z0-9]*)\s*>#i', '$1</$2>', $raw);
+
+    // ── Fix malformed closing tags with wrong bracket ──
+    // "</a]" "</a)" "</a}" → "</a>"
+    $raw = preg_replace('#</([a-z][a-z0-9]*)\s*[\]\)\}]#i', '</$1>', $raw);
+    // "<a href="url"]" → "<a href="url">"
+    $raw = preg_replace('#(<[a-z][a-z0-9]*(?:\s+[^>]*?)?)[\]\)\}]\s*#i', '$1>', $raw);
+
+    // ── Fix leaked HTML tag names as text ──
+    // "Answer : strong >" → "<strong>Answer:</strong> "
+    $raw = preg_replace('/\bAnswer\s*:\s*strong\s*(?:>|&gt;)\s*/i', '<strong>Answer:</strong> ', $raw);
+    // Generic bare tag names followed by > as text
+    $raw = preg_replace('/(?<![<\/])\b(strong|em)\s*(?:>|&gt;)\s*/i', '', $raw);
+
+    // ── Remove unwanted attributes ──
+    $raw = preg_replace('/\s+(style|class|data-[a-z0-9_-]+)="[^"]*"/i', '', $raw);
+
+    // ── Link handling ──
+    if ( ! $allow_links ) {
+      $raw = preg_replace('#</?a\b[^>]*>#i', '', $raw);
+    } else {
+      // Ensure rel noopener on any external links
+      $raw = preg_replace_callback('#<a\b([^>]*)>#i', function($m){
+        $tag = $m[0];
+        if ( stripos($tag, 'rel=') === false ) {
+          $tag = rtrim(substr($tag,0,-1)) . ' rel="noopener">';
+        }
+        return $tag;
+      }, $raw);
+    }
+
+    return $raw;
+  }
+}
+
+/* -------------------------------------------------------------------------
  * Output validation: check if generated HTML has a reasonable FAQ structure
  * ------------------------------------------------------------------------- */
 if ( ! function_exists('myls_ai_faqs_validate_output') ) {
@@ -296,15 +360,18 @@ if ( ! function_exists('myls_ai_faqs_validate_output') ) {
     if ( $p_count < 1 ) return ['valid' => false, 'faq_count' => $raw_h3_count, 'reason' => 'no_paragraphs'];
 
     // Check for garbled text: words longer than 60 chars without spaces.
-    // Must inject spaces at tag boundaries BEFORE stripping (prevents <h3>Q?</h3><p>A → Q?A concatenation)
-    // and strip URLs (long URLs are not garbled text).
+    // NOTE: This is now a WARNING only — we log it but let processing continue.
+    // The per-FAQ validator in extract_pairs() catches garbled text per-FAQ
+    // and drops only the bad ones, preserving good FAQs for the fill pass.
     $text_for_garble = preg_replace('#><#', '> <', $html);        // space at every tag boundary
     $text_for_garble = wp_strip_all_tags($text_for_garble);
     $text_for_garble = preg_replace('#https?://\S+#', '', $text_for_garble);  // strip URLs
     $text_for_garble = preg_replace('#[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}#', '', $text_for_garble); // strip emails
+    $has_garbled = false;
     if ( preg_match('/[^\s]{60,}/', $text_for_garble, $garble_match) ) {
       $offending = mb_substr($garble_match[0], 0, 80);
-      return ['valid' => false, 'faq_count' => $raw_h3_count, 'reason' => "garbled_text: \"{$offending}\""];
+      error_log("[MYLS FAQ] Global garbled text detected (will filter per-FAQ): \"{$offending}\"");
+      $has_garbled = true;
     }
 
     // Extract pairs with per-FAQ validation (drops code/errors/garbled individual FAQs)
@@ -431,6 +498,73 @@ if ( ! function_exists('myls_ai_faq_validate_pair') ) {
     // ── HTML leaking into question text ──
     if ( preg_match('/<[a-z]+[\s>]/i', $question) ) {
       return ['valid' => false, 'reason' => 'html_in_question'];
+    }
+
+    // ── Leaked HTML tags / raw markup as plain text ──
+    // Catches AI output where HTML tags appear as visible text in the answer.
+    // This happens when the AI outputs malformed tags with spaces (< h3 >, < / p >)
+    // that survive cleanup, or when tags lose their angle brackets entirely.
+
+    // Pattern 1: Tag names followed by > as text (e.g. "p>" "h3>" "strong>" "em>")
+    // Exclude common English words "a" by itself — require either a slash prefix or a compound tag name
+    if ( preg_match('/(?:\/\s*(?:p|a|ul|ol|li|em|strong|h[1-6])\s*(?:>|&gt;)|\b(?:strong|em|div|span|h[1-6])\s*(?:>|&gt;))/i', $answer) ) {
+      return ['valid' => false, 'reason' => 'leaked_html_tag'];
+    }
+
+    // Pattern 2: Raw HTML attributes as text (e.g. 'a href =' or 'href="https://')
+    if ( preg_match('/\bhref\s*=\s*["\']?https?:/i', $answer) ) {
+      return ['valid' => false, 'reason' => 'leaked_html_attr'];
+    }
+
+    // Pattern 3: Multiple consecutive tag fragments (e.g. ". p> h 3 >" or "; a > . p>")
+    // Two or more tag-like fragments in close proximity = definitely broken HTML
+    if ( preg_match('/(?:[a-z][a-z0-9]*\s*(?:>|&gt;)\s*){2}/i', $answer) ) {
+      return ['valid' => false, 'reason' => 'leaked_html_tags_multiple'];
+    }
+
+    // ── Malformed HTML tags with wrong brackets ──
+    // Catches escaped broken tags like "&lt;/a]" or "</a)" visible as text in the answer
+    if ( preg_match('#(?:&lt;|<)\s*/[a-z]+\s*[\]\)\}]#i', $answer) ) {
+      return ['valid' => false, 'reason' => 'malformed_html_tag'];
+    }
+    // Also check the raw answer_html for the same pattern
+    if ( $answer_html !== '' && preg_match('#(?:&lt;|<)\s*/[a-z]+\s*[\]\)\}]#i', $answer_html) ) {
+      return ['valid' => false, 'reason' => 'malformed_html_tag'];
+    }
+
+    // ── Raw HTML in answer_html that survived as text ──
+    // If the plain-text answer contains tag-like content that shouldn't be visible
+    if ( $answer_html !== '' ) {
+      // Check if answer_html has tags rendered as text entities (&lt;h3&gt; etc.)
+      if ( preg_match('/&lt;\s*\/?[a-z][a-z0-9]*(?:\s[^&]*)?\s*&gt;/i', $answer_html) ) {
+        return ['valid' => false, 'reason' => 'escaped_html_in_answer'];
+      }
+    }
+
+    // ── Keyword soup / incoherent content ──
+    // Detects AI output that strings keywords together without proper
+    // sentence structure (missing articles, prepositions, verbs).
+    // Normal English prose has ~35-55% function words; keyword soup < 15%.
+    if ( count($words) >= 40 ) {
+      $function_words = ['the','a','an','is','are','was','were','be','been',
+        'being','have','has','had','do','does','did','will','would','shall',
+        'should','may','might','can','could','must','to','of','in','for',
+        'on','with','at','by','from','as','into','through','during','before',
+        'after','above','below','between','under','again','further','then',
+        'once','and','but','or','nor','not','so','yet','both','either',
+        'neither','each','every','all','any','few','more','most','other',
+        'some','such','no','only','own','same','than','too','very','that',
+        'this','these','those','it','its','he','she','they','we','you',
+        'i','me','my','your','his','her','our','their','who','which','what',
+        'when','where','how','why','if','because','while','although','since'];
+      $func_count = 0;
+      foreach ( $words as $w ) {
+        if ( in_array($w, $function_words, true) ) $func_count++;
+      }
+      $func_ratio = $func_count / count($words);
+      if ( $func_ratio < 0.15 ) {
+        return ['valid' => false, 'reason' => 'keyword_soup'];
+      }
     }
 
     return ['valid' => true, 'reason' => 'ok'];
@@ -1177,6 +1311,9 @@ add_action('wp_ajax_myls_ai_faqs_generate_v1', function(){
   if ( trim($template) === '' ) $template = (string) get_option('myls_ai_faqs_prompt_template', '');
 
   if ( trim($template) === '' ) {
+    $template = function_exists('myls_get_default_prompt') ? myls_get_default_prompt('faqs-builder') : '';
+  }
+  if ( trim($template) === '' ) {
     $template = "Create FAQs for {{TITLE}} using {{PAGE_TEXT}}. Output clean HTML: <h2>FAQs</h2> then 10 FAQs with <h3>Question</h3> and multi-paragraph answers plus a <ul> checklist, then <h2>Sources</h2> list.";
   }
 
@@ -1319,28 +1456,8 @@ add_action('wp_ajax_myls_ai_faqs_generate_v1', function(){
       $allowed['a'] = ['href'=>true, 'target'=>true, 'rel'=>true, 'title'=>true];
     }
 
-    // Fix malformed HTML tags with spaces inside angle brackets
-    // e.g. "< strong >" → "<strong>", "< /li >" → "</li>", "< h3 >" → "<h3>"
-    $raw = preg_replace('#<\s+(/?\s*[a-z][a-z0-9]*)\s*>#i', '<$1>', $raw);
-    // Also fix partial cases: "< strong>" or "<strong >" or "< /p >"
-    $raw = preg_replace('#<\s+(/?\s*[a-z][a-z0-9]*)(\s+[^>]*)?\s*>#i', '<$1$2>', $raw);
-
-    // Remove any style/class/data-* attributes if model adds them
-    $raw = preg_replace('/\s+(style|class|data-[a-z0-9_-]+)="[^"]*"/i', '', $raw);
-
-    // If links are not allowed, strip <a> tags entirely
-    if ( ! $allow_links ) {
-      $raw = preg_replace('#</?a\b[^>]*>#i', '', $raw);
-    } else {
-      // Ensure rel noopener on any external links
-      $raw = preg_replace_callback('#<a\b([^>]*)>#i', function($m){
-        $tag = $m[0];
-        if ( stripos($tag, 'rel=') === false ) {
-          $tag = rtrim(substr($tag,0,-1)) . ' rel="noopener">';
-        }
-        return $tag;
-      }, $raw);
-    }
+    // Sanitize raw HTML (shared function handles all tag fixes, attribute cleanup, link handling)
+    $raw = myls_ai_faqs_sanitize_raw_html($raw, $allow_links);
 
     $clean = wp_kses($raw, $allowed);
 
@@ -1461,12 +1578,23 @@ add_action('wp_ajax_myls_ai_faqs_generate_v1', function(){
     $fill_prompt .= "EXISTING QUESTIONS (do NOT duplicate these):\n{$existing_list}\n\n";
     $fill_prompt .= "RULES:\n";
     $fill_prompt .= "- Return clean HTML only. No markdown, no code fences, no backticks.\n";
-    $fill_prompt .= "- No spaces inside HTML angle brackets. Write <h3> not < h3 >.\n";
-    $fill_prompt .= "- Each FAQ must follow this EXACT structure:\n";
+    $fill_prompt .= "- Write every sentence as proper grammatical English with articles, prepositions, and verbs.\n";
+    $fill_prompt .= "\n";
+    $fill_prompt .= "HTML FORMATTING — CRITICAL:\n";
+    $fill_prompt .= "- Tags must be properly formed with NO spaces: <h3> not < h3 > or < h 3 >\n";
+    $fill_prompt .= "- Closing tags must be properly formed: </p> not </ p> or / p> or </p]\n";
+    $fill_prompt .= "- Links must use proper tags: <a href=\"url\">text</a> — never write the href attribute as plain text\n";
+    $fill_prompt .= "- Every <h3> must have </h3>, every <p> must have </p>, every <a> must have </a>\n";
+    $fill_prompt .= "- Allowed tags ONLY: <h3> <p> <ul> <ol> <li> <strong> <em> <a>\n";
+    $fill_prompt .= "- NEVER nest identical tags (e.g. <strong><strong> is invalid)\n";
+    $fill_prompt .= "\n";
+    $fill_prompt .= "Each FAQ must follow this EXACT structure:\n";
     $fill_prompt .= "  <h3>Question about {$title}?</h3>\n";
-    $fill_prompt .= "  <p>Direct answer sentence. Supporting details for";
+    $fill_prompt .= "  <p><strong>Answer:</strong> Direct answer sentence.</p>\n";
+    $fill_prompt .= "  <p>Supporting details for";
     if ( $city_state !== '' ) $fill_prompt .= " {$city_state}";
     $fill_prompt .= " customers. At least 60 words total.</p>\n";
+    $fill_prompt .= "  <ul>\n  <li>Benefit or detail one</li>\n  <li>Benefit or detail two</li>\n  <li>Benefit or detail three</li>\n  </ul>\n";
     $fill_prompt .= "- Questions must be different topics from the existing list above.\n";
     $fill_prompt .= "- Write for homeowners/customers searching in this area.\n";
     $fill_prompt .= "- Do NOT include any code, error messages, file paths, or technical syntax.\n";
@@ -1491,14 +1619,8 @@ add_action('wp_ajax_myls_ai_faqs_generate_v1', function(){
         $fill_raw = myls_ai_markdown_to_html($fill_raw);
       }
 
-      // Sanitize same as main output
-      // Fix malformed HTML tags with spaces inside angle brackets
-      $fill_raw = preg_replace('#<\s+(/?\s*[a-z][a-z0-9]*)\s*>#i', '<$1>', $fill_raw);
-      $fill_raw = preg_replace('#<\s+(/?\s*[a-z][a-z0-9]*)(\s+[^>]*)?\s*>#i', '<$1$2>', $fill_raw);
-      $fill_raw   = preg_replace('/\s+(style|class|data-[a-z0-9_-]+)="[^"]*"/i', '', $fill_raw);
-      if ( ! $allow_links ) {
-        $fill_raw = preg_replace('#</?a\b[^>]*>#i', '', $fill_raw);
-      }
+      // Sanitize same as main output (shared function)
+      $fill_raw = myls_ai_faqs_sanitize_raw_html($fill_raw, $allow_links);
       $fill_clean = wp_kses($fill_raw, $allowed);
 
       // Extract and validate fill pairs

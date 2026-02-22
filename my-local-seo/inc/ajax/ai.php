@@ -233,6 +233,9 @@ add_action('wp_ajax_myls_ai_generate_meta', function(){
 	$pt        = isset($_POST['pt']) ? sanitize_key($_POST['pt']) : 'page';
 	$ids       = isset($_POST['ids']) ? (array) $_POST['ids'] : [];
 	$prompt    = isset($_POST['prompt']) ? wp_unslash($_POST['prompt']) : '';
+	if ( trim($prompt) === '' && function_exists('myls_get_default_prompt') ) {
+		$prompt = myls_get_default_prompt( $kind === 'title' ? 'meta-title' : 'meta-description' );
+	}
 	$overwrite = ! empty($_POST['overwrite']);
 	$dryrun    = ! empty($_POST['dryrun']);
 
@@ -287,6 +290,9 @@ add_action('wp_ajax_myls_ai_generate_meta', function(){
 		}
 
 		// Call AI — no max_tokens override; let openai.php context defaults handle it
+		if ( function_exists('myls_ai_set_usage_context') ) {
+			myls_ai_set_usage_context( 'meta_' . $kind, $id );
+		}
 		$new = trim( myls_ai_generate_text( $final_prompt ) );
 
 		// ── Clean up AI output: extract single meta value ──
@@ -457,6 +463,7 @@ add_action('wp_ajax_myls_ai_about_generate', function(){
 
 	// Template fallback
 	if ( $template === '' ) $template = get_option('myls_ai_about_prompt_template', '');
+	if ( $template === '' && function_exists('myls_get_default_prompt') ) $template = myls_get_default_prompt('about-area');
 	if ( $template === '' ) $template = "Write a 400–500 word clean-HTML 'About the Area' for {{CITY_STATE}}.";
 	$prompt = str_replace('{{CITY_STATE}}', $city_state, $template);
 

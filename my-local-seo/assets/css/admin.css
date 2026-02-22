@@ -117,6 +117,7 @@
 .myls-results-terminal::-webkit-scrollbar-track { background: #0b1220; border-radius: 4px; }
 .myls-results-terminal::-webkit-scrollbar-thumb { background: #1e2d3d; border-radius: 4px; }
 .myls-results-terminal::-webkit-scrollbar-thumb:hover { background: #2a3f55; }
+.myls-results-terminal:focus { outline: 2px solid #2271b1; outline-offset: -2px; }
 
 /* Results header row — title left, PDF button right */
 .myls-results-header {

@@ -140,20 +140,24 @@ class MYLS_Variation_Engine {
             'specificity-forward',      // F) "4-, 5-, and 6-foot privacy fence options..."
         ],
 
-        // Excerpts: controls excerpt lead-in
+        // Excerpts: structural pattern rotation (matches prompt patterns A–F)
         'excerpt' => [
-            'problem-first',       // Lead with the customer problem
-            'statistic-fact',      // Lead with a relevant number
-            'seasonal',            // Lead with time/season relevance
-            'cost-consideration',  // Lead with value proposition
+            'service-forward',     // A: Open with the specific service name
+            'audience-forward',    // B: Open with who this page helps
+            'location-forward',    // C: Open with the city/area name
+            'benefit-forward',     // D: Open with the concrete outcome
+            'problem-forward',     // E: Open with the customer problem
+            'credential-forward',  // F: Open with a trust signal
         ],
 
-        // HTML Excerpts: same as excerpts
+        // HTML Excerpts: structural pattern rotation (matches prompt patterns A–F)
         'html_excerpt' => [
-            'problem-first',
-            'statistic-fact',
-            'seasonal',
-            'cost-consideration',
+            'service-benefit',     // A: Open with service + primary benefit
+            'location-service',    // B: Open with area name + service
+            'problem-solution',    // C: Open with pain point + fix
+            'credential-trust',    // D: Open with trust signal + service
+            'outcome-first',       // E: Open with end result
+            'specificity-lead',    // F: Open with specific detail
         ],
 
         // FAQ Builder: controls question diversity angles
@@ -229,6 +233,47 @@ class MYLS_Variation_Engine {
             'state-of-the-art',
             'world-class',
             'cutting-edge',
+        ],
+
+        'excerpt' => [
+            'Whether you need',
+            'Look no further',
+            'Our team of experts',
+            'We pride ourselves',
+            'second to none',
+            'your go-to',
+            'high-quality',
+            'top-notch',
+            'state-of-the-art',
+            'comprehensive solutions',
+            'all your needs',
+            'trusted professionals',
+            'dedicated to providing',
+            'committed to excellence',
+            'premier',
+            'unmatched',
+        ],
+
+        'html_excerpt' => [
+            'Whether you need',
+            'Look no further',
+            'Our team of experts',
+            'We pride ourselves',
+            'second to none',
+            'your go-to',
+            'high-quality',
+            'top-notch',
+            'state-of-the-art',
+            'comprehensive solutions',
+            'all your needs',
+            'trusted professionals',
+            'dedicated to providing',
+            'committed to excellence',
+            'premier',
+            'unmatched',
+            'Don\'t hesitate',
+            'Contact us today',
+            'Call now',
         ],
 
         'taglines' => [
@@ -307,7 +352,8 @@ class MYLS_Variation_Engine {
      */
     public static function inject_variation( string $prompt, string $angle, string $context = '' ) : string {
 
-        $is_short_form = in_array( $context, ['meta_title', 'meta_description', 'taglines'], true );
+        $is_short_form  = in_array( $context, ['meta_title', 'meta_description', 'taglines'], true );
+        $is_medium_form = in_array( $context, ['excerpt', 'html_excerpt'], true );
 
         // Build the variation block
         $block = "\n\n";
@@ -319,8 +365,14 @@ class MYLS_Variation_Engine {
             $block .= "- You MUST follow the Structural Pattern above for this output.\n";
             $block .= "- Use a different opening word than any previous output in this batch.\n";
             $block .= "- Use specific, concrete language — not generic filler.\n";
+        } elseif ( $is_medium_form ) {
+            // Medium-form rules (excerpts — 1-4 sentences)
+            $block .= "- You MUST follow the Structural Pattern above for this output.\n";
+            $block .= "- Open with a DIFFERENT word than any other excerpt in this batch.\n";
+            $block .= "- Use specific, concrete language — name the actual service and location.\n";
+            $block .= "- Vary sentence count across the batch (not all the same length).\n";
         } else {
-            // Long-form rules (about areas, excerpts, page builder, etc.)
+            // Long-form rules (about areas, page builder, etc.)
             $block .= "- The first paragraph MUST follow the Structural Pattern above.\n";
             $block .= "- Do NOT repeat sentence structure patterns across paragraphs.\n";
             $block .= "- Vary paragraph length and rhythm.\n";
@@ -339,6 +391,9 @@ class MYLS_Variation_Engine {
         // General anti-duplication rules (tailored by form length)
         if ( $is_short_form ) {
             $block .= "- Do not use the same adjective-noun or verb-noun pairing as other outputs in this batch.\n";
+        } elseif ( $is_medium_form ) {
+            $block .= "- Do not reuse the same verb-noun or adjective-noun pairing from other items in this batch.\n";
+            $block .= "- Avoid generic adjectives: vibrant, beautiful, exceptional, outstanding, reliable.\n";
         } else {
             $block .= "- Avoid generic adjectives: vibrant, charming, thriving, beautiful, bustling.\n";
             $block .= "- Avoid repeating any 4+ word phrase that commonly appears in city descriptions.\n";

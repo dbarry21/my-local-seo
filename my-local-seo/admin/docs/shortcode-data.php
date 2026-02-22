@@ -453,24 +453,6 @@ function mlseo_compile_shortcode_documentation() {
             ],
         ],
 
-        [
-            'name' => 'with_transcript',
-            'category' => 'content',
-            'description' => 'Displays a YouTube video embed with an expandable transcript accordion underneath.',
-            'basic_usage' => '[with_transcript video_id="dQw4w9WgXcQ"]',
-            'attributes' => [
-                'video_id' => ['default' => '', 'description' => 'YouTube video ID (required)'],
-                'post_id'  => ['default' => '0','description' => 'Post ID to pull transcript from (0 = current)'],
-            ],
-            'examples' => [
-                ['label' => 'Embed with transcript', 'code' => '[with_transcript video_id="dQw4w9WgXcQ"]'],
-            ],
-            'tips' => [
-                'Transcript is stored in post meta and can be auto-generated via the YouTube tools',
-                'Accordion is Bootstrap-powered and collapsed by default',
-            ],
-        ],
-
         // ============================================================
         // SCHEMA & SEO
         // ============================================================
@@ -531,6 +513,7 @@ function mlseo_compile_shortcode_documentation() {
             'tips' => [
                 'Falls back to regular page title if Yoast is not active',
                 'Ensures on-page title matches meta title for SEO consistency',
+                'Also registered as [seo_title] — both work identically',
             ],
         ],
 
@@ -676,6 +659,149 @@ function mlseo_compile_shortcode_documentation() {
             ],
             'tips' => [
                 'Categories are automatically linked to their archive pages',
+            ],
+        ],
+
+        [
+            'name' => 'post_title',
+            'category' => 'utility',
+            'description' => 'Outputs the post or page title. Useful in Elementor, Divi, or template contexts where the title needs to be injected via shortcode.',
+            'basic_usage' => '[post_title]',
+            'attributes' => [
+                'id' => ['default' => 'current', 'description' => 'Post ID (defaults to current post)'],
+            ],
+            'examples' => [
+                ['label' => 'Current post', 'code' => '[post_title]'],
+                ['label' => 'Specific post', 'code' => '[post_title id="42"]'],
+            ],
+            'tips' => [
+                'Useful in page builder heading modules that support shortcodes',
+                'Returns the raw title text without wrapping HTML',
+            ],
+        ],
+
+        [
+            'name' => 'yearly_archives',
+            'category' => 'utility',
+            'description' => 'Generates a list of year links to post archives. Each year with published posts gets a clickable link.',
+            'basic_usage' => '[yearly_archives]',
+            'attributes' => [],
+            'examples' => [
+                ['label' => 'Archive links', 'code' => '[yearly_archives]'],
+            ],
+            'tips' => [
+                'Outputs a <ul> list of years with links to year archive pages',
+                'Only shows years that have published posts',
+                'Great for sidebars or footer archive navigation',
+            ],
+        ],
+
+        [
+            'name' => 'ssseo_places_status',
+            'category' => 'utility',
+            'description' => 'Displays real-time Open/Closed status from Google Places API with optional next open/close time. Supports badge, text, and boolean output modes.',
+            'basic_usage' => '[ssseo_places_status]',
+            'attributes' => [
+                'place_id'  => ['default' => '',        'description' => 'Google Place ID (defaults to site setting)'],
+                'output'    => ['default' => 'text',    'description' => 'Display mode: text, badge, or boolean'],
+                'refresh'   => ['default' => '900',     'description' => 'Cache duration in seconds'],
+                'fallback'  => ['default' => 'unknown', 'description' => 'Text when status unavailable'],
+                'show_next' => ['default' => '1',       'description' => '1 = show next open/close time'],
+                'show_day'  => ['default' => 'abbr',    'description' => 'Day format: abbr or full'],
+                'debug'     => ['default' => '0',       'description' => '1 = show debug info'],
+            ],
+            'examples' => [
+                ['label' => 'Default text', 'code' => '[ssseo_places_status]'],
+                ['label' => 'Badge style', 'code' => '[ssseo_places_status output="badge"]'],
+                ['label' => 'Specific place', 'code' => '[ssseo_places_status place_id="ChIJ..." output="badge"]'],
+                ['label' => 'No next time', 'code' => '[ssseo_places_status show_next="0"]'],
+            ],
+            'tips' => [
+                'Uses Google Places API — requires API key in plugin settings',
+                'Caches results for 15 minutes by default to stay within API limits',
+                'output="boolean" returns "true"/"false" for conditional logic',
+                'Automatically calculates open/closed from business hours if API doesn\'t return it directly',
+            ],
+        ],
+
+        [
+            'name' => 'social_share_icon',
+            'category' => 'social',
+            'description' => 'Icon-based social sharing with a modal popup. Compact sharing buttons that expand into a share dialog.',
+            'basic_usage' => '[social_share_icon]',
+            'attributes' => [],
+            'examples' => [
+                ['label' => 'Share icons', 'code' => '[social_share_icon]'],
+            ],
+            'tips' => [
+                'More compact than [social_share] — opens a sharing modal on click',
+                'Automatically shares current page URL and title',
+                'Includes Facebook, Twitter, LinkedIn, and email',
+            ],
+        ],
+
+        // ============================================================
+        // YOUTUBE
+        // ============================================================
+
+        [
+            'name' => 'myls_youtube_panel',
+            'category' => 'youtube',
+            'description' => 'Embeds a YouTube video with an accordion panel below containing the video description and optional AI-generated transcript.',
+            'basic_usage' => '[myls_youtube_panel url="https://youtube.com/watch?v=..."]',
+            'attributes' => [
+                'url'        => ['default' => '',  'description' => 'YouTube video URL (required)'],
+                'transcript' => ['default' => '1', 'description' => '1 = include transcript accordion panel'],
+            ],
+            'examples' => [
+                ['label' => 'With transcript', 'code' => '[myls_youtube_panel url="https://youtube.com/watch?v=dQw4w9WgXcQ"]'],
+                ['label' => 'No transcript', 'code' => '[myls_youtube_panel url="https://youtube.com/watch?v=dQw4w9WgXcQ" transcript="0"]'],
+            ],
+            'tips' => [
+                'Accordion panels use Bootstrap styling — Description and Transcript sections',
+                'Transcript is fetched via YouTube Data API if available',
+                'Supports standard youtube.com, youtu.be, and shorts URLs',
+            ],
+        ],
+
+        [
+            'name' => 'myls_youtube_with_transcript',
+            'category' => 'youtube',
+            'description' => 'Embeds a YouTube video with auto-generated transcript content. Used in video blog posts created by the YouTube Video Blog module.',
+            'basic_usage' => '[myls_youtube_with_transcript url="https://youtube.com/watch?v=..."]',
+            'attributes' => [
+                'url' => ['default' => '', 'description' => 'YouTube video URL (required)'],
+            ],
+            'examples' => [
+                ['label' => 'Basic embed', 'code' => '[myls_youtube_with_transcript url="https://youtube.com/watch?v=dQw4w9WgXcQ"]'],
+            ],
+            'tips' => [
+                'Typically auto-inserted by the YouTube Video Blog module when generating draft posts',
+                'Requires YouTube Data API key configured in plugin settings',
+                'For manual embeds with more control, use [myls_youtube_panel] instead',
+            ],
+        ],
+
+        [
+            'name' => 'youtube_channel_list_detailed',
+            'category' => 'youtube',
+            'description' => 'Displays a card list of recent videos from a YouTube channel with large thumbnails and optional description excerpts.',
+            'basic_usage' => '[youtube_channel_list_detailed]',
+            'attributes' => [
+                'max'      => ['default' => '6',   'description' => 'Maximum videos to display'],
+                'channel'  => ['default' => '',    'description' => 'YouTube channel ID (defaults to plugin setting)'],
+                'desc_max' => ['default' => '280', 'description' => 'Maximum characters for description excerpt'],
+            ],
+            'examples' => [
+                ['label' => 'Default 6 videos', 'code' => '[youtube_channel_list_detailed]'],
+                ['label' => '10 videos, short desc', 'code' => '[youtube_channel_list_detailed max="10" desc_max="150"]'],
+                ['label' => 'Specific channel', 'code' => '[youtube_channel_list_detailed channel="UCxxxxxxx"]'],
+            ],
+            'tips' => [
+                'Requires YouTube Data API key in plugin settings',
+                'Channel ID defaults to the one configured in the YouTube tab',
+                'Videos are pulled from the channel\'s uploads playlist',
+                'Thumbnails link directly to YouTube',
             ],
         ],
 
