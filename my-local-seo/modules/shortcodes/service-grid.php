@@ -21,6 +21,9 @@
  *   [service_grid center="0"]                            // disable row centering
  *   [service_grid image_crop="1" image_height="220"]     // uniform image crop
  *   [service_grid featured_first="1"]                    // first item larger (6 cols on desktop)
+ *   [service_grid aspect_ratio="1/1"]                    // square images (any CSS aspect-ratio value)
+ *   [service_grid aspect_ratio="4/3"]                    // landscape images
+ *   [service_grid aspect_ratio="3/4"]                    // portrait images
  *   
  * Column Options:
  *   columns="2"  // 2 per row on desktop (col-lg-6)
@@ -71,6 +74,9 @@ if ( ! function_exists('ssseo_service_grid_shortcode_v2') ) {
       // Column count control (NEW - replaces two_col)
       'columns'        => '4',  // 2|3|4|6 : number of columns on desktop (lg breakpoint)
       'two_col'        => '0',  // DEPRECATED: kept for backward compatibility, use columns="2" instead
+      
+      // Aspect ratio for images
+      'aspect_ratio'   => '',   // e.g. '1/1', '4/3', '3/4', '16/9' – blank = natural ratio
     ], $atts, 'service_grid' );
 
     // Normalize row classes if centering disabled
@@ -113,6 +119,12 @@ if ( ! function_exists('ssseo_service_grid_shortcode_v2') ) {
     
     // Add column-specific class to wrapper for targeting
     $wrap_classes[] = 'myls-sg-cols-' . $columns;
+    
+    // Aspect ratio support
+    $aspect_ratio = sanitize_text_field( trim( $a['aspect_ratio'] ) );
+    if ( $aspect_ratio ) {
+      $wrap_classes[] = 'myls-sg-has-ratio';
+    }
 
     $img_h = max( 80, (int) $a['image_height'] ); // safety min
 
@@ -130,8 +142,45 @@ if ( ! function_exists('ssseo_service_grid_shortcode_v2') ) {
 
     if ( $q->have_posts() ) {
 
+      // ------ Inline CSS (printed once) ------
+      static $css_printed = false;
+      if ( ! $css_printed ) {
+        $css_printed = true;
+        echo '<style>
+/* === My Local SEO – Service Grid === */
+.myls-service-grid{--bs-gutter-x:10px;--bs-gutter-y:10px}
+.myls-service-grid .service-box{display:flex;flex-direction:column}
+.myls-service-grid .myls-sg-img-link{display:block;overflow:hidden;border-radius:.375rem}
+.myls-service-grid .myls-sg-img{width:100%;height:auto;display:block;border-radius:.375rem;transition:transform .3s ease}
+.myls-service-grid .myls-sg-img-link:hover .myls-sg-img{transform:scale(1.03)}
+
+/* Aspect-ratio mode */
+.myls-sg-has-ratio .myls-sg-img{aspect-ratio:var(--myls-sg-ratio,auto);object-fit:cover;height:auto!important}
+
+/* Cropped-image mode (fixed height) */
+.myls-sg-crop .myls-sg-img{height:var(--myls-img-h,220px);object-fit:cover}
+
+/* Title links */
+.myls-service-grid .myls-sg-title a{text-decoration:none;color:inherit}
+.myls-service-grid .myls-sg-title a:hover{opacity:.8}
+
+/* Tagline / excerpt */
+.myls-service-grid .myls-sg-tagline,
+.myls-service-grid .myls-sg-excerpt{font-size:.92em;opacity:.85}
+
+/* Featured first card */
+.myls-sg-featured-first .col-md-6.col-lg-6:first-child .myls-sg-img{min-height:280px;object-fit:cover}
+</style>';
+      }
+
+      // Build inline style with CSS variables
+      $inline_vars = '--myls-img-h:' . esc_attr($img_h) . 'px;';
+      if ( $aspect_ratio ) {
+        $inline_vars .= '--myls-sg-ratio:' . esc_attr($aspect_ratio) . ';';
+      }
+
       // Use a CSS variable for image height without hardcoding in CSS
-      echo '<div class="' . esc_attr( implode(' ', $wrap_classes ) ) . '" style="--myls-img-h:' . esc_attr($img_h) . 'px;">';
+      echo '<div class="' . esc_attr( implode(' ', $wrap_classes ) ) . '" style="' . $inline_vars . '">';
       echo '<div class="' . esc_attr( $row_class ) . '">';
 
       $i = 0;

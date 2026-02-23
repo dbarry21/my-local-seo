@@ -5,6 +5,7 @@
  *
  * Comprehensive documentation for all plugin shortcodes.
  * @since 5.0.0 — full rewrite covering all 30+ shortcodes
+ * @updated 7.0.2 — added google_reviews_slider, social_links; updated service_grid with aspect_ratio
  */
 
 if (!defined('ABSPATH')) exit;
@@ -129,6 +130,7 @@ function mlseo_compile_shortcode_documentation() {
                 'button_target'  => ['default' => '',                     'description' => 'Link target (_blank for new tab)'],
                 'image_crop'     => ['default' => '0',                    'description' => '1 = uniform image height via CSS'],
                 'image_height'   => ['default' => '220',                  'description' => 'Image height in px (when image_crop=1)'],
+                'aspect_ratio'   => ['default' => '',                     'description' => 'CSS aspect ratio for images: 1/1, 4/3, 16/9, 3/4 (blank = natural)'],
                 'featured_first' => ['default' => '0',                    'description' => '1 = first card spans wider'],
                 'center'         => ['default' => '1',                    'description' => '1 = center incomplete rows'],
             ],
@@ -136,9 +138,13 @@ function mlseo_compile_shortcode_documentation() {
                 ['label' => 'Default 4 columns', 'code' => '[service_grid]'],
                 ['label' => '3 columns with excerpts', 'code' => '[service_grid columns="3" subtext="excerpt"]'],
                 ['label' => 'Cropped images, 2 cols', 'code' => '[service_grid columns="2" image_crop="1" image_height="250"]'],
+                ['label' => 'Square images, 6 cols', 'code' => '[service_grid columns="6" aspect_ratio="1/1" show_excerpt="0" button="0"]'],
+                ['label' => 'Landscape ratio', 'code' => '[service_grid aspect_ratio="4/3"]'],
                 ['label' => 'Featured first card', 'code' => '[service_grid featured_first="1"]'],
             ],
             'tips' => [
+                'Use aspect_ratio="1/1" for square images — works great with 6-column layouts',
+                'aspect_ratio uses CSS object-fit: cover so images fill the ratio without distortion',
                 'Tagline comes from the Service Tagline metabox; excerpt from WP excerpt',
                 'Tagline only shows below the title — no more duplication (v5.0 fix)',
                 'Incomplete last rows are auto-centered for a clean look',
@@ -737,6 +743,68 @@ function mlseo_compile_shortcode_documentation() {
                 'More compact than [social_share] — opens a sharing modal on click',
                 'Automatically shares current page URL and title',
                 'Includes Facebook, Twitter, LinkedIn, and email',
+            ],
+        ],
+
+        [
+            'name' => 'social_links',
+            'category' => 'social',
+            'description' => 'Displays branded circular social media icons linked to the Organization schema sameAs / social profile URLs. Auto-detects platform from URL with inline SVG icons — no external icon library needed.',
+            'basic_usage' => '[social_links]',
+            'attributes' => [
+                'size'      => ['default' => '44',     'description' => 'Icon circle diameter in px'],
+                'gap'       => ['default' => '12',     'description' => 'Space between icons in px'],
+                'align'     => ['default' => 'center', 'description' => 'Alignment: left, center, right'],
+                'style'     => ['default' => 'color',  'description' => 'Style: color (branded), mono-dark, mono-light'],
+                'platforms' => ['default' => '',        'description' => 'Comma-separated whitelist (e.g. facebook,instagram,youtube)'],
+                'exclude'   => ['default' => '',        'description' => 'Comma-separated blacklist (e.g. tiktok,pinterest)'],
+                'new_tab'   => ['default' => '1',       'description' => '1 = open links in new tab'],
+            ],
+            'examples' => [
+                ['label' => 'All saved profiles', 'code' => '[social_links]'],
+                ['label' => 'Large icons, left-aligned', 'code' => '[social_links size="56" align="left"]'],
+                ['label' => 'Monochrome dark', 'code' => '[social_links style="mono-dark"]'],
+                ['label' => 'Only Facebook & Instagram', 'code' => '[social_links platforms="facebook,instagram"]'],
+                ['label' => 'Exclude TikTok', 'code' => '[social_links exclude="tiktok"]'],
+            ],
+            'tips' => [
+                'Reads from Organization → Social Profiles (Schema tab) — no duplicate data entry',
+                'Supports 15+ platforms: Facebook, Instagram, X, YouTube, LinkedIn, TikTok, Pinterest, Yelp, Google Business, Google Maps, BBB, Thumbtack, Angi, Nextdoor',
+                'Unknown URLs get a globe icon with the domain name as tooltip',
+                'Uses inline SVG — no Bootstrap Icons or Font Awesome dependency',
+            ],
+        ],
+
+        [
+            'name' => 'google_reviews_slider',
+            'category' => 'social',
+            'description' => 'Pulls Google reviews via the Places API and displays them in a glassmorphism-styled Swiper slider with star ratings, reviewer names, and autoplay.',
+            'basic_usage' => '[google_reviews_slider]',
+            'attributes' => [
+                'place_id'        => ['default' => '',         'description' => 'Google Place ID (defaults to saved setting)'],
+                'min_rating'      => ['default' => '0',        'description' => 'Minimum stars to show (0 = all)'],
+                'max_reviews'     => ['default' => '0',        'description' => 'Limit number of reviews (0 = all)'],
+                'sort'            => ['default' => 'default',  'description' => 'Sort: default (Google relevance), newest, highest'],
+                'speed'           => ['default' => '5000',     'description' => 'Autoplay speed in ms'],
+                'cache_hours'     => ['default' => '24',       'description' => 'Cache duration in hours'],
+                'blur'            => ['default' => '14',       'description' => 'Backdrop blur in px'],
+                'overlay_opacity' => ['default' => '0.12',     'description' => 'Glass overlay opacity (0–1)'],
+                'star_color'      => ['default' => '#FFD700',  'description' => 'Star icon color'],
+                'text_color'      => ['default' => '#ffffff',  'description' => 'Review text color'],
+                'excerpt_words'   => ['default' => '0',        'description' => 'Word limit for review text (0 = full)'],
+            ],
+            'examples' => [
+                ['label' => 'Default (all reviews)', 'code' => '[google_reviews_slider]'],
+                ['label' => '4+ star reviews only', 'code' => '[google_reviews_slider min_rating="4"]'],
+                ['label' => 'Top 5, newest first', 'code' => '[google_reviews_slider max_reviews="5" sort="newest"]'],
+                ['label' => 'Custom styling', 'code' => '[google_reviews_slider blur="20" overlay_opacity="0.18" star_color="#FFA500"]'],
+            ],
+            'tips' => [
+                'Requires Google Places API key and Place ID in My Local SEO → API Integration',
+                'Reviews are cached via WP transients — default 24 hours to minimize API calls',
+                'Place this inside a section with a background image for the glassmorphism effect to show through',
+                'Google Places API returns a maximum of 5 reviews — use min_rating and sort to curate the best ones',
+                'Swiper.js is loaded from CDN only when the shortcode is used on the page',
             ],
         ],
 

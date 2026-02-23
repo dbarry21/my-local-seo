@@ -3,7 +3,7 @@ Contributors: davebarry
 Tags: local seo, schema, ai, faq, utilities, person schema, linkedin
 Requires at least: 6.0
 Tested up to: 6.7.2
-Stable tag: 7.0
+Stable tag: 7.0.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -26,7 +26,7 @@ This plugin provides a modular admin toolkit for local SEO workflows including s
 * Plugin Stats — AI usage analytics, cost tracking, handler breakdown with Chart.js
 * Search Stats — Focus keyword & FAQ tracking, Google Autocomplete suggestions, GSC metrics, AI Overview detection, per-post SERP rank with history tracking
 * Google Search Console OAuth integration
-* 35+ shortcodes for location data, service grids, schema, social sharing, YouTube, and utilities
+* 35+ shortcodes for location data, service grids, schema, social links, Google reviews, YouTube, and utilities
 * Enterprise logging with quality control and batch processing
 
 == Installation ==
@@ -35,6 +35,9 @@ This plugin provides a modular admin toolkit for local SEO workflows including s
 2. Activate the plugin through the 'Plugins' menu in WordPress.
 
 == Upgrade Notice ==
+
+= 7.0.2 =
+New shortcodes: [google_reviews_slider] (Google Places API reviews in glassmorphism Swiper slider with caching), [social_links] (branded circular icons auto-detected from Organization schema sameAs URLs). Enhanced [service_grid] with aspect_ratio attribute and complete CSS foundation. All three shortcodes include inline CSS — no external stylesheet dependencies.
 
 = 7.0 =
 Major release: Search Stats dashboard with GSC integration, per-post SERP rank tracking with history, AI Overview detection, Focus Keyword + FAQ autocomplete expansion, Google Search Console OAuth, Plugin Stats dashboard, enterprise AI logging, comprehensive shortcode documentation update.
@@ -151,6 +154,15 @@ FAQ Quick Editor now supports multi-post batch save and WYSIWYG answers.
 Utilities now includes the FAQ Quick Editor and reorganized FAQ migration tools.
 
 == Changelog ==
+
+= 7.0.2 =
+* NEW: [google_reviews_slider] — Google Places API reviews displayed in a Swiper slider with glassmorphism card styling, star ratings, author attribution, and autoplay
+* NEW: [social_links] — branded circular social icons auto-detected from Organization schema sameAs URLs; supports 15+ platforms with inline SVG icons, three style modes (color, mono-dark, mono-light), and whitelist/blacklist filtering
+* ENHANCED: [service_grid] — added aspect_ratio attribute (e.g. "1/1", "4/3", "16/9") with CSS aspect-ratio + object-fit cover for uniform image sizing
+* ENHANCED: [service_grid] — added complete inline CSS foundation (gutters, card layout, image transitions, title/tagline styling, crop mode, featured first card)
+* Google reviews are cached via WP transients (default 24 hours) to minimize API calls
+* Social links require no duplicate data entry — reads directly from Organization schema settings
+* All three shortcodes use inline CSS with static guards — zero external stylesheet dependencies
 
 = 7.0 =
 * NEW: Search Stats — standalone dashboard for keyword performance tracking

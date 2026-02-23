@@ -1,5 +1,62 @@
 # My Local SEO — Changelog
 
+## 7.0.2 — 2026-02-22
+
+### New Shortcode: [google_reviews_slider]
+
+Pulls Google reviews via the Places API and displays them in a glassmorphism-styled Swiper slider.
+
+**Features:**
+- Fetches reviews from Google Places API using saved API key + Place ID
+- Swiper.js slider with prev/next arrows, pagination dots, autoplay with pause-on-hover
+- Glassmorphism card styling (frosted glass blur via `backdrop-filter`)
+- Star ratings rendered as Unicode stars with configurable color
+- WP transient caching (default 24 hours) to minimize API calls
+- Filter by minimum rating, sort by newest/highest, limit count
+- Configurable blur, opacity, text color, autoplay speed, excerpt word limit
+- Supports multiple instances on same page via unique IDs
+- Admin-only error messages when API key or Place ID is missing
+
+**Usage:** `[google_reviews_slider]` / `[google_reviews_slider min_rating="4" sort="newest" speed="5000"]`
+
+**File added:** `modules/shortcodes/google-reviews-slider.php`
+
+### New Shortcode: [social_links]
+
+Displays branded circular social media icons linked to the Organization schema sameAs / social profile URLs.
+
+**Features:**
+- Auto-reads URLs from `myls_org_social_profiles` (Organization schema settings) — no duplicate data entry
+- Auto-detects platform from URL: Facebook, Instagram, X, YouTube, LinkedIn, TikTok, Pinterest, Yelp, Google Business, Google Maps, BBB, Thumbtack, Angi, Nextdoor, and generic fallback
+- Inline SVG icons (no external icon library dependency)
+- Three style modes: `color` (branded circles), `mono-dark`, `mono-light`
+- Configurable size, gap, alignment, and link target
+- Whitelist (`platforms="facebook,instagram"`) and blacklist (`exclude="tiktok"`) filtering
+- Hover effect with scale + shadow transition
+- Accessible with `aria-label` and `title` on each icon
+
+**Usage:** `[social_links]` / `[social_links size="44" style="color" align="center"]`
+
+**File added:** `modules/shortcodes/social-links.php`
+
+### Enhanced: [service_grid]
+
+- **New attribute:** `aspect_ratio` — accepts any CSS aspect-ratio value (`1/1`, `4/3`, `16/9`, `3/4`)
+- Uses CSS `aspect-ratio` property with `object-fit: cover` for uniform image sizing
+- Added complete inline CSS foundation (previously missing):
+  - 10px gutters via `--bs-gutter-x/y`
+  - Flexbox card layout for `.service-box`
+  - Image link overflow hidden + border radius + hover scale transition
+  - Aspect-ratio mode via CSS variable `--myls-sg-ratio`
+  - Cropped-image mode (existing `image_crop="1"` now functional)
+  - Title link styling and tagline/excerpt typography
+  - Featured first card minimum height
+- CSS printed once via `static $css_printed` guard
+
+**Usage:** `[service_grid columns="6" show_excerpt="0" button="0" aspect_ratio="1/1"]`
+
+**File changed:** `modules/shortcodes/service-grid.php`
+
 ## 7.0 — 2026-02-22
 
 ### Search Stats Dashboard
